@@ -90,7 +90,7 @@ func Test150_cap_manifest_json_serialization(t *testing.T) {
 	// Add an argument with stdin source using new architecture
 	stdinUrn := "media:pdf"
 	capDef.AddArg(cap.CapArg{
-		MediaUrn: standard.MediaBinary,
+		MediaUrn: standard.MediaIdentity,
 		Required: true,
 		Sources:  []cap.ArgSource{{Stdin: &stdinUrn}},
 	})
@@ -273,7 +273,7 @@ func TestCapManifestValidation(t *testing.T) {
 	// Add an argument with stdin source using new architecture
 	stdinUrn := "media:pdf"
 	capDef.AddArg(cap.CapArg{
-		MediaUrn: standard.MediaBinary,
+		MediaUrn: standard.MediaIdentity,
 		Required: true,
 		Sources:  []cap.ArgSource{{Stdin: &stdinUrn}},
 	})

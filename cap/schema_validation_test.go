@@ -635,7 +635,7 @@ func TestMediaUrnResolutionWithMediaSpecs(t *testing.T) {
 		{Urn: media.MediaString, MediaType: "text/plain", ProfileURI: media.ProfileStr},
 		{Urn: media.MediaInteger, MediaType: "text/plain", ProfileURI: media.ProfileInt},
 		{Urn: standard.MediaJSON, MediaType: "application/json", ProfileURI: media.ProfileObj},
-		{Urn: media.MediaBinary, MediaType: "application/octet-stream"},
+		{Urn: media.MediaIdentity, MediaType: "application/octet-stream"},
 	}
 
 	resolved, err := media.ResolveMediaUrn(media.MediaString, mediaSpecs, registry)
@@ -653,7 +653,7 @@ func TestMediaUrnResolutionWithMediaSpecs(t *testing.T) {
 	assert.Equal(t, "application/json", resolved.MediaType)
 	assert.Equal(t, media.ProfileObj, resolved.ProfileURI)
 
-	resolved, err = media.ResolveMediaUrn(media.MediaBinary, mediaSpecs, registry)
+	resolved, err = media.ResolveMediaUrn(media.MediaIdentity, mediaSpecs, registry)
 	require.NoError(t, err)
 	assert.Equal(t, "application/octet-stream", resolved.MediaType)
 	assert.True(t, resolved.IsBinary())

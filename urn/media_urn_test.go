@@ -243,7 +243,7 @@ func Test072_constants_parse(t *testing.T) {
 	constants := []string{
 		standard.MediaVoid,
 		standard.MediaString,
-		standard.MediaBinary,
+		standard.MediaIdentity,
 		standard.MediaObject,
 		standard.MediaInteger,
 		standard.MediaNumber,
@@ -253,7 +253,7 @@ func Test072_constants_parse(t *testing.T) {
 		standard.MediaNumber,
 		standard.MediaBoolean,
 		standard.MediaObject,
-		standard.MediaBinary,
+		standard.MediaIdentity,
 		standard.MediaStringArray,
 		standard.MediaIntegerArray,
 		standard.MediaNumberArray,
@@ -490,7 +490,7 @@ func Test549_is_numeric(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, boolUrn.IsNumeric())
 
-	binaryUrn, err := NewMediaUrnFromString(standard.MediaBinary)
+	binaryUrn, err := NewMediaUrnFromString(standard.MediaIdentity)
 	require.NoError(t, err)
 	assert.False(t, binaryUrn.IsNumeric())
 }
@@ -522,7 +522,7 @@ func Test550_is_bool(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, intUrn.IsBool())
 
-	binaryUrn, err := NewMediaUrnFromString(standard.MediaBinary)
+	binaryUrn, err := NewMediaUrnFromString(standard.MediaIdentity)
 	require.NoError(t, err)
 	assert.False(t, binaryUrn.IsBool())
 }
@@ -543,7 +543,7 @@ func Test551_is_file_path(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, stringUrn.IsFilePath())
 
-	binaryUrn, err := NewMediaUrnFromString(standard.MediaBinary)
+	binaryUrn, err := NewMediaUrnFromString(standard.MediaIdentity)
 	require.NoError(t, err)
 	assert.False(t, binaryUrn.IsFilePath())
 }

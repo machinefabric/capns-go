@@ -193,11 +193,11 @@ func TestIntegrationBinaryCapHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	capDef := cap.NewCap(urn, "Thumbnail Generator", "generate-thumbnail")
-	capDef.SetOutput(cap.NewCapOutput(standard.MediaBinary, "Generated thumbnail"))
+	capDef.SetOutput(cap.NewCapOutput(standard.MediaIdentity, "Generated thumbnail"))
 
 	// Add mediaSpecs for resolution
 	capDef.SetMediaSpecs([]media.MediaSpecDef{
-		{Urn: standard.MediaBinary, MediaType: "application/octet-stream"},
+		{Urn: standard.MediaIdentity, MediaType: "application/octet-stream"},
 	})
 
 	// Mock host that returns binary data
@@ -381,7 +381,7 @@ func TestIntegrationMediaUrnResolution(t *testing.T) {
 	mediaSpecs := []media.MediaSpecDef{
 		{Urn: standard.MediaString, MediaType: "text/plain", ProfileURI: media.ProfileStr},
 		{Urn: standard.MediaJSON, MediaType: "application/json", ProfileURI: media.ProfileObj},
-		{Urn: standard.MediaBinary, MediaType: "application/octet-stream"},
+		{Urn: standard.MediaIdentity, MediaType: "application/octet-stream"},
 	}
 
 	// Test string media URN resolution
@@ -402,7 +402,7 @@ func TestIntegrationMediaUrnResolution(t *testing.T) {
 	assert.True(t, resolved.IsJSON()) // MediaJSON has json marker tag
 
 	// Test binary media URN
-	resolved, err = media.ResolveMediaUrn(standard.MediaBinary, mediaSpecs, registry)
+	resolved, err = media.ResolveMediaUrn(standard.MediaIdentity, mediaSpecs, registry)
 	require.NoError(t, err)
 	assert.True(t, resolved.IsBinary())
 

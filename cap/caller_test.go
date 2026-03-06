@@ -205,14 +205,14 @@ func TestCapCallerBinaryResponse(t *testing.T) {
 	capUrn, err := urn.NewCapUrnFromString(`cap:in="media:void";op=generate;out="media:"`)
 	require.NoError(t, err)
 
-	// mediaSpecs for resolution - standard.MediaBinaryExpanded = "media:"
+	// mediaSpecs for resolution - standard.MediaIdentityExpanded = "media:"
 	mediaSpecs := []media.MediaSpecDef{
-		{Urn: standard.MediaBinary, MediaType: "application/octet-stream"},
+		{Urn: standard.MediaIdentity, MediaType: "application/octet-stream"},
 	}
 
 	capDef := NewCap(capUrn, "Generate Capability", "generate-command")
 	capDef.SetMediaSpecs(mediaSpecs)
-	capDef.SetOutput(NewCapOutput(standard.MediaBinary, "Binary output"))
+	capDef.SetOutput(NewCapOutput(standard.MediaIdentity, "Binary output"))
 
 	pngHeader := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
 	mockHost := &MockCapSet{

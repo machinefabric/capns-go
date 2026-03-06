@@ -277,7 +277,7 @@ func MediaUrnString() *MediaUrn {
 
 // MediaUrnBytes creates a binary media URN
 func MediaUrnBytes() *MediaUrn {
-	m, _ := NewMediaUrnFromString(standard.MediaBinary)
+	m, _ := NewMediaUrnFromString(standard.MediaIdentity)
 	return m
 }
 

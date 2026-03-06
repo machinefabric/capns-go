@@ -36,8 +36,8 @@ const MediaBoolean = "media:bool;textable"
 // Use MediaJSON for textable JSON objects.
 const MediaObject = "media:record"
 
-// MediaBinary is the media URN for binary data - the most general media type (no constraints)
-const MediaBinary = "media:"
+// MediaIdentity is the media URN for binary data - the most general media type (no constraints)
+const MediaIdentity = "media:"
 
 // Array types - URNs must match base.toml definitions
 

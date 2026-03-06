@@ -28,7 +28,7 @@ const (
 	MediaNumber       = "media:textable;numeric"
 	MediaBoolean      = "media:bool;textable"
 	MediaObject       = "media:record;textable"
-	MediaBinary       = "media:"
+	MediaIdentity       = "media:"
 	MediaStringArray  = "media:textable;list"
 	MediaIntegerArray = "media:integer;textable;numeric;list"
 	MediaNumberArray  = "media:textable;numeric;list"
