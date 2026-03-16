@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TEST171: Test all FrameType discriminants roundtrip through uint8 conversion preserving identity
@@ -811,4 +813,495 @@ func Test667_verify_chunk_checksum_detects_corruption(t *testing.T) {
 	if err != nil && !strings.Contains(err.Error(), "missing") {
 		t.Errorf("Error should mention missing checksum, got: %v", err)
 	}
+}
+
+// TEST436: compute_checksum determinism and sensitivity
+func Test436_compute_checksum(t *testing.T) {
+	data := []byte("hello world")
+	cs1 := ComputeChecksum(data)
+	cs2 := ComputeChecksum(data)
+	if cs1 != cs2 {
+		t.Error("Same data must produce identical checksums")
+	}
+	if cs1 == 0 {
+		t.Error("Checksum for non-empty data must be non-zero")
+	}
+	different := ComputeChecksum([]byte("different data"))
+	if cs1 == different {
+		t.Error("Different data must produce different checksums")
+	}
+}
+
+// TEST442: SeqAssigner assigns monotonically increasing seq for same RID
+func Test442_seq_assigner_monotonic_same_rid(t *testing.T) {
+	assigner := NewSeqAssigner()
+	rid := NewMessageIdRandom()
+
+	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f1 := NewStreamStart(rid, "s1", "media:")
+	f2 := NewChunk(rid, "s1", 0, []byte("data"), 0, 0)
+	f3 := NewEnd(rid, nil)
+
+	assigner.Assign(f0)
+	assigner.Assign(f1)
+	assigner.Assign(f2)
+	assigner.Assign(f3)
+
+	if f0.Seq != 0 {
+		t.Errorf("Expected seq 0, got %d", f0.Seq)
+	}
+	if f1.Seq != 1 {
+		t.Errorf("Expected seq 1, got %d", f1.Seq)
+	}
+	if f2.Seq != 2 {
+		t.Errorf("Expected seq 2, got %d", f2.Seq)
+	}
+	if f3.Seq != 3 {
+		t.Errorf("Expected seq 3, got %d", f3.Seq)
+	}
+}
+
+// TEST443: SeqAssigner maintains independent per-RID counters
+func Test443_seq_assigner_independent_rids(t *testing.T) {
+	assigner := NewSeqAssigner()
+	ridA := NewMessageIdRandom()
+	ridB := NewMessageIdRandom()
+
+	a0 := NewReq(ridA, "cap:op=a", nil, "")
+	a1 := NewChunk(ridA, "", 0, nil, 0, 0)
+	a2 := NewEnd(ridA, nil)
+	b0 := NewReq(ridB, "cap:op=b", nil, "")
+	b1 := NewChunk(ridB, "", 0, nil, 0, 0)
+
+	assigner.Assign(a0)
+	assigner.Assign(a1)
+	assigner.Assign(a2)
+	assigner.Assign(b0)
+	assigner.Assign(b1)
+
+	if a0.Seq != 0 || a1.Seq != 1 || a2.Seq != 2 {
+		t.Errorf("RID A seq: expected 0,1,2 got %d,%d,%d", a0.Seq, a1.Seq, a2.Seq)
+	}
+	if b0.Seq != 0 || b1.Seq != 1 {
+		t.Errorf("RID B seq: expected 0,1 got %d,%d", b0.Seq, b1.Seq)
+	}
+}
+
+// TEST444: SeqAssigner skips non-flow frames
+func Test444_seq_assigner_skips_non_flow(t *testing.T) {
+	assigner := NewSeqAssigner()
+
+	hello := NewHello(DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer)
+	hb := NewHeartbeat(NewMessageIdRandom())
+	rn := NewRelayNotify(nil, DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer)
+	rs := NewRelayState(nil)
+
+	assigner.Assign(hello)
+	assigner.Assign(hb)
+	assigner.Assign(rn)
+	assigner.Assign(rs)
+
+	if hello.Seq != 0 {
+		t.Errorf("Hello seq should stay 0, got %d", hello.Seq)
+	}
+	if hb.Seq != 0 {
+		t.Errorf("Heartbeat seq should stay 0, got %d", hb.Seq)
+	}
+	if rn.Seq != 0 {
+		t.Errorf("RelayNotify seq should stay 0, got %d", rn.Seq)
+	}
+	if rs.Seq != 0 {
+		t.Errorf("RelayState seq should stay 0, got %d", rs.Seq)
+	}
+}
+
+// TEST445: SeqAssigner remove resets only the targeted flow key
+func Test445_seq_assigner_remove_by_flow_key(t *testing.T) {
+	assigner := NewSeqAssigner()
+	rid := NewMessageIdRandom()
+	xid := NewMessageIdRandom()
+
+	// Flow 1: (rid, no xid) — assign seq 0, 1
+	f1a := NewReq(rid, "cap:op=test", nil, "")
+	f1b := NewChunk(rid, "", 0, nil, 0, 0)
+	assigner.Assign(f1a)
+	assigner.Assign(f1b)
+
+	// Flow 2: (rid, xid) — assign seq 0, 1
+	f2a := NewReq(rid, "cap:op=test", nil, "")
+	f2a.RoutingId = &xid
+	f2b := NewChunk(rid, "", 0, nil, 0, 0)
+	f2b.RoutingId = &xid
+	assigner.Assign(f2a)
+	assigner.Assign(f2b)
+
+	if f1a.Seq != 0 || f1b.Seq != 1 {
+		t.Errorf("Flow 1 before remove: expected 0,1 got %d,%d", f1a.Seq, f1b.Seq)
+	}
+	if f2a.Seq != 0 || f2b.Seq != 1 {
+		t.Errorf("Flow 2 before remove: expected 0,1 got %d,%d", f2a.Seq, f2b.Seq)
+	}
+
+	// Remove flow 1 only
+	assigner.Remove(FlowKey{rid: rid.ToString(), xid: ""})
+
+	// Flow 1 restarts at 0
+	f1c := NewReq(rid, "cap:op=test", nil, "")
+	assigner.Assign(f1c)
+	if f1c.Seq != 0 {
+		t.Errorf("Flow 1 after remove should restart at 0, got %d", f1c.Seq)
+	}
+
+	// Flow 2 continues at 2
+	f2c := NewChunk(rid, "", 0, nil, 0, 0)
+	f2c.RoutingId = &xid
+	assigner.Assign(f2c)
+	if f2c.Seq != 2 {
+		t.Errorf("Flow 2 should continue at 2, got %d", f2c.Seq)
+	}
+}
+
+// TEST445a: Same RID different XIDs are independent flows
+func Test445a_seq_assigner_same_rid_different_xids_independent(t *testing.T) {
+	assigner := NewSeqAssigner()
+	rid := NewMessageIdRandom()
+	xidA := NewMessageIdRandom()
+	xidB := NewMessageIdRandom()
+
+	// Flow (rid, xidA)
+	fA0 := NewReq(rid, "cap:op=a", nil, "")
+	fA0.RoutingId = &xidA
+	fA1 := NewChunk(rid, "", 0, nil, 0, 0)
+	fA1.RoutingId = &xidA
+
+	// Flow (rid, xidB)
+	fB0 := NewReq(rid, "cap:op=b", nil)
+	fB0.RoutingId = &xidB
+
+	// Flow (rid, no xid)
+	fNone0 := NewReq(rid, "cap:op=c", nil, "")
+
+	assigner.Assign(fA0)
+	assigner.Assign(fA1)
+	assigner.Assign(fB0)
+	assigner.Assign(fNone0)
+
+	if fA0.Seq != 0 || fA1.Seq != 1 {
+		t.Errorf("Flow A: expected 0,1 got %d,%d", fA0.Seq, fA1.Seq)
+	}
+	if fB0.Seq != 0 {
+		t.Errorf("Flow B: expected 0, got %d", fB0.Seq)
+	}
+	if fNone0.Seq != 0 {
+		t.Errorf("Flow None: expected 0, got %d", fNone0.Seq)
+	}
+}
+
+// TEST446: SeqAssigner counts across mixed flow frame types
+func Test446_seq_assigner_mixed_types(t *testing.T) {
+	assigner := NewSeqAssigner()
+	rid := NewMessageIdRandom()
+
+	req := NewReq(rid, "cap:op=test", nil, "")
+	log := NewLog(rid, "progress", "test")
+	chunk := NewChunk(rid, "", 0, []byte("data"), 0, 0)
+	end := NewEnd(rid, nil)
+
+	assigner.Assign(req)
+	assigner.Assign(log)
+	assigner.Assign(chunk)
+	assigner.Assign(end)
+
+	if req.Seq != 0 || log.Seq != 1 || chunk.Seq != 2 || end.Seq != 3 {
+		t.Errorf("Mixed types: expected 0,1,2,3 got %d,%d,%d,%d",
+			req.Seq, log.Seq, chunk.Seq, end.Seq)
+	}
+}
+
+// TEST447: FlowKey with XID extracts correctly from frame
+func Test447_flow_key_with_xid(t *testing.T) {
+	rid := NewMessageIdRandom()
+	xid := NewMessageIdRandom()
+
+	frame := NewReq(rid, "cap:op=test", nil, "")
+	frame.RoutingId = &xid
+
+	key := FlowKeyFromFrame(frame)
+	if key.rid != rid.ToString() {
+		t.Error("FlowKey RID mismatch")
+	}
+	if key.xid != xid.ToString() {
+		t.Error("FlowKey XID mismatch")
+	}
+}
+
+// TEST448: FlowKey without XID has empty xid
+func Test448_flow_key_without_xid(t *testing.T) {
+	rid := NewMessageIdRandom()
+	frame := NewReq(rid, "cap:op=test", nil, "")
+
+	key := FlowKeyFromFrame(frame)
+	if key.rid != rid.ToString() {
+		t.Error("FlowKey RID mismatch")
+	}
+	if key.xid != "" {
+		t.Errorf("FlowKey XID should be empty, got %q", key.xid)
+	}
+}
+
+// TEST449: FlowKey equality semantics
+func Test449_flow_key_equality(t *testing.T) {
+	rid := NewMessageIdRandom()
+	xidA := NewMessageIdRandom()
+	xidB := NewMessageIdRandom()
+
+	key1 := FlowKey{rid: rid.ToString(), xid: xidA.ToString()}
+	key2 := FlowKey{rid: rid.ToString(), xid: xidA.ToString()}
+	key3 := FlowKey{rid: rid.ToString(), xid: xidB.ToString()}
+	key4 := FlowKey{rid: rid.ToString(), xid: ""}
+
+	if key1 != key2 {
+		t.Error("Same rid+xid should be equal")
+	}
+	if key1 == key3 {
+		t.Error("Different XIDs should not be equal")
+	}
+	if key1 == key4 {
+		t.Error("Some(xid) vs None should not be equal")
+	}
+}
+
+// TEST450: FlowKey hash lookup in map
+func Test450_flow_key_hash_lookup(t *testing.T) {
+	rid := NewMessageIdRandom()
+	xid := NewMessageIdRandom()
+
+	key1 := FlowKey{rid: rid.ToString(), xid: xid.ToString()}
+	key2 := FlowKey{rid: rid.ToString(), xid: xid.ToString()}
+
+	m := map[FlowKey]string{key1: "value"}
+	if m[key2] != "value" {
+		t.Error("Identical keys should hash to same bucket")
+	}
+}
+
+// TEST451: ReorderBuffer delivers frames immediately when in order
+func Test451_reorder_buffer_in_order(t *testing.T) {
+	rb := NewReorderBuffer(10)
+	rid := NewMessageIdRandom()
+
+	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0.Seq = 0
+	f1 := NewChunk(rid, "", 0, nil, 0, 0)
+	f1.Seq = 1
+	f2 := NewEnd(rid, nil)
+	f2.Seq = 2
+
+	r0, err := rb.Accept(f0)
+	require.NoError(t, err)
+	assert.Len(t, r0, 1)
+
+	r1, err := rb.Accept(f1)
+	require.NoError(t, err)
+	assert.Len(t, r1, 1)
+
+	r2, err := rb.Accept(f2)
+	require.NoError(t, err)
+	assert.Len(t, r2, 1)
+}
+
+// TEST452: ReorderBuffer holds out-of-order, releases when gap filled
+func Test452_reorder_buffer_out_of_order(t *testing.T) {
+	rb := NewReorderBuffer(10)
+	rid := NewMessageIdRandom()
+
+	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0.Seq = 0
+	f1 := NewChunk(rid, "", 0, nil, 0, 0)
+	f1.Seq = 1
+
+	// Submit seq=1 before seq=0
+	r1, err := rb.Accept(f1)
+	require.NoError(t, err)
+	assert.Len(t, r1, 0, "seq=1 before seq=0 should be buffered")
+
+	// Submit seq=0 — should release both
+	r0, err := rb.Accept(f0)
+	require.NoError(t, err)
+	assert.Len(t, r0, 2, "seq=0 should release seq=0 and seq=1")
+	assert.Equal(t, uint64(0), r0[0].Seq)
+	assert.Equal(t, uint64(1), r0[1].Seq)
+}
+
+// TEST453: ReorderBuffer gap fill with arrival order 0, 2, 1
+func Test453_reorder_buffer_gap_fill(t *testing.T) {
+	rb := NewReorderBuffer(10)
+	rid := NewMessageIdRandom()
+
+	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0.Seq = 0
+	f1 := NewChunk(rid, "", 0, nil, 0, 0)
+	f1.Seq = 1
+	f2 := NewEnd(rid, nil)
+	f2.Seq = 2
+
+	r0, err := rb.Accept(f0)
+	require.NoError(t, err)
+	assert.Len(t, r0, 1, "seq=0 delivers immediately")
+
+	r2, err := rb.Accept(f2)
+	require.NoError(t, err)
+	assert.Len(t, r2, 0, "seq=2 buffered (gap at seq=1)")
+
+	r1, err := rb.Accept(f1)
+	require.NoError(t, err)
+	assert.Len(t, r1, 2, "seq=1 fills gap, releases seq=1 and seq=2")
+	assert.Equal(t, uint64(1), r1[0].Seq)
+	assert.Equal(t, uint64(2), r1[1].Seq)
+}
+
+// TEST454: ReorderBuffer rejects stale/duplicate seq
+func Test454_reorder_buffer_stale_seq(t *testing.T) {
+	rb := NewReorderBuffer(10)
+	rid := NewMessageIdRandom()
+
+	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0.Seq = 0
+	f1 := NewChunk(rid, "", 0, nil, 0, 0)
+	f1.Seq = 1
+
+	rb.Accept(f0)
+	rb.Accept(f1)
+
+	// Submit stale seq=0 again
+	stale := NewChunk(rid, "", 0, nil, 0, 0)
+	stale.Seq = 0
+	_, err := rb.Accept(stale)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stale")
+}
+
+// TEST455: ReorderBuffer overflow
+func Test455_reorder_buffer_overflow(t *testing.T) {
+	rb := NewReorderBuffer(3) // max 3 buffered per flow
+	rid := NewMessageIdRandom()
+
+	// Submit seq 1,2,3,4 (never seq 0) — 4th should overflow
+	for i := uint64(1); i <= 3; i++ {
+		f := NewChunk(rid, "", 0, nil, 0, 0)
+		f.Seq = i
+		_, err := rb.Accept(f)
+		require.NoError(t, err)
+	}
+
+	f4 := NewChunk(rid, "", 0, nil, 0, 0)
+	f4.Seq = 4
+	_, err := rb.Accept(f4)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "overflow")
+}
+
+// TEST456: ReorderBuffer independent flows
+func Test456_reorder_buffer_independent_flows(t *testing.T) {
+	rb := NewReorderBuffer(10)
+	ridA := NewMessageIdRandom()
+	ridB := NewMessageIdRandom()
+
+	// Flow A: submit seq=1 (out of order)
+	fA1 := NewChunk(ridA, "", 0, nil, 0, 0)
+	fA1.Seq = 1
+	rA1, err := rb.Accept(fA1)
+	require.NoError(t, err)
+	assert.Len(t, rA1, 0, "A seq=1 buffered")
+
+	// Flow B: submit seq=0 (in order) — independent of A
+	fB0 := NewReq(ridB, "cap:op=b", nil, "")
+	fB0.Seq = 0
+	rB0, err := rb.Accept(fB0)
+	require.NoError(t, err)
+	assert.Len(t, rB0, 1, "B seq=0 delivers immediately regardless of A's gap")
+
+	// Flow A: submit seq=0 — releases both A frames
+	fA0 := NewReq(ridA, "cap:op=a", nil, "")
+	fA0.Seq = 0
+	rA0, err := rb.Accept(fA0)
+	require.NoError(t, err)
+	assert.Len(t, rA0, 2, "A seq=0 releases seq=0 and seq=1")
+}
+
+// TEST457: ReorderBuffer cleanup_flow resets state
+func Test457_reorder_buffer_cleanup(t *testing.T) {
+	rb := NewReorderBuffer(10)
+	rid := NewMessageIdRandom()
+
+	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0.Seq = 0
+	rb.Accept(f0)
+
+	f1 := NewChunk(rid, "", 0, nil, 0, 0)
+	f1.Seq = 1
+	rb.Accept(f1)
+
+	// Cleanup the flow
+	key := FlowKeyFromFrame(f0)
+	rb.CleanupFlow(key)
+
+	// Same RID can start over at seq=0 without stale error
+	f0b := NewReq(rid, "cap:op=test", nil, "")
+	f0b.Seq = 0
+	r, err := rb.Accept(f0b)
+	require.NoError(t, err)
+	assert.Len(t, r, 1)
+}
+
+// TEST458: ReorderBuffer non-flow frames bypass reordering
+func Test458_reorder_buffer_non_flow_bypass(t *testing.T) {
+	rb := NewReorderBuffer(10)
+
+	hello := NewHello(DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer)
+	hb := NewHeartbeat(NewMessageIdRandom())
+	rn := NewRelayNotify(nil, DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer)
+	rs := NewRelayState(nil)
+
+	for _, frame := range []*Frame{hello, hb, rn, rs} {
+		r, err := rb.Accept(frame)
+		require.NoError(t, err)
+		assert.Len(t, r, 1, "Non-flow frame should bypass reorder buffer")
+	}
+}
+
+// TEST459: ReorderBuffer handles END frame correctly
+func Test459_reorder_buffer_end_frame(t *testing.T) {
+	rb := NewReorderBuffer(10)
+	rid := NewMessageIdRandom()
+
+	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0.Seq = 0
+	rb.Accept(f0)
+
+	end := NewEnd(rid, nil)
+	end.Seq = 1
+	r, err := rb.Accept(end)
+	require.NoError(t, err)
+	assert.Len(t, r, 1)
+	assert.Equal(t, FrameTypeEnd, r[0].FrameType)
+	assert.Equal(t, uint64(1), r[0].Seq)
+}
+
+// TEST460: ReorderBuffer handles ERR frame correctly
+func Test460_reorder_buffer_err_frame(t *testing.T) {
+	rb := NewReorderBuffer(10)
+	rid := NewMessageIdRandom()
+
+	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0.Seq = 0
+	rb.Accept(f0)
+
+	errFrame := NewErr(rid, "ERR_TEST", "test error")
+	errFrame.Seq = 1
+	r, err := rb.Accept(errFrame)
+	require.NoError(t, err)
+	assert.Len(t, r, 1)
+	assert.Equal(t, FrameTypeErr, r[0].FrameType)
+	assert.Equal(t, uint64(1), r[0].Seq)
 }

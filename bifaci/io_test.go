@@ -911,3 +911,108 @@ func Test400a_relay_state_roundtrip(t *testing.T) {
 		t.Errorf("Payload mismatch after roundtrip: got %s", string(decoded.Payload))
 	}
 }
+
+// TEST440: CHUNK frame with chunk_index and checksum roundtrips through encode/decode
+func Test440_chunk_index_checksum_roundtrip(t *testing.T) {
+	id := NewMessageIdRandom()
+	payload := []byte("test chunk data")
+	checksum := ComputeChecksum(payload)
+
+	frame := NewChunk(id, "test-stream", 5, payload, 3, checksum)
+
+	encoded, err := EncodeFrame(frame)
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	decoded, err := DecodeFrame(encoded)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	if decoded.FrameType != FrameTypeChunk {
+		t.Errorf("Expected CHUNK, got %v", decoded.FrameType)
+	}
+	if decoded.Id.ToString() != id.ToString() {
+		t.Error("ID mismatch")
+	}
+	if decoded.StreamId == nil || *decoded.StreamId != "test-stream" {
+		t.Error("stream_id mismatch")
+	}
+	if decoded.Seq != 5 {
+		t.Errorf("Expected seq 5, got %d", decoded.Seq)
+	}
+	if !bytes.Equal(decoded.Payload, payload) {
+		t.Error("payload mismatch")
+	}
+	if decoded.ChunkIndex == nil || *decoded.ChunkIndex != 3 {
+		t.Error("chunk_index must roundtrip")
+	}
+	if decoded.Checksum == nil || *decoded.Checksum != checksum {
+		t.Error("checksum must roundtrip")
+	}
+}
+
+// TEST441: STREAM_END frame with chunk_count roundtrips through encode/decode
+func Test441_stream_end_chunk_count_roundtrip(t *testing.T) {
+	id := NewMessageIdRandom()
+
+	frame := NewStreamEnd(id, "test-stream", 42)
+
+	encoded, err := EncodeFrame(frame)
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	decoded, err := DecodeFrame(encoded)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	if decoded.FrameType != FrameTypeStreamEnd {
+		t.Errorf("Expected STREAM_END, got %v", decoded.FrameType)
+	}
+	if decoded.Id.ToString() != id.ToString() {
+		t.Error("ID mismatch")
+	}
+	if decoded.StreamId == nil || *decoded.StreamId != "test-stream" {
+		t.Error("stream_id mismatch")
+	}
+	if decoded.ChunkCount == nil || *decoded.ChunkCount != 42 {
+		t.Error("chunk_count must roundtrip")
+	}
+}
+
+// TEST497: Corrupted payload detectable via checksum mismatch
+func Test497_chunk_corrupted_payload_rejected(t *testing.T) {
+	id := NewMessageIdRandom()
+	payload := []byte("original data")
+	checksum := ComputeChecksum(payload)
+
+	frame := NewChunk(id, "stream-test", 0, payload, 0, checksum)
+
+	encoded, err := EncodeFrame(frame)
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	decoded, err := DecodeFrame(encoded)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	if decoded.Checksum == nil || *decoded.Checksum != checksum {
+		t.Error("Decoded checksum should match original")
+	}
+
+	// Corrupt the payload but keep the checksum
+	decoded.Payload = []byte("corrupted data")
+
+	corruptedChecksum := ComputeChecksum(decoded.Payload)
+	if corruptedChecksum == checksum {
+		t.Error("Checksums should differ for corrupted data")
+	}
+	if *decoded.Checksum != checksum {
+		t.Error("Frame still has original checksum")
+	}
+}

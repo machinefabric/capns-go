@@ -542,3 +542,100 @@ func (sa *SeqAssigner) Assign(frame *Frame) {
 func (sa *SeqAssigner) Remove(key FlowKey) {
 	delete(sa.counters, key)
 }
+
+// =============================================================================
+// REORDER BUFFER — Per-flow frame reordering at relay boundaries
+// =============================================================================
+
+// flowState holds per-flow state for the reorder buffer.
+type flowState struct {
+	expectedSeq uint64
+	buffer      map[uint64]*Frame
+}
+
+// ReorderBuffer validates and reorders frames at relay boundaries.
+// Keyed by FlowKey (RID + optional XID). Each flow tracks expected seq
+// and buffers out-of-order frames until gaps are filled.
+//
+// Protocol errors:
+// - Stale/duplicate seq (frame.seq < expected_seq)
+// - Buffer overflow (buffered frames exceed MaxBufferPerFlow)
+//
+// (matches Rust ReorderBuffer)
+type ReorderBuffer struct {
+	flows             map[FlowKey]*flowState
+	MaxBufferPerFlow  int
+}
+
+// NewReorderBuffer creates a new ReorderBuffer with the given per-flow capacity.
+func NewReorderBuffer(maxBufferPerFlow int) *ReorderBuffer {
+	return &ReorderBuffer{
+		flows:            make(map[FlowKey]*flowState),
+		MaxBufferPerFlow: maxBufferPerFlow,
+	}
+}
+
+// Accept accepts a frame into the reorder buffer.
+// Returns a slice of frames ready for delivery (in seq order).
+// Non-flow frames bypass reordering and are returned immediately.
+// Returns error for stale/duplicate seq or buffer overflow.
+func (rb *ReorderBuffer) Accept(frame *Frame) ([]*Frame, error) {
+	if !frame.IsFlowFrame() {
+		return []*Frame{frame}, nil
+	}
+
+	key := FlowKeyFromFrame(frame)
+	state, exists := rb.flows[key]
+	if !exists {
+		state = &flowState{
+			expectedSeq: 0,
+			buffer:      make(map[uint64]*Frame),
+		}
+		rb.flows[key] = state
+	}
+
+	if frame.Seq == state.expectedSeq {
+		// In-order: deliver this frame + drain consecutive buffered frames
+		ready := []*Frame{frame}
+		state.expectedSeq++
+		for {
+			buffered, ok := state.buffer[state.expectedSeq]
+			if !ok {
+				break
+			}
+			ready = append(ready, buffered)
+			delete(state.buffer, state.expectedSeq)
+			state.expectedSeq++
+		}
+		return ready, nil
+	} else if frame.Seq > state.expectedSeq {
+		// Out-of-order: buffer it
+		if _, dup := state.buffer[frame.Seq]; dup {
+			return nil, fmt.Errorf(
+				"stale/duplicate seq: seq %d already buffered (expected >= %d)",
+				frame.Seq, state.expectedSeq,
+			)
+		}
+		if len(state.buffer) >= rb.MaxBufferPerFlow {
+			return nil, fmt.Errorf(
+				"reorder buffer overflow: flow has %d buffered frames (max %d), "+
+					"expected seq %d but got seq %d",
+				len(state.buffer), rb.MaxBufferPerFlow,
+				state.expectedSeq, frame.Seq,
+			)
+		}
+		state.buffer[frame.Seq] = frame
+		return []*Frame{}, nil
+	} else {
+		// Stale or duplicate
+		return nil, fmt.Errorf(
+			"stale/duplicate seq: expected >= %d but got %d",
+			state.expectedSeq, frame.Seq,
+		)
+	}
+}
+
+// CleanupFlow removes flow state after terminal frame delivery (END/ERR).
+func (rb *ReorderBuffer) CleanupFlow(key FlowKey) {
+	delete(rb.flows, key)
+}
