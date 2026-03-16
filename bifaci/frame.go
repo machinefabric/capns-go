@@ -281,6 +281,18 @@ func NewLog(id MessageId, level string, message string) *Frame {
 	return frame
 }
 
+// NewProgress creates a LOG frame with progress (0.0-1.0) and a human-readable status message.
+// Uses level="progress" with an additional "progress" key in metadata.
+func NewProgress(id MessageId, progress float32, message string) *Frame {
+	frame := newFrame(FrameTypeLog, id)
+	frame.Meta = map[string]interface{}{
+		"level":    "progress",
+		"message":  message,
+		"progress": float64(progress),
+	}
+	return frame
+}
+
 // NewHeartbeat creates a HEARTBEAT frame (matches Rust Frame::heartbeat)
 func NewHeartbeat(id MessageId) *Frame {
 	return newFrame(FrameTypeHeartbeat, id)
@@ -378,6 +390,30 @@ func (f *Frame) LogMessage() string {
 		return msg
 	}
 	return ""
+}
+
+// LogProgress gets progress value (0.0-1.0) if this is a LOG frame with level="progress".
+// Returns (progress, true) if present, (0, false) otherwise.
+func (f *Frame) LogProgress() (float32, bool) {
+	if f.FrameType != FrameTypeLog || f.Meta == nil {
+		return 0, false
+	}
+	level, ok := f.Meta["level"].(string)
+	if !ok || level != "progress" {
+		return 0, false
+	}
+	switch v := f.Meta["progress"].(type) {
+	case float64:
+		return float32(v), true
+	case float32:
+		return v, true
+	case int:
+		return float32(v), true
+	case int64:
+		return float32(v), true
+	default:
+		return 0, false
+	}
 }
 
 // RelayNotifyManifest extracts manifest bytes from RelayNotify metadata.

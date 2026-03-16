@@ -33,7 +33,25 @@ func (m *mockStreamEmitter) EmitCbor(value interface{}) error {
 	return nil
 }
 
+func (m *mockStreamEmitter) Write(data []byte) error {
+	m.emittedData = append(m.emittedData, append([]byte{}, data...))
+	return nil
+}
+
+func (m *mockStreamEmitter) EmitListItem(value interface{}) error {
+	cborPayload, err := cborlib.Marshal(value)
+	if err != nil {
+		return err
+	}
+	m.emittedData = append(m.emittedData, cborPayload)
+	return nil
+}
+
 func (m *mockStreamEmitter) EmitLog(level, message string) {
+	// No-op for tests
+}
+
+func (m *mockStreamEmitter) Progress(progress float32, message string) {
 	// No-op for tests
 }
 

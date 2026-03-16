@@ -55,6 +55,7 @@ var NewFrameReader = bifaci.NewFrameReader
 var NewFrameWriter = bifaci.NewFrameWriter
 var NewPluginRuntime = bifaci.NewPluginRuntime
 var NewCapManifest = bifaci.NewCapManifest
+var DecodeChunkPayload = bifaci.DecodeChunkPayload
 
 // Standard caps (constants)
 const CapIdentity = standard.CapIdentity

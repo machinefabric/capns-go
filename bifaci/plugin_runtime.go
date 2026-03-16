@@ -32,9 +32,18 @@ type StreamEmitter interface {
 	// EmitCbor emits a CBOR value as output.
 	// The value is CBOR-encoded once and sent as raw CBOR bytes in CHUNK frames.
 	EmitCbor(value interface{}) error
+	// Write writes raw bytes as output, split into max_chunk-sized CHUNK frames.
+	// Unlike EmitCbor which CBOR-encodes the value, this sends raw bytes directly.
+	Write(data []byte) error
+	// EmitListItem emits a single CBOR value as one item in an RFC 8742 CBOR sequence.
+	// For list outputs: CBOR-encodes the value, then splits across chunk frames.
+	// The receiver concatenates raw payloads to reconstruct the CBOR sequence.
+	EmitListItem(value interface{}) error
 	// EmitLog emits a log message at the given level.
 	// Sends a LOG frame (side-channel, does not affect response stream).
 	EmitLog(level, message string)
+	// Progress emits a progress update (0.0-1.0) with a human-readable status message.
+	Progress(progress float32, message string)
 }
 
 // PeerInvoker allows handlers to invoke caps on the peer (host).
@@ -1311,11 +1320,102 @@ func (e *threadSafeEmitter) Finalize() {
 	}
 }
 
+func (e *threadSafeEmitter) Write(data []byte) error {
+	e.seqMu.Lock()
+	defer e.seqMu.Unlock()
+
+	if !e.streamStarted {
+		e.streamStarted = true
+		startFrame := NewStreamStart(e.requestID, e.streamID, e.mediaUrn)
+		startFrame.RoutingId = e.routingId
+		if err := e.writer.WriteFrame(startFrame); err != nil {
+			return fmt.Errorf("failed to write STREAM_START: %w", err)
+		}
+	}
+
+	offset := 0
+	for offset < len(data) {
+		chunkSize := len(data) - offset
+		if chunkSize > e.maxChunk {
+			chunkSize = e.maxChunk
+		}
+		chunkPayload := data[offset : offset+chunkSize]
+
+		currentSeq := e.seq
+		e.seq++
+		currentIndex := e.chunkIndex
+		e.chunkIndex++
+		checksum := ComputeChecksum(chunkPayload)
+
+		frame := NewChunk(e.requestID, e.streamID, currentSeq, chunkPayload, currentIndex, checksum)
+		frame.RoutingId = e.routingId
+		if err := e.writer.WriteFrame(frame); err != nil {
+			return fmt.Errorf("failed to write chunk: %w", err)
+		}
+
+		offset += chunkSize
+	}
+
+	return nil
+}
+
+func (e *threadSafeEmitter) EmitListItem(value interface{}) error {
+	e.seqMu.Lock()
+	defer e.seqMu.Unlock()
+
+	if !e.streamStarted {
+		e.streamStarted = true
+		startFrame := NewStreamStart(e.requestID, e.streamID, e.mediaUrn)
+		startFrame.RoutingId = e.routingId
+		if err := e.writer.WriteFrame(startFrame); err != nil {
+			return fmt.Errorf("failed to write STREAM_START: %w", err)
+		}
+	}
+
+	cborBytes, err := cborlib.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("failed to encode CBOR: %w", err)
+	}
+
+	offset := 0
+	for offset < len(cborBytes) {
+		chunkSize := len(cborBytes) - offset
+		if chunkSize > e.maxChunk {
+			chunkSize = e.maxChunk
+		}
+		chunkPayload := cborBytes[offset : offset+chunkSize]
+
+		currentSeq := e.seq
+		e.seq++
+		currentIndex := e.chunkIndex
+		e.chunkIndex++
+		checksum := ComputeChecksum(chunkPayload)
+
+		frame := NewChunk(e.requestID, e.streamID, currentSeq, chunkPayload, currentIndex, checksum)
+		frame.RoutingId = e.routingId
+		if err := e.writer.WriteFrame(frame); err != nil {
+			return fmt.Errorf("failed to write chunk: %w", err)
+		}
+
+		offset += chunkSize
+	}
+
+	return nil
+}
+
 func (e *threadSafeEmitter) EmitLog(level, message string) {
 	frame := NewLog(e.requestID, level, message)
 	frame.RoutingId = e.routingId
 	if err := e.writer.WriteFrame(frame); err != nil {
 		fmt.Fprintf(os.Stderr, "[PluginRuntime] Failed to write log: %v\n", err)
+	}
+}
+
+func (e *threadSafeEmitter) Progress(progress float32, message string) {
+	frame := NewProgress(e.requestID, progress, message)
+	frame.RoutingId = e.routingId
+	if err := e.writer.WriteFrame(frame); err != nil {
+		fmt.Fprintf(os.Stderr, "[PluginRuntime] Failed to write progress: %v\n", err)
 	}
 }
 
@@ -1346,8 +1446,22 @@ func (e *cliStreamEmitter) EmitCbor(value interface{}) error {
 	return nil
 }
 
+func (e *cliStreamEmitter) Write(data []byte) error {
+	_, err := os.Stdout.Write(data)
+	return err
+}
+
+func (e *cliStreamEmitter) EmitListItem(value interface{}) error {
+	// In CLI mode, emit list items as individual lines of JSON
+	return e.EmitCbor(value)
+}
+
 func (e *cliStreamEmitter) EmitLog(level, message string) {
 	fmt.Fprintf(os.Stderr, "[%s] %s\n", level, message)
+}
+
+func (e *cliStreamEmitter) Progress(progress float32, message string) {
+	fmt.Fprintf(os.Stderr, "[PROGRESS %.0f%%] %s\n", progress*100, message)
 }
 
 // pendingPeerRequest tracks a pending peer request.
