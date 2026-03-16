@@ -220,8 +220,8 @@ const MediaImageDescription = "media:image-description;textable"
 // MediaTranscriptionOutput is the media URN for transcription output - has record marker
 const MediaTranscriptionOutput = "media:record;textable;transcription"
 
-// MediaDecision is the media URN for decision output (bit choice) - scalar by default
+// MediaDecision is the media URN for decision output (Make Decision) - scalar by default
 const MediaDecision = "media:bool;decision;textable"
 
-// MediaDecisionArray is the media URN for decision array output (bit choices) - has list marker
+// MediaDecisionArray is the media URN for decision array output (Make Multiple Decisions) - has list marker
 const MediaDecisionArray = "media:bool;decision;list;textable"
