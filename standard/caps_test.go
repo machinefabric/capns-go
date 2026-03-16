@@ -84,3 +84,35 @@ func Test474_cap_discard_structure(t *testing.T) {
 	assert.True(t, strings.Contains(CapDiscard, "out=media:void"),
 		"CAP_DISCARD output must be media:void")
 }
+
+// TEST605: all_coercion_paths builds valid URNs with op=coerce and target tag
+func Test605_all_coercion_paths_build_valid_urns(t *testing.T) {
+	paths := AllCoercionPaths()
+	assert.True(t, len(paths) > 0, "Coercion paths must not be empty")
+
+	for _, pair := range paths {
+		source, target := pair[0], pair[1]
+		urnStr := CoercionUrn(source, target)
+		assert.True(t, strings.Contains(urnStr, "op=coerce"),
+			"Coercion URN for %s→%s must have op=coerce", source, target)
+		assert.True(t, strings.Contains(urnStr, "target="+target),
+			"Coercion URN for %s→%s must have target=%s", source, target, target)
+
+		// Verify it starts with cap: (valid cap URN prefix)
+		assert.True(t, strings.HasPrefix(urnStr, "cap:"),
+			"Coercion URN for %s→%s must start with cap:", source, target)
+	}
+}
+
+// TEST606: coercion_urn in/out specs match the type's media URN constant
+func Test606_coercion_urn_specs(t *testing.T) {
+	urnStr := CoercionUrn("string", "integer")
+
+	// in_spec should contain MEDIA_STRING
+	assert.True(t, strings.Contains(urnStr, MediaString),
+		"in_spec should contain '%s', got '%s'", MediaString, urnStr)
+
+	// out_spec should contain MEDIA_INTEGER
+	assert.True(t, strings.Contains(urnStr, MediaInteger),
+		"out_spec should contain '%s', got '%s'", MediaInteger, urnStr)
+}

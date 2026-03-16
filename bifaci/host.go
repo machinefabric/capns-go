@@ -95,6 +95,7 @@ const (
 	HostErrorTypeClosed
 	HostErrorTypeSendError
 	HostErrorTypeRecvError
+	HostErrorTypePeerInvokeNotSupported
 )
 
 func (e *HostError) Error() string {
@@ -117,6 +118,8 @@ func (e *HostError) Error() string {
 		return "Send error: channel closed"
 	case HostErrorTypeRecvError:
 		return "Receive error: channel closed"
+	case HostErrorTypePeerInvokeNotSupported:
+		return fmt.Sprintf("Peer invoke not supported: %s", e.Message)
 	default:
 		return fmt.Sprintf("Unknown error: %s", e.Message)
 	}
