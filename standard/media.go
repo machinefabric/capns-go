@@ -127,7 +127,48 @@ const MediaFilePathArray = "media:file-path;list;textable"
 const MediaFrontmatterText = "media:frontmatter;textable"
 
 // MediaModelSpec is the media URN for model spec (provider:model format, HuggingFace name, etc.) - scalar by default
+// Generic, backend-agnostic — used by modelcartridge for download/status/path operations.
 const MediaModelSpec = "media:model-spec;textable"
+
+// Backend + use-case specific model-spec variants.
+// Each inference cap declares the variant matching its backend and purpose,
+// so slot values can target a specific cartridge+task without ambiguity.
+
+// GGUF backend
+
+// MediaModelSpecGGUFVision is the GGUF vision model spec (e.g. moondream2)
+const MediaModelSpecGGUFVision = "media:model-spec;gguf;textable;vision"
+
+// MediaModelSpecGGUFLLM is the GGUF LLM model spec (e.g. Mistral-7B)
+const MediaModelSpecGGUFLLM = "media:model-spec;gguf;textable;llm"
+
+// MediaModelSpecGGUFEmbeddings is the GGUF embeddings model spec (e.g. nomic-embed)
+const MediaModelSpecGGUFEmbeddings = "media:model-spec;gguf;textable;embeddings"
+
+// MLX backend
+
+// MediaModelSpecMLXVision is the MLX vision model spec (e.g. Qwen2.5-VL)
+const MediaModelSpecMLXVision = "media:model-spec;mlx;textable;vision"
+
+// MediaModelSpecMLXLLM is the MLX LLM model spec (e.g. Llama-3.2-3B)
+const MediaModelSpecMLXLLM = "media:model-spec;mlx;textable;llm"
+
+// MediaModelSpecMLXEmbeddings is the MLX embeddings model spec (e.g. all-MiniLM-L6-v2)
+const MediaModelSpecMLXEmbeddings = "media:model-spec;mlx;textable;embeddings"
+
+// Candle backend
+
+// MediaModelSpecCandleVision is the Candle vision model spec (e.g. BLIP)
+const MediaModelSpecCandleVision = "media:model-spec;candle;textable;vision"
+
+// MediaModelSpecCandleEmbeddings is the Candle text embeddings model spec (e.g. BERT)
+const MediaModelSpecCandleEmbeddings = "media:model-spec;candle;textable;embeddings"
+
+// MediaModelSpecCandleImageEmbeddings is the Candle image embeddings model spec (e.g. CLIP)
+const MediaModelSpecCandleImageEmbeddings = "media:model-spec;candle;image-embeddings;textable"
+
+// MediaModelSpecCandleTranscription is the Candle transcription model spec (e.g. Whisper)
+const MediaModelSpecCandleTranscription = "media:model-spec;candle;textable;transcription"
 
 // MediaMLXModelPath is the media URN for MLX model path - scalar by default
 const MediaMLXModelPath = "media:mlx-model-path;textable"

@@ -367,6 +367,14 @@ func (c *CapUrn) HasTag(key, value string) bool {
 	}
 }
 
+// HasMarkerTag checks if a marker tag (solo tag with no value) is present.
+// A marker tag is stored as key="*" in the cap URN.
+// Example: `cap:constrained;...` has marker tag "constrained"
+func (c *CapUrn) HasMarkerTag(tagName string) bool {
+	val, ok := c.tags[strings.ToLower(tagName)]
+	return ok && val == "*"
+}
+
 // WithTag returns a new cap URN with an added or updated tag
 // Key is normalized to lowercase; value is preserved as-is
 // Note: Cannot modify 'in' or 'out' tags - use WithInSpec/WithOutSpec
