@@ -225,6 +225,206 @@ func Test116_cap_arg_constructors(t *testing.T) {
 	assert.Equal(t, "The count argument", arg2.ArgDescription)
 }
 
+// Helper matching Rust's test_urn (with in="media:void";out="media:record")
+func defTestUrn(tags string) string {
+	if tags == "" {
+		return `cap:in="media:void";out="media:record"`
+	}
+	return `cap:in="media:void";out="media:record";` + tags
+}
+
+// TEST591: is_more_specific_than returns true when self has more tags for same request
+func Test591_is_more_specific_than(t *testing.T) {
+	generalUrn, err := urn.NewCapUrnFromString(defTestUrn("op=transform"))
+	require.NoError(t, err)
+	general := NewCap(generalUrn, "General", "cmd")
+
+	specificUrn, err := urn.NewCapUrnFromString(defTestUrn("op=transform;format=json"))
+	require.NoError(t, err)
+	specific := NewCap(specificUrn, "Specific", "cmd")
+
+	unrelatedUrn, err := urn.NewCapUrnFromString(defTestUrn("op=convert"))
+	require.NoError(t, err)
+	unrelated := NewCap(unrelatedUrn, "Unrelated", "cmd")
+
+	// Specific is more specific than general for the general request
+	assert.True(t, specific.IsMoreSpecificThan(general, defTestUrn("op=transform")),
+		"specific cap must be more specific than general")
+	assert.False(t, general.IsMoreSpecificThan(specific, defTestUrn("op=transform")),
+		"general cap must not be more specific than specific")
+
+	// If either doesn't accept the request, returns false
+	assert.False(t, general.IsMoreSpecificThan(unrelated, defTestUrn("op=transform")),
+		"unrelated cap doesn't accept request, so no comparison possible")
+}
+
+// TEST592: remove_metadata adds then removes metadata correctly
+func Test592_remove_metadata(t *testing.T) {
+	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
+	require.NoError(t, err)
+	c := NewCap(u, "Test", "cmd")
+
+	c.SetMetadata("key1", "val1")
+	c.SetMetadata("key2", "val2")
+	assert.True(t, c.HasMetadata("key1"))
+	assert.True(t, c.HasMetadata("key2"))
+
+	removed, ok := c.RemoveMetadata("key1")
+	assert.True(t, ok)
+	assert.Equal(t, "val1", removed)
+	assert.False(t, c.HasMetadata("key1"))
+	assert.True(t, c.HasMetadata("key2"))
+
+	// Removing non-existent returns false
+	_, ok = c.RemoveMetadata("nonexistent")
+	assert.False(t, ok)
+}
+
+// TEST593: registered_by lifecycle — set, get, clear
+func Test593_registered_by_lifecycle(t *testing.T) {
+	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
+	require.NoError(t, err)
+	c := NewCap(u, "Test", "cmd")
+
+	// Initially nil
+	assert.Nil(t, c.GetRegisteredBy())
+
+	// Set
+	reg := NewRegisteredBy("alice", "2026-02-19T10:00:00Z")
+	c.SetRegisteredBy(&reg)
+	got := c.GetRegisteredBy()
+	require.NotNil(t, got)
+	assert.Equal(t, "alice", got.Username)
+	assert.Equal(t, "2026-02-19T10:00:00Z", got.RegisteredAt)
+
+	// Clear
+	c.ClearRegisteredBy()
+	assert.Nil(t, c.GetRegisteredBy())
+}
+
+// TEST594: metadata_json lifecycle — set, get, clear
+func Test594_metadata_json_lifecycle(t *testing.T) {
+	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
+	require.NoError(t, err)
+	c := NewCap(u, "Test", "cmd")
+
+	// Initially nil
+	assert.Nil(t, c.GetMetadataJSON())
+
+	// Set
+	jsonData := map[string]any{"version": 2, "tags": []string{"experimental"}}
+	c.SetMetadataJSON(jsonData)
+	assert.Equal(t, jsonData, c.GetMetadataJSON())
+
+	// Clear
+	c.ClearMetadataJSON()
+	assert.Nil(t, c.GetMetadataJSON())
+}
+
+// TEST595: with_args constructor stores args correctly
+func Test595_with_args_constructor(t *testing.T) {
+	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
+	require.NoError(t, err)
+	pos := 0
+	flag := "--count"
+	args := []CapArg{
+		NewCapArg("media:string", true, []ArgSource{{Position: &pos}}),
+		NewCapArg("media:integer", false, []ArgSource{{CliFlag: &flag}}),
+	}
+
+	c := NewCapWithArgs(u, "Test", "cmd", args)
+	assert.Len(t, c.GetArgs(), 2)
+	assert.Equal(t, "media:string", c.GetArgs()[0].MediaUrn)
+	assert.True(t, c.GetArgs()[0].Required)
+	assert.Equal(t, "media:integer", c.GetArgs()[1].MediaUrn)
+	assert.False(t, c.GetArgs()[1].Required)
+}
+
+// TEST596: with_full_definition constructor stores all fields
+func Test596_with_full_definition_constructor(t *testing.T) {
+	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
+	require.NoError(t, err)
+	metadata := map[string]string{"env": "prod"}
+	args := []CapArg{NewCapArg("media:string", true, nil)}
+	output := NewCapOutput("media:object", "Output object")
+	jsonMeta := map[string]any{"v": 1}
+	desc := "Description"
+
+	c := NewCapWithFullDefinition(
+		u, "Full Cap", &desc, metadata, "full-cmd",
+		nil, args, output, jsonMeta,
+	)
+
+	assert.Equal(t, "Full Cap", c.Title)
+	require.NotNil(t, c.CapDescription)
+	assert.Equal(t, "Description", *c.CapDescription)
+	val, ok := c.GetMetadata("env")
+	assert.True(t, ok)
+	assert.Equal(t, "prod", val)
+	assert.Equal(t, "full-cmd", c.GetCommand())
+	assert.Len(t, c.GetArgs(), 1)
+	require.NotNil(t, c.GetOutput())
+	assert.Equal(t, "media:object", c.GetOutput().MediaUrn)
+	assert.Equal(t, jsonMeta, c.GetMetadataJSON())
+	// registered_by is not set by NewCapWithFullDefinition
+	assert.Nil(t, c.GetRegisteredBy())
+}
+
+// TEST597: CapArg with_full_definition stores all fields including optional ones
+func Test597_cap_arg_with_full_definition(t *testing.T) {
+	defaultVal := "default_text"
+	meta := map[string]any{"hint": "enter name"}
+	flag := "--name"
+
+	arg := NewCapArgWithFullDefinition(
+		"media:string", true,
+		[]ArgSource{{CliFlag: &flag}},
+		"User name", defaultVal, meta,
+	)
+
+	assert.Equal(t, "media:string", arg.MediaUrn)
+	assert.True(t, arg.Required)
+	assert.Equal(t, "User name", arg.ArgDescription)
+	assert.Equal(t, defaultVal, arg.DefaultValue)
+	assert.Equal(t, meta, arg.GetMetadata())
+
+	// Metadata lifecycle
+	arg.ClearMetadata()
+	assert.Nil(t, arg.GetMetadata())
+	arg.SetMetadata("new")
+	assert.Equal(t, "new", arg.GetMetadata())
+}
+
+// TEST598: CapOutput lifecycle — set_output, set/clear metadata
+func Test598_cap_output_lifecycle(t *testing.T) {
+	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
+	require.NoError(t, err)
+	c := NewCap(u, "Test", "cmd")
+
+	// Initially no output
+	assert.Nil(t, c.GetOutput())
+
+	// Set output
+	output := NewCapOutput("media:string", "Text output")
+	output.SetMetadata(map[string]any{"format": "plain"})
+	c.SetOutput(output)
+
+	got := c.GetOutput()
+	require.NotNil(t, got)
+	assert.Equal(t, "media:string", got.MediaUrn)
+	assert.Equal(t, "Text output", got.OutputDescription)
+	assert.NotNil(t, got.GetMetadata())
+
+	// CapOutput with_full_definition
+	output2 := NewCapOutputWithFullDefinition("media:json", "JSON output", map[string]any{"v": 2})
+	assert.Equal(t, "media:json", output2.MediaUrn)
+	assert.NotNil(t, output2.GetMetadata())
+
+	// Clear metadata on output
+	output2.ClearMetadata()
+	assert.Nil(t, output2.GetMetadata())
+}
+
 // Additional existing tests below (not part of TEST108-116 sequence)
 
 func TestCapRequestHandling(t *testing.T) {

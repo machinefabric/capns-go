@@ -864,3 +864,280 @@ func Test133_cap_graph_with_cap_block(t *testing.T) {
 		t.Errorf("Second edge should be from plugins, got %s", path[1].RegistryName)
 	}
 }
+
+// TEST569: unregister_cap_set removes a host and returns true, false if not found
+func Test569_unregister_cap_set(t *testing.T) {
+	registry := NewCapMatrix()
+
+	host := &MockCapSetForRegistry{name: "removable"}
+	capDef := makeCap(matrixTestUrn("op=test"), "Removable Cap")
+	registry.RegisterCapSet("removable", host, []*Cap{capDef})
+
+	if !registry.AcceptsRequest(matrixTestUrn("op=test")) {
+		t.Error("Should accept request before unregister")
+	}
+
+	// Unregister
+	if !registry.UnregisterCapSet("removable") {
+		t.Error("Should return true for existing host")
+	}
+	if registry.AcceptsRequest(matrixTestUrn("op=test")) {
+		t.Error("Cap should be gone after unregister")
+	}
+
+	// Unregister non-existent
+	if registry.UnregisterCapSet("nonexistent") {
+		t.Error("Should return false for missing host")
+	}
+}
+
+// TEST570: clear removes all registered sets
+func Test570_clear(t *testing.T) {
+	registry := NewCapMatrix()
+
+	host1 := &MockCapSetForRegistry{name: "h1"}
+	host2 := &MockCapSetForRegistry{name: "h2"}
+	registry.RegisterCapSet("h1", host1, []*Cap{makeCap(matrixTestUrn("op=a"), "A")})
+	registry.RegisterCapSet("h2", host2, []*Cap{makeCap(matrixTestUrn("op=b"), "B")})
+
+	if len(registry.GetHostNames()) != 2 {
+		t.Errorf("Expected 2 hosts, got %d", len(registry.GetHostNames()))
+	}
+	registry.Clear()
+	if len(registry.GetHostNames()) != 0 {
+		t.Errorf("Expected 0 hosts after clear, got %d", len(registry.GetHostNames()))
+	}
+	if registry.AcceptsRequest(matrixTestUrn("op=a")) {
+		t.Error("Should not accept request after clear")
+	}
+}
+
+// TEST571: get_all_capabilities returns caps from all hosts
+func Test571_get_all_capabilities(t *testing.T) {
+	registry := NewCapMatrix()
+
+	host1 := &MockCapSetForRegistry{name: "h1"}
+	host2 := &MockCapSetForRegistry{name: "h2"}
+	cap1 := makeCap(matrixTestUrn("op=a"), "Cap A")
+	cap2 := makeCap(matrixTestUrn("op=b"), "Cap B")
+	cap3 := makeCap(matrixTestUrn("op=c"), "Cap C")
+	registry.RegisterCapSet("h1", host1, []*Cap{cap1, cap2})
+	registry.RegisterCapSet("h2", host2, []*Cap{cap3})
+
+	all := registry.GetAllCapabilities()
+	if len(all) != 3 {
+		t.Errorf("Expected 3 capabilities, got %d", len(all))
+	}
+}
+
+// TEST572: get_capabilities_for_host returns caps for specific host, nil for unknown
+func Test572_get_capabilities_for_host(t *testing.T) {
+	registry := NewCapMatrix()
+
+	host := &MockCapSetForRegistry{name: "myhost"}
+	capDef := makeCap(matrixTestUrn("op=test"), "Test")
+	registry.RegisterCapSet("myhost", host, []*Cap{capDef})
+
+	caps := registry.GetCapabilitiesForHost("myhost")
+	if caps == nil {
+		t.Fatal("Expected caps for myhost, got nil")
+	}
+	if len(caps) != 1 {
+		t.Errorf("Expected 1 cap, got %d", len(caps))
+	}
+
+	if registry.GetCapabilitiesForHost("unknown") != nil {
+		t.Error("Expected nil for unknown host")
+	}
+}
+
+// TEST573: iter_hosts_and_caps iterates all hosts with their capabilities
+func Test573_iter_hosts_and_caps(t *testing.T) {
+	registry := NewCapMatrix()
+
+	host1 := &MockCapSetForRegistry{name: "h1"}
+	host2 := &MockCapSetForRegistry{name: "h2"}
+	registry.RegisterCapSet("h1", host1, []*Cap{makeCap(matrixTestUrn("op=a"), "A")})
+	registry.RegisterCapSet("h2", host2, []*Cap{makeCap(matrixTestUrn("op=b"), "B")})
+
+	count := 0
+	registry.IterHostsAndCaps(func(name string, caps []*Cap) {
+		if name == "" {
+			t.Error("Host name should not be empty")
+		}
+		if len(caps) != 1 {
+			t.Errorf("Expected 1 cap per host, got %d", len(caps))
+		}
+		count++
+	})
+	if count != 2 {
+		t.Errorf("Expected 2 iterations, got %d", count)
+	}
+}
+
+// TEST574: CapBlock remove_registry removes by name, returns registry
+func Test574_cap_block_remove_registry(t *testing.T) {
+	reg1 := NewCapMatrix()
+	host := &MockCapSetForRegistry{name: "h1"}
+	reg1.RegisterCapSet("h1", host, []*Cap{makeCap(matrixTestUrn("op=a"), "A")})
+
+	block := NewCapBlock()
+	block.AddRegistry("r1", reg1)
+
+	if !block.AcceptsRequest(matrixTestUrn("op=a")) {
+		t.Error("Should accept request before removal")
+	}
+	removed := block.RemoveRegistry("r1")
+	if removed == nil {
+		t.Error("Should return removed registry")
+	}
+	if block.AcceptsRequest(matrixTestUrn("op=a")) {
+		t.Error("Should not accept request after removal")
+	}
+
+	// Removing non-existent returns nil
+	if block.RemoveRegistry("nonexistent") != nil {
+		t.Error("Should return nil for missing registry")
+	}
+}
+
+// TEST575: CapBlock get_registry returns registry by name
+func Test575_cap_block_get_registry(t *testing.T) {
+	reg := NewCapMatrix()
+
+	block := NewCapBlock()
+	block.AddRegistry("r1", reg)
+
+	retrieved := block.GetRegistry("r1")
+	if retrieved == nil {
+		t.Error("Expected registry, got nil")
+	}
+	if retrieved != reg {
+		t.Error("Expected same registry instance")
+	}
+
+	if block.GetRegistry("nonexistent") != nil {
+		t.Error("Expected nil for non-existent registry")
+	}
+}
+
+// TEST576: CapBlock get_registry_names returns names in insertion order
+func Test576_cap_block_get_registry_names(t *testing.T) {
+	block := NewCapBlock()
+
+	block.AddRegistry("alpha", NewCapMatrix())
+	block.AddRegistry("beta", NewCapMatrix())
+
+	names := block.GetRegistryNames()
+	if len(names) != 2 {
+		t.Errorf("Expected 2 names, got %d", len(names))
+	}
+	if names[0] != "alpha" {
+		t.Errorf("Expected alpha first, got %s", names[0])
+	}
+	if names[1] != "beta" {
+		t.Errorf("Expected beta second, got %s", names[1])
+	}
+}
+
+// TEST577: CapGraph get_input_specs and get_output_specs return correct sets
+func Test577_cap_graph_input_output_specs(t *testing.T) {
+	graph := NewCapGraph()
+
+	capDef := makeGraphCap("media:binary", standard.MediaString, "X")
+	graph.AddCap(capDef, "r")
+
+	inputs := graph.GetInputSpecs()
+	found := false
+	for _, s := range inputs {
+		if s == "media:binary" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("binary should be an input spec")
+	}
+
+	outputs := graph.GetOutputSpecs()
+	found = false
+	for _, s := range outputs {
+		if s == standard.MediaString {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("string should be an output spec")
+	}
+
+	// binary is only an input (no edges pointing TO it)
+	for _, s := range outputs {
+		if s == "media:binary" {
+			t.Error("binary should NOT be an output spec")
+		}
+	}
+	// string is only an output (no edges FROM it)
+	for _, s := range inputs {
+		if s == standard.MediaString {
+			t.Error("string should NOT be an input spec")
+		}
+	}
+}
+
+// TEST976: cap_graph find_best_path prefers highest total specificity over shortest
+func Test976_cap_graph_find_best_path(t *testing.T) {
+	graph := NewCapGraph()
+
+	// Direct path: binary -> obj (low specificity, just op)
+	capDirect := makeGraphCap("media:binary", standard.MediaObject, "Direct Low Spec")
+
+	// Two-hop path: binary -> string -> obj (high specificity, ext tags)
+	capHop1Urn, _ := NewCapUrnFromString(`cap:ext=pdf;in="media:binary";op=extract;out="` + standard.MediaString + `"`)
+	capHop1 := &Cap{
+		Urn:            capHop1Urn,
+		Title:          "Hop1 High Spec",
+		CapDescription: stringPtr("Hop1 High Spec"),
+		Metadata:       make(map[string]string),
+		Command:        "h1",
+		Args:           []CapArg{},
+	}
+
+	capHop2Urn, _ := NewCapUrnFromString(`cap:ext=json;in="` + standard.MediaString + `";op=parse;out="` + standard.MediaObject + `"`)
+	capHop2 := &Cap{
+		Urn:            capHop2Urn,
+		Title:          "Hop2 High Spec",
+		CapDescription: stringPtr("Hop2 High Spec"),
+		Metadata:       make(map[string]string),
+		Command:        "h2",
+		Args:           []CapArg{},
+	}
+
+	graph.AddCap(capDirect, "r1")
+	graph.AddCap(capHop1, "r2")
+	graph.AddCap(capHop2, "r2")
+
+	// find_path returns shortest (1 hop)
+	shortest := graph.FindPath("media:binary", standard.MediaObject)
+	if shortest == nil {
+		t.Fatal("Expected shortest path")
+	}
+	if len(shortest) != 1 {
+		t.Errorf("Expected shortest path length 1, got %d", len(shortest))
+	}
+
+	// find_best_path returns highest total specificity (2 hops, each with ext tag)
+	best := graph.FindBestPath("media:binary", standard.MediaObject, 5)
+	if best == nil {
+		t.Fatal("Expected best path")
+	}
+	totalSpec := 0
+	for _, e := range best {
+		totalSpec += e.Specificity
+	}
+	directSpec := shortest[0].Specificity
+	if totalSpec <= directSpec {
+		t.Errorf("Best path total specificity %d must exceed direct path %d", totalSpec, directSpec)
+	}
+	if len(best) != 2 {
+		t.Errorf("Expected best path length 2, got %d", len(best))
+	}
+}

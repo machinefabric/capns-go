@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"sort"
 	"sync"
 
 	"github.com/machinefabric/capdag-go/urn"
@@ -326,12 +327,11 @@ func (sw *RelaySwitch) findMasterForCap(capURN string, preferredCap *string) (in
 		}
 	}
 
-	// Collect ALL matching masters with their specificity scores
-	// When preferredCap is set, use comparable (broader); otherwise accepts (standard)
+	// Collect ALL dispatchable masters with their signed distance scores
 	type match struct {
-		masterIdx   int
-		specificity int
-		isPreferred bool
+		masterIdx      int
+		signedDistance  int
+		isPreferred    bool
 	}
 	var matches []match
 
@@ -341,27 +341,19 @@ func (sw *RelaySwitch) findMasterForCap(capURN string, preferredCap *string) (in
 			continue
 		}
 
-		// Determine if this is a match
-		isMatch := false
-		if preferredURN != nil {
-			// Comparable: either side accepts the other (broader match set)
-			isMatch = requestURN.Accepts(registeredURN) || registeredURN.Accepts(requestURN)
-		} else {
-			// Standard: request is pattern, registered cap is instance
-			isMatch = requestURN.Accepts(registeredURN)
-		}
-
-		if isMatch {
+		// Use is_dispatchable: can this provider handle this request?
+		if registeredURN.IsDispatchable(requestURN) {
 			specificity := registeredURN.Specificity()
+			signedDistance := specificity - requestSpecificity
 			// Check if this registered cap is equivalent to the preferred cap
 			isPreferred := false
 			if preferredURN != nil {
-				isPreferred = preferredURN.Accepts(registeredURN) && registeredURN.Accepts(preferredURN)
+				isPreferred = preferredURN.IsEquivalent(registeredURN)
 			}
 			matches = append(matches, match{
-				masterIdx:   entry.MasterIdx,
-				specificity: specificity,
-				isPreferred: isPreferred,
+				masterIdx:     entry.MasterIdx,
+				signedDistance: signedDistance,
+				isPreferred:   isPreferred,
 			})
 		}
 	}
@@ -380,32 +372,32 @@ func (sw *RelaySwitch) findMasterForCap(capURN string, preferredCap *string) (in
 		}
 	}
 
-	// Fall back to closest-specificity (ties broken by first match)
-	minDistance := -1
-	for _, m := range matches {
-		distance := m.specificity - requestSpecificity
-		if distance < 0 {
-			distance = -distance
+	// Rank: non-negative distance (refinement/exact) before negative (fallback),
+	// then by smallest absolute distance
+	sort.SliceStable(matches, func(i, j int) bool {
+		iGroup := 0
+		if matches[i].signedDistance < 0 {
+			iGroup = 1
 		}
-		if minDistance == -1 || distance < minDistance {
-			minDistance = distance
+		jGroup := 0
+		if matches[j].signedDistance < 0 {
+			jGroup = 1
 		}
-	}
+		if iGroup != jGroup {
+			return iGroup < jGroup
+		}
+		iAbs := matches[i].signedDistance
+		if iAbs < 0 {
+			iAbs = -iAbs
+		}
+		jAbs := matches[j].signedDistance
+		if jAbs < 0 {
+			jAbs = -jAbs
+		}
+		return iAbs < jAbs
+	})
 
-	for _, m := range matches {
-		distance := m.specificity - requestSpecificity
-		if distance < 0 {
-			distance = -distance
-		}
-		if distance == minDistance {
-			return m.masterIdx, nil
-		}
-	}
-
-	return 0, &RelaySwitchError{
-		Type:    RelaySwitchErrorTypeNoHandler,
-		Message: capURN,
-	}
+	return matches[0].masterIdx, nil
 }
 
 // handleMasterFrame handles a frame from a master

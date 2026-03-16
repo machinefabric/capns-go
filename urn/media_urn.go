@@ -2,6 +2,7 @@ package urn
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/machinefabric/capdag-go/standard"
@@ -105,6 +106,21 @@ func (m *MediaUrn) ConformsTo(pattern *MediaUrn) bool {
 	return match
 }
 
+// IsComparable checks if two media URNs are comparable in the order-theoretic sense.
+// Two URNs are comparable if either one accepts (subsumes) the other.
+// Use for discovery/validation: are they on the same specialization chain?
+func (m *MediaUrn) IsComparable(other *MediaUrn) bool {
+	return m.Accepts(other) || other.Accepts(m)
+}
+
+// IsEquivalent checks if two media URNs are equivalent in the order-theoretic sense.
+// Two URNs are equivalent if each accepts (subsumes) the other.
+// This means they have the same tag set (order-independent equality).
+// Use for exact stream matching.
+func (m *MediaUrn) IsEquivalent(other *MediaUrn) bool {
+	return m.Accepts(other) && other.Accepts(m)
+}
+
 // Equals checks if two MediaUrns are semantically equal
 func (m *MediaUrn) Equals(other *MediaUrn) bool {
 	if m == nil || other == nil {
@@ -200,6 +216,78 @@ func (m *MediaUrn) IsOpaque() bool {
 // For list detection, use IsList separately.
 func (m *MediaUrn) IsStructured() bool {
 	return m.IsRecord()
+}
+
+// WithTag creates a new MediaUrn with an additional or updated tag.
+func (m *MediaUrn) WithTag(key, value string) *MediaUrn {
+	if m.inner == nil {
+		return m
+	}
+	return &MediaUrn{inner: m.inner.WithTag(key, value)}
+}
+
+// WithoutTag creates a new MediaUrn without a specific tag.
+func (m *MediaUrn) WithoutTag(key string) *MediaUrn {
+	if m.inner == nil {
+		return m
+	}
+	return &MediaUrn{inner: m.inner.WithoutTag(key)}
+}
+
+// WithList creates a new MediaUrn with the list marker tag added.
+// Returns a new URN representing a list of this media type.
+// Idempotent — adding list to an already-list URN is a no-op.
+func (m *MediaUrn) WithList() *MediaUrn {
+	return m.WithTag("list", "*")
+}
+
+// WithoutList creates a new MediaUrn with the list marker tag removed.
+// Returns a new URN representing a scalar of this media type.
+// No-op if list tag is absent.
+func (m *MediaUrn) WithoutList() *MediaUrn {
+	return m.WithoutTag("list")
+}
+
+// LeastUpperBound computes the least upper bound (most specific common type) of a set of MediaUrns.
+// Returns the MediaUrn whose tag set is the intersection of all input tag sets:
+// only tags present in ALL inputs with matching values are kept.
+//
+// - Empty input -> media: (universal type)
+// - Single input -> returned as-is
+func LeastUpperBound(urns []*MediaUrn) *MediaUrn {
+	if len(urns) == 0 {
+		u, _ := NewMediaUrnFromString("media:")
+		return u
+	}
+
+	if len(urns) == 1 {
+		return urns[0]
+	}
+
+	// Start with the first URN's tags, intersect with each subsequent URN
+	firstTags := urns[0].inner.AllTags()
+	commonTags := make(map[string]string, len(firstTags))
+	for k, v := range firstTags {
+		commonTags[k] = v
+	}
+
+	for _, u := range urns[1:] {
+		if u.inner == nil {
+			// No tags = empty intersection
+			commonTags = make(map[string]string)
+			break
+		}
+		otherTags := u.inner.AllTags()
+		for key, value := range commonTags {
+			otherValue, exists := otherTags[key]
+			if !exists || otherValue != value {
+				delete(commonTags, key)
+			}
+		}
+	}
+
+	result := taggedurn.NewTaggedUrnFromTags("media", commonTags)
+	return &MediaUrn{inner: result}
 }
 
 // =========================================================================
@@ -303,4 +391,14 @@ func MediaUrnNumber() *MediaUrn {
 func MediaUrnBoolean() *MediaUrn {
 	m, _ := NewMediaUrnFromString(standard.MediaBoolean)
 	return m
+}
+
+// ImageMediaUrnForExt builds an image media URN with the given file extension
+func ImageMediaUrnForExt(ext string) string {
+	return fmt.Sprintf("media:image;ext=%s", ext)
+}
+
+// AudioMediaUrnForExt builds an audio media URN with the given file extension
+func AudioMediaUrnForExt(ext string) string {
+	return fmt.Sprintf("media:audio;ext=%s", ext)
 }

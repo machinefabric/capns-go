@@ -548,7 +548,7 @@ func Test434_relay_switch_limits_negotiation_minimum(t *testing.T) {
 	}
 }
 
-// TEST435: URN matching (exact vs accepts())
+// TEST435: URN matching (exact and is_dispatchable contravariant/covariant semantics)
 func Test435_relay_switch_urn_matching(t *testing.T) {
 	engineRead, slaveWrite := net.Pipe()
 	slaveRead, engineWrite := net.Pipe()
@@ -588,18 +588,23 @@ func Test435_relay_switch_urn_matching(t *testing.T) {
 		t.Errorf("Payload mismatch: %v", resp1.Payload)
 	}
 
-	// More specific request should NOT match
+	// More specific request SHOULD match under is_dispatchable semantics:
+	// Input (contravariant): request's media:text;utf8;normalized conforms_to provider's media:text;utf8
+	// Output (covariant): provider's media:text;utf8 conforms_to request's media:text
 	req2 := NewReq(
 		NewMessageIdFromUint(2),
 		`cap:in="media:text;utf8;normalized";op=process;out="media:text"`,
 		[]byte{},
 		"text/plain",
 	)
-	err := sw.SendToMaster(req2, nil)
-	if err == nil {
-		t.Error("More specific request should not match less specific registered cap")
+	if err := sw.SendToMaster(req2, nil); err != nil {
+		t.Errorf("More specific request should match under is_dispatchable: %v", err)
 	}
-	if _, ok := err.(*RelaySwitchError); !ok {
-		t.Errorf("Expected RelaySwitchError, got %T", err)
+	resp2, err := sw.ReadFromMasters()
+	if err != nil {
+		t.Fatalf("Failed to read response for req2: %v", err)
+	}
+	if len(resp2.Payload) != 1 || resp2.Payload[0] != 42 {
+		t.Errorf("Payload mismatch for req2: %v", resp2.Payload)
 	}
 }

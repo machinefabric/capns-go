@@ -350,6 +350,18 @@ func Test077_serde_roundtrip(t *testing.T) {
 	assert.True(t, original.Equals(&restored))
 }
 
+// TEST078: conforms_to behavior between MEDIA_OBJECT and MEDIA_STRING
+func Test078_object_does_not_conform_to_string(t *testing.T) {
+	strUrn, err := NewMediaUrnFromString(standard.MediaString)
+	require.NoError(t, err)
+	objUrn, err := NewMediaUrnFromString(standard.MediaObject)
+	require.NoError(t, err)
+
+	assert.True(t, strUrn.ConformsTo(strUrn), "string conforms to string")
+	assert.True(t, objUrn.ConformsTo(objUrn), "object conforms to object")
+	assert.False(t, objUrn.ConformsTo(strUrn), "MEDIA_OBJECT should NOT conform to MEDIA_STRING (missing textable)")
+}
+
 // TEST304: Test MEDIA_AVAILABILITY_OUTPUT constant parses as valid media URN with correct tags
 func Test304_media_availability_output_constant(t *testing.T) {
 	urn, err := NewMediaUrnFromString("media:model-availability;textable;record")
@@ -625,3 +637,176 @@ func Test558_predicate_constant_consistency(t *testing.T) {
 	assert.True(t, voidUrn.IsBinary(), "void is binary because it has no textable tag")
 	assert.False(t, voidUrn.IsNumeric())
 }
+
+// TEST850: with_list adds list marker, without_list removes it
+func Test850_with_list_without_list(t *testing.T) {
+	pdf, err := NewMediaUrnFromString("media:pdf")
+	require.NoError(t, err)
+	assert.True(t, pdf.IsScalar())
+	assert.False(t, pdf.IsList())
+
+	pdfList := pdf.WithList()
+	assert.True(t, pdfList.IsList())
+	assert.False(t, pdfList.IsScalar())
+	// The list URN should contain all original tags plus list
+	assert.True(t, pdfList.ConformsTo(pdf), "list version should still conform to scalar pattern")
+
+	backToScalar := pdfList.WithoutList()
+	assert.True(t, backToScalar.IsScalar())
+	assert.True(t, backToScalar.IsEquivalent(pdf), "removing list should restore original")
+}
+
+// TEST851: with_list is idempotent
+func Test851_with_list_idempotent(t *testing.T) {
+	listUrn, err := NewMediaUrnFromString("media:json;list;textable")
+	require.NoError(t, err)
+	assert.True(t, listUrn.IsList())
+
+	doubleList := listUrn.WithList()
+	assert.True(t, doubleList.IsList())
+	assert.True(t, doubleList.IsEquivalent(listUrn), "adding list to already-list should be no-op")
+}
+
+// TEST852: LUB of identical URNs returns the same URN
+func Test852_lub_identical(t *testing.T) {
+	pdf, err := NewMediaUrnFromString("media:pdf")
+	require.NoError(t, err)
+	lub := LeastUpperBound([]*MediaUrn{pdf, pdf})
+	assert.True(t, lub.IsEquivalent(pdf))
+}
+
+// TEST853: LUB of URNs with no common tags returns media: (universal)
+func Test853_lub_no_common_tags(t *testing.T) {
+	pdf, err := NewMediaUrnFromString("media:pdf")
+	require.NoError(t, err)
+	png, err := NewMediaUrnFromString("media:png")
+	require.NoError(t, err)
+	lub := LeastUpperBound([]*MediaUrn{pdf, png})
+	universal, err := NewMediaUrnFromString("media:")
+	require.NoError(t, err)
+	assert.True(t, lub.IsEquivalent(universal), "LUB of pdf and png should be media: but got %s", lub.String())
+}
+
+// TEST854: LUB keeps common tags, drops differing ones
+func Test854_lub_partial_overlap(t *testing.T) {
+	jsonText, err := NewMediaUrnFromString("media:json;textable")
+	require.NoError(t, err)
+	csvText, err := NewMediaUrnFromString("media:csv;textable")
+	require.NoError(t, err)
+	lub := LeastUpperBound([]*MediaUrn{jsonText, csvText})
+	expected, err := NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+	assert.True(t, lub.IsEquivalent(expected), "LUB should be media:textable but got %s", lub.String())
+}
+
+// TEST855: LUB of list and non-list drops list tag
+func Test855_lub_list_vs_scalar(t *testing.T) {
+	jsonList, err := NewMediaUrnFromString("media:json;list;textable")
+	require.NoError(t, err)
+	jsonScalar, err := NewMediaUrnFromString("media:json;textable")
+	require.NoError(t, err)
+	lub := LeastUpperBound([]*MediaUrn{jsonList, jsonScalar})
+	expected, err := NewMediaUrnFromString("media:json;textable")
+	require.NoError(t, err)
+	assert.True(t, lub.IsEquivalent(expected), "LUB should drop list tag, got %s", lub.String())
+}
+
+// TEST856: LUB of empty input returns universal type
+func Test856_lub_empty(t *testing.T) {
+	lub := LeastUpperBound([]*MediaUrn{})
+	universal, err := NewMediaUrnFromString("media:")
+	require.NoError(t, err)
+	assert.True(t, lub.IsEquivalent(universal))
+}
+
+// TEST857: LUB of single input returns that input
+func Test857_lub_single(t *testing.T) {
+	pdf, err := NewMediaUrnFromString("media:pdf")
+	require.NoError(t, err)
+	lub := LeastUpperBound([]*MediaUrn{pdf})
+	assert.True(t, lub.IsEquivalent(pdf))
+}
+
+// TEST858: LUB with three+ inputs narrows correctly
+func Test858_lub_three_inputs(t *testing.T) {
+	a, err := NewMediaUrnFromString("media:json;list;record;textable")
+	require.NoError(t, err)
+	b, err := NewMediaUrnFromString("media:csv;list;record;textable")
+	require.NoError(t, err)
+	c, err := NewMediaUrnFromString("media:ndjson;list;textable")
+	require.NoError(t, err)
+	lub := LeastUpperBound([]*MediaUrn{a, b, c})
+	expected, err := NewMediaUrnFromString("media:list;textable")
+	require.NoError(t, err)
+	assert.True(t, lub.IsEquivalent(expected), "LUB should be media:list;textable but got %s", lub.String())
+}
+
+// TEST859: LUB with valued tags (non-marker) that differ
+func Test859_lub_valued_tags(t *testing.T) {
+	v1, err := NewMediaUrnFromString("media:image;format=png")
+	require.NoError(t, err)
+	v2, err := NewMediaUrnFromString("media:image;format=jpeg")
+	require.NoError(t, err)
+	lub := LeastUpperBound([]*MediaUrn{v1, v2})
+	expected, err := NewMediaUrnFromString("media:image")
+	require.NoError(t, err)
+	assert.True(t, lub.IsEquivalent(expected), "LUB should drop conflicting format tag, got %s", lub.String())
+}
+
+// TEST628: Verify media URN constants all start with "media:" prefix
+func Test628_media_urn_constants_format(t *testing.T) {
+	assert.True(t, len(standard.MediaString) > 6 && standard.MediaString[:6] == "media:")
+	assert.True(t, len(standard.MediaInteger) > 6 && standard.MediaInteger[:6] == "media:")
+	assert.True(t, len(standard.MediaObject) > 6 && standard.MediaObject[:6] == "media:")
+	assert.True(t, len(standard.MediaIdentity) >= 6 && standard.MediaIdentity[:6] == "media:")
+}
+
+// TEST555: with_tag and without_tag on MediaUrn
+func Test555_with_tag_and_without_tag(t *testing.T) {
+	urn, err := NewMediaUrnFromString("media:string")
+	require.NoError(t, err)
+
+	withExt := urn.WithTag("ext", "pdf")
+	ext, ok := withExt.GetExtension()
+	assert.True(t, ok)
+	assert.Equal(t, "pdf", ext)
+
+	// Original unchanged (immutability)
+	_, ok = urn.GetExtension()
+	assert.False(t, ok)
+
+	// Remove the tag
+	withoutExt := withExt.WithoutTag("ext")
+	_, ok = withoutExt.GetExtension()
+	assert.False(t, ok)
+
+	// Removing non-existent tag is a no-op
+	same := urn.WithoutTag("nonexistent")
+	assert.True(t, urn.Equals(same))
+}
+
+// TEST556: image_media_urn_for_ext creates valid image URN
+func Test556_image_media_urn_for_ext(t *testing.T) {
+	jpgUrn := ImageMediaUrnForExt("jpg")
+	parsed, err := NewMediaUrnFromString(jpgUrn)
+	require.NoError(t, err)
+	assert.True(t, parsed.IsImage(), "image helper must set image tag")
+	assert.True(t, parsed.IsBinary(), "image URN must be binary (no textable tag)")
+	ext, ok := parsed.GetExtension()
+	assert.True(t, ok)
+	assert.Equal(t, "jpg", ext)
+}
+
+// TEST557: audio_media_urn_for_ext creates valid audio URN
+func Test557_audio_media_urn_for_ext(t *testing.T) {
+	mp3Urn := AudioMediaUrnForExt("mp3")
+	parsed, err := NewMediaUrnFromString(mp3Urn)
+	require.NoError(t, err)
+	assert.True(t, parsed.IsAudio(), "audio helper must set audio tag")
+	assert.True(t, parsed.IsBinary(), "audio URN must be binary (no textable tag)")
+	ext, ok := parsed.GetExtension()
+	assert.True(t, ok)
+	assert.Equal(t, "mp3", ext)
+}
+
+// TEST629: Profile constants verified in media/spec_test.go (urn cannot import media due to cycle)

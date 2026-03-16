@@ -60,3 +60,27 @@ func Test312_all_urn_builders_produce_valid_urns(t *testing.T) {
 	llmStr := LlmConversationUrn("en")
 	assert.True(t, strings.HasPrefix(llmStr, "cap:"), "must be a cap URN")
 }
+
+// TEST473: CAP_DISCARD constant has correct format with wildcard input and void output
+func Test473_cap_discard_parses_as_valid_urn(t *testing.T) {
+	// Cannot import urn package from standard_test (import cycle),
+	// so verify via string assertions on the constant value
+	assert.True(t, strings.HasPrefix(CapDiscard, "cap:"), "CAP_DISCARD must be a cap URN")
+	assert.True(t, strings.Contains(CapDiscard, "in=media:"), "CAP_DISCARD input must be wildcard media:")
+	assert.True(t, strings.Contains(CapDiscard, "out=media:void"), "CAP_DISCARD output must be media:void")
+}
+
+// TEST474: CAP_DISCARD structure — wildcard input, void output
+// NOTE: Full accepts() semantics tested in urn/cap_urn_test.go where urn package is available.
+// Here we verify the structural properties that make discard work.
+func Test474_cap_discard_structure(t *testing.T) {
+	// Discard has no op tag — it's a pattern that accepts anything with void output
+	assert.False(t, strings.Contains(CapDiscard, "op="),
+		"CAP_DISCARD should have no op tag (accepts any op)")
+	// Input is wildcard media: (accepts any input type)
+	assert.True(t, strings.Contains(CapDiscard, "in=media:;") || strings.HasSuffix(CapDiscard, "in=media:"),
+		"CAP_DISCARD input must be bare media: (wildcard)")
+	// Output is specifically void
+	assert.True(t, strings.Contains(CapDiscard, "out=media:void"),
+		"CAP_DISCARD output must be media:void")
+}

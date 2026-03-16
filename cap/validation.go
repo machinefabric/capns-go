@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 
 	"github.com/machinefabric/capdag-go/media"
 )
@@ -812,6 +813,177 @@ func (cvc *CapValidationCoordinator) ValidateCapSchema(cap *Cap, registry *media
 			}
 			cliFlags[*cliFlag] = arg.MediaUrn
 		}
+	}
+
+	return nil
+}
+
+// ReservedCliFlags are CLI flags that cannot be used as cap argument flags
+var ReservedCliFlags = []string{"manifest", "--help", "--version", "-v", "-h"}
+
+// ValidateCapArgs enforces structural rules on a cap's argument definitions.
+// This is a standalone function matching Rust's validate_cap_args().
+// Rules:
+//
+//	RULE1: No duplicate media_urns across args
+//	RULE2: Sources must not be empty
+//	RULE3: If multiple args have stdin source, stdin media_urns must be identical
+//	RULE4: No arg may specify same source type more than once
+//	RULE5: No two args may have same position
+//	RULE6: Positions must be sequential (0-based, no gaps)
+//	RULE7: No arg may have both position and cli_flag
+//	RULE9: No two args may have same cli_flag
+//	RULE10: Reserved cli_flags rejected
+func ValidateCapArgs(cap *Cap) error {
+	capUrn := cap.UrnString()
+	args := cap.GetArgs()
+
+	// RULE1: No duplicate media_urns
+	mediaUrns := make(map[string]bool)
+	for _, arg := range args {
+		if mediaUrns[arg.MediaUrn] {
+			return &ValidationError{
+				Type:    "InvalidCapSchema",
+				CapUrn:  capUrn,
+				Message: fmt.Sprintf("RULE1: Duplicate media_urn '%s'", arg.MediaUrn),
+			}
+		}
+		mediaUrns[arg.MediaUrn] = true
+	}
+
+	// RULE2: sources must not be empty
+	for _, arg := range args {
+		if len(arg.Sources) == 0 {
+			return &ValidationError{
+				Type:    "InvalidCapSchema",
+				CapUrn:  capUrn,
+				Message: fmt.Sprintf("RULE2: Argument '%s' has empty sources", arg.MediaUrn),
+			}
+		}
+	}
+
+	// Collect cross-arg data
+	var stdinUrns []string
+	type posEntry struct {
+		pos      int
+		mediaUrn string
+	}
+	var positions []posEntry
+	type flagEntry struct {
+		flag     string
+		mediaUrn string
+	}
+	var cliFlags []flagEntry
+
+	for _, arg := range args {
+		sourceTypes := make(map[string]bool)
+		hasPosition := false
+		hasCliFlag := false
+
+		for _, source := range arg.Sources {
+			sourceType := source.GetType()
+
+			// RULE4: No arg may specify same source type more than once
+			if sourceTypes[sourceType] {
+				return &ValidationError{
+					Type:    "InvalidCapSchema",
+					CapUrn:  capUrn,
+					Message: fmt.Sprintf("RULE4: Argument '%s' has duplicate source type '%s'", arg.MediaUrn, sourceType),
+				}
+			}
+			sourceTypes[sourceType] = true
+
+			if source.Stdin != nil {
+				stdinUrns = append(stdinUrns, *source.Stdin)
+			}
+			if source.Position != nil {
+				hasPosition = true
+				positions = append(positions, posEntry{pos: *source.Position, mediaUrn: arg.MediaUrn})
+			}
+			if source.CliFlag != nil {
+				hasCliFlag = true
+				flag := *source.CliFlag
+				cliFlags = append(cliFlags, flagEntry{flag: flag, mediaUrn: arg.MediaUrn})
+
+				// RULE10: Reserved cli_flags
+				for _, reserved := range ReservedCliFlags {
+					if flag == reserved {
+						return &ValidationError{
+							Type:    "InvalidCapSchema",
+							CapUrn:  capUrn,
+							Message: fmt.Sprintf("RULE10: Argument '%s' uses reserved cli_flag '%s'", arg.MediaUrn, flag),
+						}
+					}
+				}
+			}
+		}
+
+		// RULE7: No arg may have both position and cli_flag
+		if hasPosition && hasCliFlag {
+			return &ValidationError{
+				Type:    "InvalidCapSchema",
+				CapUrn:  capUrn,
+				Message: fmt.Sprintf("RULE7: Argument '%s' has both position and cli_flag sources", arg.MediaUrn),
+			}
+		}
+	}
+
+	// RULE3: If multiple args have stdin source, stdin media_urns must be identical
+	if len(stdinUrns) > 1 {
+		first := stdinUrns[0]
+		for _, su := range stdinUrns[1:] {
+			if su != first {
+				return &ValidationError{
+					Type:    "InvalidCapSchema",
+					CapUrn:  capUrn,
+					Message: fmt.Sprintf("RULE3: Multiple args have different stdin media_urns: '%s' vs '%s'", first, su),
+				}
+			}
+		}
+	}
+
+	// RULE5: No two args may have same position
+	positionSet := make(map[int]string)
+	for _, pe := range positions {
+		if existing, exists := positionSet[pe.pos]; exists {
+			_ = existing
+			return &ValidationError{
+				Type:    "InvalidCapSchema",
+				CapUrn:  capUrn,
+				Message: fmt.Sprintf("RULE5: Duplicate position %d in argument '%s'", pe.pos, pe.mediaUrn),
+			}
+		}
+		positionSet[pe.pos] = pe.mediaUrn
+	}
+
+	// RULE6: Positions must be sequential (0-based, no gaps)
+	if len(positions) > 0 {
+		sorted := make([]posEntry, len(positions))
+		copy(sorted, positions)
+		sort.Slice(sorted, func(i, j int) bool { return sorted[i].pos < sorted[j].pos })
+		for i, pe := range sorted {
+			if pe.pos != i {
+				return &ValidationError{
+					Type:    "InvalidCapSchema",
+					CapUrn:  capUrn,
+					Message: fmt.Sprintf("RULE6: Position gap - expected %d but found %d", i, pe.pos),
+				}
+			}
+		}
+	}
+
+	// RULE9: No two args may have same cli_flag
+	flagSet := make(map[string]string)
+	for _, fe := range cliFlags {
+		if existing, exists := flagSet[fe.flag]; exists {
+			_ = existing
+			return &ValidationError{
+				Type:    "InvalidCapSchema",
+				CapUrn:  capUrn,
+				Message: fmt.Sprintf("RULE9: Duplicate cli_flag '%s' in argument '%s'", fe.flag, fe.mediaUrn),
+			}
+		}
+		flagSet[fe.flag] = fe.mediaUrn
 	}
 
 	return nil

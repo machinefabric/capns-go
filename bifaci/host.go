@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"sort"
 	"sync"
 
 	"github.com/machinefabric/capdag-go/urn"
@@ -268,23 +269,63 @@ func (h *PluginHost) findPluginForCapLocked(capUrn string) (int, bool) {
 		}
 	}
 
-	// URN-level matching: request is pattern, registered cap is instance
+	// URN-level matching: use is_dispatchable (provider can handle request)
 	requestUrn, err := urn.NewCapUrnFromString(capUrn)
 	if err != nil {
 		return -1, false
 	}
+
+	requestSpecificity := requestUrn.Specificity()
+
+	type matchEntry struct {
+		pluginIdx      int
+		signedDistance int
+	}
+	var matches []matchEntry
 
 	for _, entry := range h.capTable {
 		registeredUrn, err := urn.NewCapUrnFromString(entry.capUrn)
 		if err != nil {
 			continue
 		}
-		if requestUrn.Accepts(registeredUrn) {
-			return entry.pluginIdx, true
+		// Use is_dispatchable: can this provider handle this request?
+		if registeredUrn.IsDispatchable(requestUrn) {
+			specificity := registeredUrn.Specificity()
+			signedDistance := specificity - requestSpecificity
+			matches = append(matches, matchEntry{entry.pluginIdx, signedDistance})
 		}
 	}
 
-	return -1, false
+	if len(matches) == 0 {
+		return -1, false
+	}
+
+	// Rank: non-negative distance (refinement/exact) before negative (fallback),
+	// then by smallest absolute distance
+	sort.SliceStable(matches, func(i, j int) bool {
+		iGroup := 0
+		if matches[i].signedDistance < 0 {
+			iGroup = 1
+		}
+		jGroup := 0
+		if matches[j].signedDistance < 0 {
+			jGroup = 1
+		}
+		if iGroup != jGroup {
+			return iGroup < jGroup
+		}
+		iAbs := matches[i].signedDistance
+		if iAbs < 0 {
+			iAbs = -iAbs
+		}
+		jAbs := matches[j].signedDistance
+		if jAbs < 0 {
+			jAbs = -jAbs
+		}
+		return iAbs < jAbs
+	})
+
+	return matches[0].pluginIdx, true
 }
 
 // Run runs the main event loop, reading from relay and plugins.

@@ -87,15 +87,9 @@ func (r *CapMatrix) FindCapSets(requestUrn string) ([]cap.CapSet, error) {
 	var matchingHosts []cap.CapSet
 
 	for _, entry := range r.sets {
-		for _, cap := range entry.capabilities {
-			capUrn, err := urn.NewCapUrnFromString(cap.Urn.String())
-			if err != nil {
-				return nil, NewRegistryError(
-					fmt.Sprintf("Invalid capability URN in registry for host %s: %s", entry.name, err.Error()),
-				)
-			}
-
-			if capUrn.Accepts(request) {
+		for _, c := range entry.capabilities {
+			// Use is_dispatchable: can this provider handle this request?
+			if c.Urn.IsDispatchable(request) {
 				matchingHosts = append(matchingHosts, entry.host)
 				break // Found a matching capability for this host, no need to check others
 			}
@@ -121,19 +115,13 @@ func (r *CapMatrix) FindBestCapSet(requestUrn string) (cap.CapSet, *cap.Cap, err
 	var bestSpecificity int = -1
 
 	for _, entry := range r.sets {
-		for _, cap := range entry.capabilities {
-			capUrn, err := urn.NewCapUrnFromString(cap.Urn.String())
-			if err != nil {
-				return nil, nil, NewRegistryError(
-					fmt.Sprintf("Invalid capability URN in registry for host %s: %s", entry.name, err.Error()),
-				)
-			}
-
-			if capUrn.Accepts(request) {
-				specificity := capUrn.Specificity()
+		for _, c := range entry.capabilities {
+			// Use is_dispatchable: can this provider handle this request?
+			if c.Urn.IsDispatchable(request) {
+				specificity := c.Urn.Specificity()
 				if bestSpecificity == -1 || specificity > bestSpecificity {
 					bestHost = entry.host
-					bestCap = cap
+					bestCap = c
 					bestSpecificity = specificity
 				}
 				break // Found a matching capability for this host, check next host
@@ -164,6 +152,22 @@ func (r *CapMatrix) GetAllCapabilities() []*cap.Cap {
 		capabilities = append(capabilities, entry.capabilities...)
 	}
 	return capabilities
+}
+
+// GetCapabilitiesForHost returns capabilities for a specific host, or nil if unknown
+func (r *CapMatrix) GetCapabilitiesForHost(hostName string) []*cap.Cap {
+	entry, exists := r.sets[hostName]
+	if !exists {
+		return nil
+	}
+	return entry.capabilities
+}
+
+// IterHostsAndCaps calls fn for each host name and its capabilities
+func (r *CapMatrix) IterHostsAndCaps(fn func(name string, caps []*cap.Cap)) {
+	for name, entry := range r.sets {
+		fn(name, entry.capabilities)
+	}
 }
 
 // AcceptsRequest checks if any host can handle the specified capability
@@ -352,11 +356,12 @@ func (c *CapBlock) findBestInRegistry(registry *CapMatrix, request *CapUrn) (*ca
 	bestSpecificity := -1
 
 	for _, entry := range registry.sets {
-		for _, cap := range entry.capabilities {
-			if cap.Urn.Accepts(request) {
-				specificity := cap.Urn.Specificity()
+		for _, capDef := range entry.capabilities {
+			// Use is_dispatchable: can this provider handle this request?
+			if capDef.Urn.IsDispatchable(request) {
+				specificity := capDef.Urn.Specificity()
 				if bestSpecificity == -1 || specificity > bestSpecificity {
-					bestCap = cap
+					bestCap = capDef
 					bestSpecificity = specificity
 				}
 				break // Found match for this entry, check next entry
@@ -389,9 +394,10 @@ func (cs *CompositeCapSet) ExecuteCap(
 
 	for _, entry := range cs.registries {
 		for _, setEntry := range entry.registry.sets {
-			for _, cap := range setEntry.capabilities {
-				if cap.Urn.Accepts(request) {
-					specificity := cap.Urn.Specificity()
+			for _, capDef := range setEntry.capabilities {
+				// Use is_dispatchable: can this provider handle this request?
+				if capDef.Urn.IsDispatchable(request) {
+					specificity := capDef.Urn.Specificity()
 					if bestSpecificity == -1 || specificity > bestSpecificity {
 						bestHost = setEntry.host
 						bestSpecificity = specificity
@@ -550,19 +556,45 @@ func (g *CapGraph) GetOutgoing(spec string) []*CapGraphEdge {
 }
 
 // GetIncoming returns all edges targeting a spec.
+// Uses ConformsTo matching: returns edges where the edge's ToSpec conforms to the requested spec.
 func (g *CapGraph) GetIncoming(spec string) []*CapGraphEdge {
-	indices := g.incoming[spec]
-	edges := make([]*CapGraphEdge, len(indices))
-	for i, idx := range indices {
-		edges[i] = &g.edges[idx]
+	var edges []*CapGraphEdge
+
+	requirementUrn, err := taggedurn.NewTaggedUrnFromString(spec)
+	if err != nil {
+		return edges
 	}
+
+	for i := range g.edges {
+		edge := &g.edges[i]
+		producedUrn, err := taggedurn.NewTaggedUrnFromString(edge.ToSpec)
+		if err != nil {
+			continue
+		}
+		conforms, err := producedUrn.ConformsTo(requirementUrn)
+		if err == nil && conforms {
+			edges = append(edges, edge)
+		}
+	}
+
 	return edges
 }
 
 // HasDirectEdge checks if there's any direct edge from one spec to another.
+// Uses ConformsTo matching for both input and output specs.
 func (g *CapGraph) HasDirectEdge(fromSpec, toSpec string) bool {
+	toRequirement, err := taggedurn.NewTaggedUrnFromString(toSpec)
+	if err != nil {
+		return false
+	}
+
 	for _, edge := range g.GetOutgoing(fromSpec) {
-		if edge.ToSpec == toSpec {
+		producedUrn, err := taggedurn.NewTaggedUrnFromString(edge.ToSpec)
+		if err != nil {
+			continue
+		}
+		conforms, err := producedUrn.ConformsTo(toRequirement)
+		if err == nil && conforms {
 			return true
 		}
 	}
@@ -570,10 +602,21 @@ func (g *CapGraph) HasDirectEdge(fromSpec, toSpec string) bool {
 }
 
 // GetDirectEdges returns all direct edges from one spec to another, sorted by specificity (highest first).
+// Uses ConformsTo matching for both input and output specs.
 func (g *CapGraph) GetDirectEdges(fromSpec, toSpec string) []*CapGraphEdge {
+	toRequirement, err := taggedurn.NewTaggedUrnFromString(toSpec)
+	if err != nil {
+		return nil
+	}
+
 	var edges []*CapGraphEdge
 	for _, edge := range g.GetOutgoing(fromSpec) {
-		if edge.ToSpec == toSpec {
+		producedUrn, err := taggedurn.NewTaggedUrnFromString(edge.ToSpec)
+		if err != nil {
+			continue
+		}
+		conforms, err := producedUrn.ConformsTo(toRequirement)
+		if err == nil && conforms {
 			edges = append(edges, edge)
 		}
 	}
@@ -592,26 +635,53 @@ func (g *CapGraph) GetDirectEdges(fromSpec, toSpec string) []*CapGraphEdge {
 
 // CanConvert checks if a conversion path exists from one spec to another.
 // Uses BFS to find if there's any path (direct or through intermediates).
+// Uses ConformsTo matching for output spec comparison.
 func (g *CapGraph) CanConvert(fromSpec, toSpec string) bool {
 	if fromSpec == toSpec {
 		return true
 	}
 
-	if !g.nodes[fromSpec] || !g.nodes[toSpec] {
+	toRequirement, err := taggedurn.NewTaggedUrnFromString(toSpec)
+	if err != nil {
+		return false
+	}
+
+	// Check if from_spec can satisfy any edge's input
+	initialEdges := g.GetOutgoing(fromSpec)
+	if len(initialEdges) == 0 {
 		return false
 	}
 
 	visited := make(map[string]bool)
-	queue := []string{fromSpec}
-	visited[fromSpec] = true
+	queue := make([]string, 0)
 
+	// Start by checking edges from the initial spec
+	for _, edge := range initialEdges {
+		producedUrn, err := taggedurn.NewTaggedUrnFromString(edge.ToSpec)
+		if err == nil {
+			conforms, err := producedUrn.ConformsTo(toRequirement)
+			if err == nil && conforms {
+				return true
+			}
+		}
+		if !visited[edge.ToSpec] {
+			visited[edge.ToSpec] = true
+			queue = append(queue, edge.ToSpec)
+		}
+	}
+
+	// BFS through the graph
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
 
 		for _, edge := range g.GetOutgoing(current) {
-			if edge.ToSpec == toSpec {
-				return true
+			producedUrn, err := taggedurn.NewTaggedUrnFromString(edge.ToSpec)
+			if err == nil {
+				conforms, err := producedUrn.ConformsTo(toRequirement)
+				if err == nil && conforms {
+					return true
+				}
 			}
 			if !visited[edge.ToSpec] {
 				visited[edge.ToSpec] = true
@@ -625,49 +695,105 @@ func (g *CapGraph) CanConvert(fromSpec, toSpec string) bool {
 
 // FindPath finds the shortest conversion path from one spec to another.
 // Returns a sequence of edges representing the conversion chain, or nil if no path exists.
+// Uses ConformsTo matching for output spec comparison.
 func (g *CapGraph) FindPath(fromSpec, toSpec string) []*CapGraphEdge {
 	if fromSpec == toSpec {
 		return []*CapGraphEdge{}
 	}
 
-	if !g.nodes[fromSpec] || !g.nodes[toSpec] {
+	toRequirement, err := taggedurn.NewTaggedUrnFromString(toSpec)
+	if err != nil {
+		return nil
+	}
+
+	// Find edges that the input spec conforms to
+	initialEdges := g.GetOutgoing(fromSpec)
+	if len(initialEdges) == 0 {
 		return nil
 	}
 
 	// BFS to find shortest path
-	// visited maps spec -> (previous spec, edge index used to reach it)
 	type backtrackInfo struct {
 		prevSpec string
 		edgeIdx  int
 	}
 	visited := make(map[string]*backtrackInfo)
-	queue := []string{fromSpec}
-	visited[fromSpec] = nil
+
+	// Process initial edges
+	for _, edge := range initialEdges {
+		// Find actual edge index
+		edgeIdx := -1
+		for i := range g.edges {
+			if &g.edges[i] == edge {
+				edgeIdx = i
+				break
+			}
+		}
+		if edgeIdx < 0 {
+			continue
+		}
+
+		producedUrn, err := taggedurn.NewTaggedUrnFromString(edge.ToSpec)
+		if err == nil {
+			conforms, err := producedUrn.ConformsTo(toRequirement)
+			if err == nil && conforms {
+				// Direct path found
+				return []*CapGraphEdge{&g.edges[edgeIdx]}
+			}
+		}
+
+		if _, exists := visited[edge.ToSpec]; !exists {
+			visited[edge.ToSpec] = &backtrackInfo{prevSpec: fromSpec, edgeIdx: edgeIdx}
+		}
+	}
+
+	// BFS queue from the initial edge targets
+	queue := make([]string, 0, len(visited))
+	for spec := range visited {
+		queue = append(queue, spec)
+	}
 
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
 
-		indices := g.outgoing[current]
-		for _, edgeIdx := range indices {
-			edge := &g.edges[edgeIdx]
-
-			if edge.ToSpec == toSpec {
-				// Found the target - reconstruct path
-				path := []*CapGraphEdge{&g.edges[edgeIdx]}
-
-				backtrack := current
-				for visited[backtrack] != nil {
-					info := visited[backtrack]
-					path = append(path, &g.edges[info.edgeIdx])
-					backtrack = info.prevSpec
+		for _, edge := range g.GetOutgoing(current) {
+			edgeIdx := -1
+			for i := range g.edges {
+				if &g.edges[i] == edge {
+					edgeIdx = i
+					break
 				}
+			}
+			if edgeIdx < 0 {
+				continue
+			}
 
-				// Reverse the path
-				for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
-					path[i], path[j] = path[j], path[i]
+			producedUrn, err := taggedurn.NewTaggedUrnFromString(edge.ToSpec)
+			if err == nil {
+				conforms, err := producedUrn.ConformsTo(toRequirement)
+				if err == nil && conforms {
+					// Found target - reconstruct path
+					pathIndices := []int{edgeIdx}
+					backtrack := current
+
+					for visited[backtrack] != nil {
+						info := visited[backtrack]
+						pathIndices = append(pathIndices, info.edgeIdx)
+						backtrack = info.prevSpec
+					}
+
+					// Reverse
+					for i, j := 0, len(pathIndices)-1; i < j; i, j = i+1, j-1 {
+						pathIndices[i], pathIndices[j] = pathIndices[j], pathIndices[i]
+					}
+
+					path := make([]*CapGraphEdge, len(pathIndices))
+					for i, idx := range pathIndices {
+						path[i] = &g.edges[idx]
+					}
+					return path
 				}
-				return path
 			}
 
 			if _, exists := visited[edge.ToSpec]; !exists {
@@ -682,8 +808,16 @@ func (g *CapGraph) FindPath(fromSpec, toSpec string) []*CapGraphEdge {
 
 // FindAllPaths finds all conversion paths from one spec to another (up to a maximum depth).
 // Returns all possible paths, sorted by total path length (shortest first).
+// Uses ConformsTo matching for output spec comparison.
 func (g *CapGraph) FindAllPaths(fromSpec, toSpec string, maxDepth int) [][]*CapGraphEdge {
-	if !g.nodes[fromSpec] || !g.nodes[toSpec] {
+	toRequirement, err := taggedurn.NewTaggedUrnFromString(toSpec)
+	if err != nil {
+		return nil
+	}
+
+	// Check if from_spec can satisfy any edge's input
+	initialEdges := g.GetOutgoing(fromSpec)
+	if len(initialEdges) == 0 {
 		return nil
 	}
 
@@ -691,7 +825,7 @@ func (g *CapGraph) FindAllPaths(fromSpec, toSpec string, maxDepth int) [][]*CapG
 	currentPath := []int{}
 	visited := make(map[string]bool)
 
-	g.dfsFindPaths(fromSpec, toSpec, maxDepth, currentPath, visited, &allPaths)
+	g.dfsFindPaths(fromSpec, toRequirement, maxDepth, currentPath, visited, &allPaths)
 
 	// Sort by path length (shortest first)
 	for i := 0; i < len(allPaths)-1; i++ {
@@ -716,16 +850,36 @@ func (g *CapGraph) FindAllPaths(fromSpec, toSpec string, maxDepth int) [][]*CapG
 }
 
 // dfsFindPaths is a DFS helper for finding all paths
-func (g *CapGraph) dfsFindPaths(current, target string, remainingDepth int, currentPath []int, visited map[string]bool, allPaths *[][]int) {
+// Uses ConformsTo matching for target comparison
+func (g *CapGraph) dfsFindPaths(current string, target *taggedurn.TaggedUrn, remainingDepth int, currentPath []int, visited map[string]bool, allPaths *[][]int) {
 	if remainingDepth == 0 {
 		return
 	}
 
-	indices := g.outgoing[current]
-	for _, edgeIdx := range indices {
-		edge := &g.edges[edgeIdx]
+	for _, edge := range g.GetOutgoing(current) {
+		// Find edge index
+		edgeIdx := -1
+		for i := range g.edges {
+			if &g.edges[i] == edge {
+				edgeIdx = i
+				break
+			}
+		}
+		if edgeIdx < 0 {
+			continue
+		}
 
-		if edge.ToSpec == target {
+		// Check if edge output conforms to target
+		outputConforms := false
+		producedUrn, err := taggedurn.NewTaggedUrnFromString(edge.ToSpec)
+		if err == nil {
+			conforms, err := producedUrn.ConformsTo(target)
+			if err == nil && conforms {
+				outputConforms = true
+			}
+		}
+
+		if outputConforms {
 			// Found a path
 			path := make([]int, len(currentPath)+1)
 			copy(path, currentPath)

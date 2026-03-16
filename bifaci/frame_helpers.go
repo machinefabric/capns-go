@@ -54,14 +54,11 @@ func CollectArgsByMediaUrn(frames <-chan Frame, mediaUrnPattern string) ([]inter
 				continue
 			}
 
-			accepts, _ := pattern.Accepts(streamUrn)
-			if !accepts {
-				// Try reverse direction
-				conforms, _ := streamUrn.ConformsTo(pattern)
-				if !conforms {
-					currentStreamID = ""
-					continue
-				}
+			// Use IsComparable: are they on the same specialization chain?
+			comparable, _ := pattern.IsComparable(streamUrn)
+			if !comparable {
+				currentStreamID = ""
+				continue
 			}
 
 			// Concatenate chunks and decode

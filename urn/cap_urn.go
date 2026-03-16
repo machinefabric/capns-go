@@ -310,6 +310,31 @@ func (c *CapUrn) OutSpec() string {
 	return c.outSpec
 }
 
+// InMediaUrn parses the input spec as a MediaUrn
+func (c *CapUrn) InMediaUrn() (*MediaUrn, error) {
+	return NewMediaUrnFromString(c.inSpec)
+}
+
+// OutMediaUrn parses the output spec as a MediaUrn
+func (c *CapUrn) OutMediaUrn() (*MediaUrn, error) {
+	return NewMediaUrnFromString(c.outSpec)
+}
+
+// CanonicalOption takes an optional cap URN string, parses and re-serializes it
+// to canonical form. Returns (nil, nil) for nil input, (canonical, nil) for valid
+// input, or (nil, error) for invalid input.
+func CanonicalOption(capUrn *string) (*string, error) {
+	if capUrn == nil {
+		return nil, nil
+	}
+	parsed, err := NewCapUrnFromString(*capUrn)
+	if err != nil {
+		return nil, err
+	}
+	canonical := parsed.String()
+	return &canonical, nil
+}
+
 // GetTag returns the value of a specific tag
 // Key is normalized to lowercase for lookup
 // For 'in' and 'out', returns the direction spec fields
@@ -480,6 +505,134 @@ func (c *CapUrn) Accepts(request *CapUrn) bool {
 // Equivalent to cap.Accepts(self).
 func (c *CapUrn) ConformsTo(cap *CapUrn) bool {
 	return cap.Accepts(c)
+}
+
+// inputDispatchable checks if provider's input is dispatchable for request's input.
+//
+// Input is CONTRAVARIANT: provider with looser input constraint can handle
+// request with stricter input. media: is the identity (top) and means
+// "unconstrained" — vacuously true on either side.
+func (c *CapUrn) inputDispatchable(request *CapUrn) bool {
+	// Request wildcard: any provider input is fine
+	if request.inSpec == "media:" {
+		return true
+	}
+
+	// Provider wildcard: provider accepts any input
+	if c.inSpec == "media:" {
+		return true
+	}
+
+	// Both specific: request input must conform to provider input requirement
+	reqIn, err := NewMediaUrnFromString(request.inSpec)
+	if err != nil {
+		return false
+	}
+	provIn, err := NewMediaUrnFromString(c.inSpec)
+	if err != nil {
+		return false
+	}
+
+	return reqIn.ConformsTo(provIn)
+}
+
+// outputDispatchable checks if provider's output is dispatchable for request's output.
+//
+// Output is COVARIANT: provider must produce at least what request needs.
+// Provider out=media: + request specific: FAIL (cannot guarantee).
+// This is asymmetric with input.
+func (c *CapUrn) outputDispatchable(request *CapUrn) bool {
+	// Request wildcard: any provider output is fine
+	if request.outSpec == "media:" {
+		return true
+	}
+
+	// Provider wildcard: cannot guarantee specific output request needs
+	if c.outSpec == "media:" {
+		return false
+	}
+
+	// Both specific: provider output must conform to request output
+	reqOut, err := NewMediaUrnFromString(request.outSpec)
+	if err != nil {
+		return false
+	}
+	provOut, err := NewMediaUrnFromString(c.outSpec)
+	if err != nil {
+		return false
+	}
+
+	return provOut.ConformsTo(reqOut)
+}
+
+// capTagsDispatchable checks if provider's cap-tags are dispatchable for request's cap-tags.
+//
+// Every explicit request tag must be satisfied by provider.
+// Provider may have extra tags (refinement is OK).
+// Wildcard (*) in request means any value acceptable.
+// Wildcard (*) in provider means provider can handle any value.
+func (c *CapUrn) capTagsDispatchable(request *CapUrn) bool {
+	for key, requestValue := range request.tags {
+		providerValue, exists := c.tags[key]
+		if !exists {
+			// Provider missing a tag that request specifies.
+			// Even wildcard (*) means "any value is fine" — the tag
+			// must still be present.
+			return false
+		}
+		if requestValue == "*" {
+			continue
+		}
+		if providerValue == "*" {
+			continue
+		}
+		if requestValue != providerValue {
+			return false
+		}
+	}
+	return true
+}
+
+// IsDispatchable checks if this provider can dispatch (handle) the given request.
+//
+// This is the PRIMARY predicate for routing/dispatch decisions.
+//
+// A provider is dispatchable for a request iff:
+// 1. Input axis: provider can handle request's input (contravariant)
+// 2. Output axis: provider meets request's output needs (covariant)
+// 3. Cap-tags: provider satisfies all explicit request tags, may add more
+//
+// Key insight: This is NOT symmetric.
+func (c *CapUrn) IsDispatchable(request *CapUrn) bool {
+	if request == nil {
+		return true
+	}
+	if !c.inputDispatchable(request) {
+		return false
+	}
+	if !c.outputDispatchable(request) {
+		return false
+	}
+	if !c.capTagsDispatchable(request) {
+		return false
+	}
+	return true
+}
+
+// IsComparable checks if two cap URNs are comparable in the order-theoretic sense.
+//
+// Two URNs are comparable if either one can dispatch the other.
+// This is the symmetric closure of the IsDispatchable relation.
+func (c *CapUrn) IsComparable(other *CapUrn) bool {
+	return c.IsDispatchable(other) || other.IsDispatchable(c)
+}
+
+// IsEquivalent checks if two cap URNs are equivalent in the order-theoretic sense.
+//
+// Two URNs are equivalent if each can dispatch the other.
+// This means they have the same position in the specificity lattice.
+func (c *CapUrn) IsEquivalent(other *CapUrn) bool {
+	return c.IsDispatchable(other) && other.IsDispatchable(c)
 }
 
 // AcceptsStr checks if this cap (handler) accepts a request given as a string.

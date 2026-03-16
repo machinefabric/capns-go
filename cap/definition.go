@@ -94,6 +94,40 @@ func NewCapArgWithDescription(mediaUrn string, required bool, sources []ArgSourc
 	}
 }
 
+// NewCapArgWithFullDefinition creates a new cap argument with all fields set
+func NewCapArgWithFullDefinition(
+	mediaUrn string,
+	required bool,
+	sources []ArgSource,
+	argDescription string,
+	defaultValue any,
+	metadata any,
+) CapArg {
+	return CapArg{
+		MediaUrn:       mediaUrn,
+		Required:       required,
+		Sources:        sources,
+		ArgDescription: argDescription,
+		DefaultValue:   defaultValue,
+		Metadata:       metadata,
+	}
+}
+
+// GetMetadata gets the metadata for CapArg
+func (a *CapArg) GetMetadata() any {
+	return a.Metadata
+}
+
+// SetMetadata sets the metadata for CapArg
+func (a *CapArg) SetMetadata(metadata any) {
+	a.Metadata = metadata
+}
+
+// ClearMetadata clears the metadata for CapArg
+func (a *CapArg) ClearMetadata() {
+	a.Metadata = nil
+}
+
 // HasStdinSource returns true if this argument has a stdin source
 func (a *CapArg) HasStdinSource() bool {
 	for _, s := range a.Sources {
@@ -245,6 +279,20 @@ func NewCapOutput(mediaUrn string, description string) *CapOutput {
 	}
 }
 
+// NewCapOutputWithFullDefinition creates a new output definition with all fields set
+func NewCapOutputWithFullDefinition(mediaUrn string, description string, metadata any) *CapOutput {
+	return &CapOutput{
+		MediaUrn:          mediaUrn,
+		OutputDescription: description,
+		Metadata:          metadata,
+	}
+}
+
+// ClearMetadata clears the metadata for CapOutput
+func (co *CapOutput) ClearMetadata() {
+	co.Metadata = nil
+}
+
 // RegisteredBy represents registration attribution - who registered a capability and when
 type RegisteredBy struct {
 	Username     string `json:"username"`
@@ -328,6 +376,52 @@ func NewCapWithDescription(urn *urn.CapUrn, title string, command string, descri
 	}
 }
 
+// NewCapWithArgs creates a new cap with arguments
+func NewCapWithArgs(u *urn.CapUrn, title string, command string, args []CapArg) *Cap {
+	return &Cap{
+		Urn:        u,
+		Title:      title,
+		Command:    command,
+		Metadata:   make(map[string]string),
+		MediaSpecs: []media.MediaSpecDef{},
+		Args:       args,
+	}
+}
+
+// NewCapWithFullDefinition creates a new cap with all fields set
+func NewCapWithFullDefinition(
+	u *urn.CapUrn,
+	title string,
+	capDescription *string,
+	metadata map[string]string,
+	command string,
+	mediaSpecs []media.MediaSpecDef,
+	args []CapArg,
+	output *CapOutput,
+	metadataJSON any,
+) *Cap {
+	if metadata == nil {
+		metadata = make(map[string]string)
+	}
+	if mediaSpecs == nil {
+		mediaSpecs = []media.MediaSpecDef{}
+	}
+	if args == nil {
+		args = []CapArg{}
+	}
+	return &Cap{
+		Urn:            u,
+		Title:          title,
+		CapDescription: capDescription,
+		Metadata:       metadata,
+		Command:        command,
+		MediaSpecs:     mediaSpecs,
+		Args:           args,
+		Output:         output,
+		MetadataJSON:   metadataJSON,
+	}
+}
+
 // NewCapWithMetadata creates a new cap with metadata
 func NewCapWithMetadata(urn *urn.CapUrn, title string, command string, metadata map[string]string) *Cap {
 	if metadata == nil {
@@ -388,10 +482,14 @@ func (c *Cap) AcceptsRequest(request *urn.CapUrn) bool {
 	return request.Accepts(c.Urn)
 }
 
-// IsMoreSpecificThan checks if this cap is more specific than another
-func (c *Cap) IsMoreSpecificThan(other *Cap) bool {
+// IsMoreSpecificThan checks if this cap is more specific than another for a given request.
+// Both caps must accept the request; then compares specificity.
+func (c *Cap) IsMoreSpecificThan(other *Cap, request string) bool {
 	if other == nil {
 		return true
+	}
+	if !c.MatchesRequest(request) || !other.MatchesRequest(request) {
+		return false
 	}
 	return c.Urn.IsMoreSpecificThan(other.Urn)
 }
@@ -413,16 +511,16 @@ func (c *Cap) SetMetadata(key, value string) {
 	c.Metadata[key] = value
 }
 
-// RemoveMetadata removes a metadata value
-func (c *Cap) RemoveMetadata(key string) bool {
+// RemoveMetadata removes a metadata value and returns it (or empty string + false if absent)
+func (c *Cap) RemoveMetadata(key string) (string, bool) {
 	if c.Metadata == nil {
-		return false
+		return "", false
 	}
-	_, exists := c.Metadata[key]
+	value, exists := c.Metadata[key]
 	if exists {
 		delete(c.Metadata, key)
 	}
-	return exists
+	return value, exists
 }
 
 // HasMetadata checks if this cap has specific metadata
@@ -474,6 +572,11 @@ func (c *Cap) SetMetadataJSON(metadata any) {
 	c.MetadataJSON = metadata
 }
 
+// ClearMetadataJSON clears the metadata JSON
+func (c *Cap) ClearMetadataJSON() {
+	c.MetadataJSON = nil
+}
+
 // GetRegisteredBy gets the registration attribution
 func (c *Cap) GetRegisteredBy() *RegisteredBy {
 	return c.RegisteredBy
@@ -482,6 +585,11 @@ func (c *Cap) GetRegisteredBy() *RegisteredBy {
 // SetRegisteredBy sets the registration attribution
 func (c *Cap) SetRegisteredBy(registeredBy *RegisteredBy) {
 	c.RegisteredBy = registeredBy
+}
+
+// ClearRegisteredBy clears the registration attribution
+func (c *Cap) ClearRegisteredBy() {
+	c.RegisteredBy = nil
 }
 
 // GetStdinMediaUrn returns the stdin media URN from args (first stdin source found)

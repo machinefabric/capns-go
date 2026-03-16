@@ -351,3 +351,26 @@ func TestCapManifestCompatibility(t *testing.T) {
 	assert.IsType(t, providerMap["description"], pluginMap["description"])
 	assert.IsType(t, providerMap["caps"], pluginMap["caps"])
 }
+
+// TEST475: CapManifest.Validate() passes when CAP_IDENTITY is present
+func Test475_validate_passes_with_identity(t *testing.T) {
+	identityUrn, err := urn.NewCapUrnFromString(standard.CapIdentity)
+	require.NoError(t, err)
+	identityCap := cap.NewCap(identityUrn, "Identity", "identity")
+
+	manifest := NewCapManifest("TestPlugin", "1.0.0", "Test", []cap.Cap{*identityCap})
+	err = manifest.Validate()
+	assert.NoError(t, err, "Manifest with CAP_IDENTITY must validate")
+}
+
+// TEST476: CapManifest.Validate() fails when CAP_IDENTITY is missing
+func Test476_validate_fails_without_identity(t *testing.T) {
+	specificUrn, err := urn.NewCapUrnFromString(manifestTestUrn("op=convert"))
+	require.NoError(t, err)
+	specificCap := cap.NewCap(specificUrn, "Convert", "convert")
+
+	manifest := NewCapManifest("TestPlugin", "1.0.0", "Test", []cap.Cap{*specificCap})
+	err = manifest.Validate()
+	require.Error(t, err, "Manifest without CAP_IDENTITY must fail validation")
+	assert.Contains(t, err.Error(), "CAP_IDENTITY")
+}

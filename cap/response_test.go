@@ -274,3 +274,84 @@ func TestResponseWrapperValidateAgainstCap(t *testing.T) {
 	err = invalidResponse.ValidateAgainstCap(cap, registry)
 	assert.Error(t, err)
 }
+
+// TEST599: is_empty returns true for empty response, false for non-empty
+func Test599_is_empty(t *testing.T) {
+	emptyJSON := NewResponseWrapperFromJSON([]byte{})
+	assert.True(t, emptyJSON.IsEmpty())
+
+	emptyText := NewResponseWrapperFromText([]byte{})
+	assert.True(t, emptyText.IsEmpty())
+
+	emptyBinary := NewResponseWrapperFromBinary([]byte{})
+	assert.True(t, emptyBinary.IsEmpty())
+
+	nonEmpty := NewResponseWrapperFromText([]byte("x"))
+	assert.False(t, nonEmpty.IsEmpty())
+}
+
+// TEST600: size returns exact byte count for all content types
+func Test600_size(t *testing.T) {
+	text := NewResponseWrapperFromText([]byte("hello"))
+	assert.Equal(t, 5, text.Size())
+
+	jsonResp := NewResponseWrapperFromJSON([]byte("{}"))
+	assert.Equal(t, 2, jsonResp.Size())
+
+	binary := NewResponseWrapperFromBinary(make([]byte, 1024))
+	assert.Equal(t, 1024, binary.Size())
+
+	empty := NewResponseWrapperFromText([]byte{})
+	assert.Equal(t, 0, empty.Size())
+}
+
+// TEST601: get_content_type returns correct MIME type for each variant
+func Test601_get_content_type(t *testing.T) {
+	jsonResp := NewResponseWrapperFromJSON([]byte("{}"))
+	assert.Equal(t, "application/json", jsonResp.GetContentType())
+
+	text := NewResponseWrapperFromText([]byte("hello"))
+	assert.Equal(t, "text/plain", text.GetContentType())
+
+	binary := NewResponseWrapperFromBinary([]byte{0xFF})
+	assert.Equal(t, "application/octet-stream", binary.GetContentType())
+}
+
+// TEST602: as_type on binary response returns error (cannot deserialize binary)
+func Test602_as_type_binary_error(t *testing.T) {
+	binary := NewResponseWrapperFromBinary([]byte{0x89, 0x50})
+	var target map[string]any
+	err := binary.AsType(&target)
+	require.Error(t, err, "Binary responses must not be deserializable to structured types")
+	assert.Contains(t, err.Error(), "binary", "Error should mention binary: %s", err.Error())
+}
+
+// TEST603: as_bool handles all accepted truthy/falsy variants and rejects garbage
+func Test603_as_bool_edge_cases(t *testing.T) {
+	// Truthy values
+	for _, input := range []string{"true", "TRUE", "True", "1", "yes", "YES", "y", "Y"} {
+		resp := NewResponseWrapperFromText([]byte(input))
+		val, err := resp.AsBool()
+		require.NoError(t, err, "'%s' should parse without error", input)
+		assert.True(t, val, "'%s' should be truthy", input)
+	}
+
+	// Falsy values
+	for _, input := range []string{"false", "FALSE", "False", "0", "no", "NO", "n", "N"} {
+		resp := NewResponseWrapperFromText([]byte(input))
+		val, err := resp.AsBool()
+		require.NoError(t, err, "'%s' should parse without error", input)
+		assert.False(t, val, "'%s' should be falsy", input)
+	}
+
+	// Garbage input should error
+	garbage := NewResponseWrapperFromText([]byte("maybe"))
+	_, err := garbage.AsBool()
+	assert.Error(t, err)
+
+	// Whitespace-padded should still work
+	padded := NewResponseWrapperFromText([]byte("  true  "))
+	val, err := padded.AsBool()
+	require.NoError(t, err)
+	assert.True(t, val)
+}

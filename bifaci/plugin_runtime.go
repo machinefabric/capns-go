@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -226,15 +227,16 @@ func (pr *PluginRuntime) RegisterOp(capUrn string, op CapOp) {
 	})
 }
 
-// FindHandler finds a handler for a cap URN (exact match or closest-specificity pattern match).
+// FindHandler finds a handler for a cap URN (exact match or is_dispatchable pattern match).
 //
-// Matching direction: request.Accepts(registered) — the incoming request (pattern) must
-// accept the registered cap (instance). Mirrors Rust exactly:
+// Uses is_dispatchable(provider, request): can this registered handler dispatch
+// the incoming request? Mirrors Rust exactly:
 //
-//	request_urn.accepts(&registered_urn)
+//	registered_urn.is_dispatchable(&request_urn)
 //
-// Selects the closest-specificity match to the request (not max-specificity),
-// to prevent identity handlers from stealing routes from specific handlers.
+// Ranks by: non-negative signed distance (refinement/exact) first,
+// then by smallest absolute distance. This prevents identity handlers
+// from stealing routes from specific handlers.
 func (pr *PluginRuntime) FindHandler(capUrn string) HandlerFunc {
 	pr.mu.RLock()
 	defer pr.mu.RUnlock()
@@ -251,29 +253,56 @@ func (pr *PluginRuntime) FindHandler(capUrn string) HandlerFunc {
 	}
 
 	requestSpecificity := requestUrn.Specificity()
-	var bestHandler HandlerFunc
-	bestDistance := -1
+
+	type handlerMatch struct {
+		handler       HandlerFunc
+		signedDistance int
+	}
+	var matches []handlerMatch
 
 	for pattern, handler := range pr.handlers {
 		registeredUrn, err := urn.NewCapUrnFromString(pattern)
 		if err != nil {
 			continue
 		}
-		// Routing direction: request.Accepts(registered_cap) (mirrors Rust)
-		if requestUrn.Accepts(registeredUrn) {
+		// Use is_dispatchable: can this provider handle this request?
+		if registeredUrn.IsDispatchable(requestUrn) {
 			specificity := registeredUrn.Specificity()
-			distance := int(specificity) - int(requestSpecificity)
-			if distance < 0 {
-				distance = -distance
-			}
-			if bestHandler == nil || distance < bestDistance {
-				bestHandler = handler
-				bestDistance = distance
-			}
+			signedDistance := specificity - requestSpecificity
+			matches = append(matches, handlerMatch{handler, signedDistance})
 		}
 	}
 
-	return bestHandler
+	if len(matches) == 0 {
+		return nil
+	}
+
+	// Rank: non-negative distance (refinement/exact) before negative (fallback),
+	// then by smallest absolute distance
+	sort.SliceStable(matches, func(i, j int) bool {
+		iGroup := 0
+		if matches[i].signedDistance < 0 {
+			iGroup = 1
+		}
+		jGroup := 0
+		if matches[j].signedDistance < 0 {
+			jGroup = 1
+		}
+		if iGroup != jGroup {
+			return iGroup < jGroup
+		}
+		iAbs := matches[i].signedDistance
+		if iAbs < 0 {
+			iAbs = -iAbs
+		}
+		jAbs := matches[j].signedDistance
+		if jAbs < 0 {
+			jAbs = -jAbs
+		}
+		return iAbs < jAbs
+	})
+
+	return matches[0].handler
 }
 
 // Run runs the plugin runtime (automatic mode detection)
@@ -1978,10 +2007,8 @@ func FindStream(streams []struct {
 		if err != nil {
 			continue
 		}
-		// Check equivalence: both URNs accept each other
-		fwd := targetUrn.Accepts(streamUrn)
-		rev := streamUrn.Accepts(targetUrn)
-		if fwd && rev {
+		// Use IsEquivalent: both URNs are concrete, exact tag-set match required
+		if targetUrn.IsEquivalent(streamUrn) {
 			return stream.Data, nil
 		}
 	}

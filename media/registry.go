@@ -1,7 +1,9 @@
 package media
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/machinefabric/capdag-go/urn"
@@ -159,7 +161,7 @@ func normalizeMediaUrn(urnStr string) string {
 
 // toLower is a helper to convert string to lowercase
 func toLower(s string) string {
-	return s // Simple implementation, can use strings.ToLower if needed
+	return strings.ToLower(s)
 }
 
 // getBundledStandardMediaSpecs returns the bundled standard media specs
@@ -335,4 +337,73 @@ func (r *MediaUrnRegistry) AddSpec(spec StoredMediaSpec) {
 		extLower := toLower(ext)
 		r.extIndex[extLower] = append(r.extIndex[extLower], spec.Urn)
 	}
+}
+
+// GetCachedSpec retrieves a cached spec by URN without network access.
+// Returns nil if not found (no error — absence is expected).
+func (r *MediaUrnRegistry) GetCachedSpec(urnStr string) *StoredMediaSpec {
+	normalizedUrn := normalizeMediaUrn(urnStr)
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	spec, ok := r.cachedSpecs[normalizedUrn]
+	if !ok {
+		return nil
+	}
+	return &spec
+}
+
+// MediaUrnsForExtension returns all media URNs registered for a given file extension.
+// Case-insensitive. Returns error if extension not found.
+func (r *MediaUrnRegistry) MediaUrnsForExtension(extension string) ([]string, error) {
+	extLower := strings.ToLower(extension)
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	urns, ok := r.extIndex[extLower]
+	if !ok || len(urns) == 0 {
+		return nil, &MediaRegistryError{
+			Message: fmt.Sprintf("no media URNs found for extension '%s'", extension),
+		}
+	}
+
+	// Return a copy to prevent mutation
+	result := make([]string, len(urns))
+	copy(result, urns)
+	return result, nil
+}
+
+// GetExtensionMappings returns all registered extension-to-URN mappings.
+func (r *MediaUrnRegistry) GetExtensionMappings() []struct {
+	Extension string
+	Urns      []string
+} {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []struct {
+		Extension string
+		Urns      []string
+	}
+
+	for ext, urns := range r.extIndex {
+		urnsCopy := make([]string, len(urns))
+		copy(urnsCopy, urns)
+		result = append(result, struct {
+			Extension string
+			Urns      []string
+		}{Extension: ext, Urns: urnsCopy})
+	}
+
+	return result
+}
+
+// CacheKey returns a deterministic cache key for a media URN.
+// Uses SHA256 hash of the normalized URN.
+func (r *MediaUrnRegistry) CacheKey(urnStr string) string {
+	normalized := normalizeMediaUrn(urnStr)
+	hash := sha256.Sum256([]byte(normalized))
+	return fmt.Sprintf("%x", hash)
 }

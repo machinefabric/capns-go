@@ -2,6 +2,8 @@
 package bifaci
 
 import (
+	"fmt"
+
 	"github.com/machinefabric/capdag-go/cap"
 	"github.com/machinefabric/capdag-go/standard"
 	"github.com/machinefabric/capdag-go/urn"
@@ -48,6 +50,23 @@ func (cm *CapManifest) WithAuthor(author string) *CapManifest {
 func (cm *CapManifest) WithPageUrl(pageUrl string) *CapManifest {
 	cm.PageUrl = &pageUrl
 	return cm
+}
+
+// Validate checks that CAP_IDENTITY is declared in this manifest.
+// Returns error if missing — identity is mandatory in every capset.
+func (cm *CapManifest) Validate() error {
+	identityUrn, err := urn.NewCapUrnFromString(standard.CapIdentity)
+	if err != nil {
+		return fmt.Errorf("BUG: CAP_IDENTITY constant is invalid: %v", err)
+	}
+
+	for _, c := range cm.Caps {
+		if c.Urn != nil && identityUrn.ConformsTo(c.Urn) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("Manifest missing required CAP_IDENTITY (%s)", standard.CapIdentity)
 }
 
 // EnsureIdentity ensures the manifest includes CAP_IDENTITY

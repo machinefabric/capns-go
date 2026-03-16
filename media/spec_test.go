@@ -2,6 +2,7 @@ package media
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/machinefabric/capdag-go/standard"
@@ -531,4 +532,153 @@ func Test306_availability_and_path_output_distinct(t *testing.T) {
 		"availability must have model-availability tag")
 	assert.True(t, HasMediaUrnTag(MediaPathOutput, "model-path"),
 		"path must have model-path tag")
+}
+
+// -------------------------------------------------------------------------
+// Media registry tests
+// -------------------------------------------------------------------------
+
+// TEST607: media_urns_for_extension returns error for unknown extension
+func Test607_media_urns_for_extension_unknown(t *testing.T) {
+	registry, err := NewMediaUrnRegistryForTest()
+	require.NoError(t, err)
+
+	_, err = registry.MediaUrnsForExtension("zzzzunknown")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "zzzzunknown")
+}
+
+// TEST608: media_urns_for_extension returns URNs after adding a spec with extensions
+func Test608_media_urns_for_extension_populated(t *testing.T) {
+	registry, err := NewMediaUrnRegistryForTest()
+	require.NoError(t, err)
+
+	registry.AddSpec(StoredMediaSpec{
+		Urn:        "media:pdf",
+		MediaType:  "application/pdf",
+		Title:      "PDF Document",
+		Extensions: []string{"pdf"},
+	})
+
+	urns, err := registry.MediaUrnsForExtension("pdf")
+	require.NoError(t, err)
+	assert.NotEmpty(t, urns, "Should have at least one URN for pdf")
+
+	found := false
+	for _, u := range urns {
+		if strings.Contains(u, "pdf") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "URNs should contain pdf: %v", urns)
+
+	// Case-insensitive
+	urnsUpper, err := registry.MediaUrnsForExtension("PDF")
+	require.NoError(t, err)
+	assert.Equal(t, urns, urnsUpper)
+}
+
+// TEST609: get_extension_mappings returns all registered extension->URN pairs
+func Test609_get_extension_mappings(t *testing.T) {
+	registry, err := NewMediaUrnRegistryForTest()
+	require.NoError(t, err)
+
+	registry.AddSpec(StoredMediaSpec{
+		Urn:        "media:pdf",
+		MediaType:  "application/octet-stream",
+		Title:      "Test",
+		Extensions: []string{"pdf"},
+	})
+	registry.AddSpec(StoredMediaSpec{
+		Urn:        "media:epub",
+		MediaType:  "application/octet-stream",
+		Title:      "Test",
+		Extensions: []string{"epub"},
+	})
+
+	mappings := registry.GetExtensionMappings()
+	extNames := make(map[string]bool)
+	for _, m := range mappings {
+		extNames[m.Extension] = true
+	}
+	assert.True(t, extNames["pdf"], "Should contain pdf")
+	assert.True(t, extNames["epub"], "Should contain epub")
+}
+
+// TEST610: get_cached_spec returns nil for unknown and non-nil for known
+func Test610_get_cached_spec(t *testing.T) {
+	registry, err := NewMediaUrnRegistryForTest()
+	require.NoError(t, err)
+
+	// Unknown spec
+	assert.Nil(t, registry.GetCachedSpec("media:nonexistent;xyzzy"))
+
+	// Add a spec and verify retrieval
+	registry.AddSpec(StoredMediaSpec{
+		Urn:       "media:test-spec;textable",
+		MediaType: "text/plain",
+		Title:     "Test Spec",
+	})
+
+	retrieved := registry.GetCachedSpec("media:test-spec;textable")
+	require.NotNil(t, retrieved, "Should find spec by URN")
+	assert.Equal(t, "Test Spec", retrieved.Title)
+}
+
+// TEST614: Verify registry creation succeeds
+func Test614_registry_creation(t *testing.T) {
+	registry, err := NewMediaUrnRegistryForTest()
+	require.NoError(t, err)
+	require.NotNil(t, registry)
+}
+
+// TEST615: Verify cache key generation is deterministic and distinct for different URNs
+func Test615_cache_key_generation(t *testing.T) {
+	registry, err := NewMediaUrnRegistryForTest()
+	require.NoError(t, err)
+
+	key1 := registry.CacheKey("media:textable")
+	key2 := registry.CacheKey("media:textable")
+	key3 := registry.CacheKey("media:integer")
+
+	assert.Equal(t, key1, key2)
+	assert.NotEqual(t, key1, key3)
+}
+
+// TEST616: Verify StoredMediaSpec converts to MediaSpecDef preserving all fields
+func Test616_stored_media_spec_to_def(t *testing.T) {
+	spec := StoredMediaSpec{
+		Urn:         "media:pdf",
+		MediaType:   "application/pdf",
+		Title:       "PDF Document",
+		ProfileURI:  "https://capdag.com/schema/pdf",
+		Description: "PDF document data",
+		Extensions:  []string{"pdf"},
+	}
+
+	def := spec.ToMediaSpecDef()
+	assert.Equal(t, "media:pdf", def.Urn)
+	assert.Equal(t, "application/pdf", def.MediaType)
+	assert.Equal(t, "PDF Document", def.Title)
+	assert.Equal(t, "PDF document data", def.Description)
+	assert.Equal(t, []string{"pdf"}, def.Extensions)
+}
+
+// TEST617: Verify normalizeMediaUrn produces consistent non-empty results
+func Test617_normalize_media_urn(t *testing.T) {
+	urn1 := normalizeMediaUrn("media:string")
+	urn2 := normalizeMediaUrn("media:string")
+	assert.NotEmpty(t, urn1)
+	assert.NotEmpty(t, urn2)
+	assert.Equal(t, urn1, urn2)
+}
+
+// TEST629: Verify profile URL constants all start with capdag.com schema prefix
+func Test629_profile_constants_format(t *testing.T) {
+	prefix := "https://capdag.com/schema/"
+	assert.True(t, len(ProfileStr) > len(prefix) && ProfileStr[:len(prefix)] == prefix,
+		"PROFILE_STR must start with %s", prefix)
+	assert.True(t, len(ProfileObj) > len(prefix) && ProfileObj[:len(prefix)] == prefix,
+		"PROFILE_OBJ must start with %s", prefix)
 }
