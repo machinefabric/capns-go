@@ -616,12 +616,12 @@ func Test610_get_cached_spec(t *testing.T) {
 
 	// Add a spec and verify retrieval
 	registry.AddSpec(StoredMediaSpec{
-		Urn:       "media:test-spec;textable",
+		Urn:       "media:test;spec;textable",
 		MediaType: "text/plain",
 		Title:     "Test Spec",
 	})
 
-	retrieved := registry.GetCachedSpec("media:test-spec;textable")
+	retrieved := registry.GetCachedSpec("media:test;spec;textable")
 	require.NotNil(t, retrieved, "Should find spec by URN")
 	assert.Equal(t, "Test Spec", retrieved.Title)
 }

@@ -152,7 +152,7 @@ func Test165_schema_validator_validate_output_with_schema_success(t *testing.T) 
 	}
 
 	// Create output
-	output := NewCapOutput("media:test-result;textable;record", "Query result")
+	output := NewCapOutput("media:test;result;textable;record", "Query result")
 
 	// Test valid output data
 	validData := map[string]interface{}{
@@ -179,7 +179,7 @@ func TestSchemaValidator_ValidateOutputWithSchema_Failure(t *testing.T) {
 	}
 
 	// Create output
-	output := NewCapOutput("media:test-result;textable;record", "Query result")
+	output := NewCapOutput("media:test;result;textable;record", "Query result")
 
 	// Test invalid output data (missing required field)
 	invalidData := map[string]interface{}{
