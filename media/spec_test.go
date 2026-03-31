@@ -331,7 +331,7 @@ func Test104_resolved_is_text(t *testing.T) {
 func Test105_metadata_propagation(t *testing.T) {
 	mediaSpecs := []MediaSpecDef{
 		{
-			Urn:         "media:custom-setting;setting",
+			Urn:         "media:custom-setting",
 			MediaType:   "text/plain",
 			Title:       "Custom Setting",
 			ProfileURI:  "https://example.com/schema",
@@ -347,7 +347,7 @@ func Test105_metadata_propagation(t *testing.T) {
 	}
 
 	registry := testRegistry(t)
-	resolved, err := ResolveMediaUrn("media:custom-setting;setting", mediaSpecs, registry)
+	resolved, err := ResolveMediaUrn("media:custom-setting", mediaSpecs, registry)
 	require.NoError(t, err)
 	require.NotNil(t, resolved.Metadata)
 	assert.Equal(t, "interface", resolved.Metadata["category_key"])
@@ -360,7 +360,7 @@ func Test106_metadata_with_validation(t *testing.T) {
 	maxVal := 100.0
 	mediaSpecs := []MediaSpecDef{
 		{
-			Urn:         "media:bounded-number;numeric;setting",
+			Urn:         "media:bounded-number;numeric",
 			MediaType:   "text/plain",
 			Title:       "Bounded Number",
 			ProfileURI:  "https://example.com/schema",
@@ -379,7 +379,7 @@ func Test106_metadata_with_validation(t *testing.T) {
 	}
 
 	registry := testRegistry(t)
-	resolved, err := ResolveMediaUrn("media:bounded-number;numeric;setting", mediaSpecs, registry)
+	resolved, err := ResolveMediaUrn("media:bounded-number;numeric", mediaSpecs, registry)
 	require.NoError(t, err)
 
 	// Verify validation
