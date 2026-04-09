@@ -17,9 +17,13 @@ import (
 //
 // The pest grammar is shipped alongside this file as machine.pest
 // for reference — this go-peg grammar is a faithful translation.
+//
+// Two equally valid statement forms:
+// - Bracketed: [alias cap:...] / [src -> alias -> dst]
+// - Line-based: alias cap:... / src -> alias -> dst
 const goPegGrammar = `
   program     <- stmt* !.
-  stmt        <- '[' inner ']'
+  stmt        <- '[' inner ']' / inner
   inner       <- wiring / header
   header      <- alias cap_urn
   wiring      <- source arrow loop_cap arrow alias
@@ -31,10 +35,21 @@ const goPegGrammar = `
   alias       <- < [a-zA-Z_] [a-zA-Z0-9_-]* >
   alias_ref   <- < [a-zA-Z_] [a-zA-Z0-9_-]* >
   cap_urn     <- < 'cap:' cap_urn_body* >
-  cap_urn_body <- quoted_value / !']' .
+  cap_urn_body <- quoted_value / !']' !NEWLINE .
+  NEWLINE     <- '\r\n' / '\n' / '\r'
   quoted_value <- '"' ('\\"' / '\\\\' / !'"' .)* '"'
   %whitespace <- [ \t\r\n]*
 `
+
+// NotationFormat controls the serialization format for machine notation.
+type NotationFormat int
+
+const (
+	// NotationFormatBracketed wraps each statement in [...].
+	NotationFormatBracketed NotationFormat = iota
+	// NotationFormatLineBased emits one statement per line, no brackets.
+	NotationFormatLineBased
+)
 
 // parsedStmt represents a parsed statement (header or wiring).
 type parsedHeader struct {
@@ -417,6 +432,70 @@ func (g *Machine) ToMachineNotationMultiline() string {
 		}
 	}
 
+	return strings.Join(lines, "\n")
+}
+
+// ToMachineNotationFormatted serializes this machine graph to machine notation
+// in the specified format. The output is deterministic.
+func (g *Machine) ToMachineNotationFormatted(format NotationFormat) string {
+	if g.IsEmpty() {
+		return ""
+	}
+
+	aliases, nodeNames, edgeOrder := g.buildSerializationMaps()
+	var lines []string
+
+	open, close := "", ""
+	if format == NotationFormatBracketed {
+		open, close = "[", "]"
+	}
+
+	// Emit headers in alias-sorted order
+	sortedAliases := make([]string, 0, len(aliases))
+	for alias := range aliases {
+		sortedAliases = append(sortedAliases, alias)
+	}
+	sort.Strings(sortedAliases)
+
+	for _, alias := range sortedAliases {
+		info := aliases[alias]
+		edge := g.edges[info.edgeIdx]
+		lines = append(lines, fmt.Sprintf("%s%s %s%s", open, alias, edge.CapUrn, close))
+	}
+
+	// Emit wirings in edge order
+	for _, edgeIdx := range edgeOrder {
+		edge := g.edges[edgeIdx]
+		var alias string
+		for a, info := range aliases {
+			if info.edgeIdx == edgeIdx {
+				alias = a
+				break
+			}
+		}
+
+		sources := make([]string, len(edge.Sources))
+		for i, s := range edge.Sources {
+			sources[i] = nodeNames[s.String()]
+		}
+
+		targetName := nodeNames[edge.Target.String()]
+		loopPrefix := ""
+		if edge.IsLoop {
+			loopPrefix = "LOOP "
+		}
+
+		if len(sources) == 1 {
+			lines = append(lines, fmt.Sprintf("%s%s -> %s%s -> %s%s", open, sources[0], loopPrefix, alias, targetName, close))
+		} else {
+			group := strings.Join(sources, ", ")
+			lines = append(lines, fmt.Sprintf("%s(%s) -> %s%s -> %s%s", open, group, loopPrefix, alias, targetName, close))
+		}
+	}
+
+	if format == NotationFormatBracketed {
+		return strings.Join(lines, "")
+	}
 	return strings.Join(lines, "\n")
 }
 
