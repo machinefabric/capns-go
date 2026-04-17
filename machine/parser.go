@@ -2,11 +2,11 @@ package machine
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	peg "github.com/yhirose/go-peg"
 
+	"github.com/machinefabric/capdag-go/cap"
 	"github.com/machinefabric/capdag-go/urn"
 )
 
@@ -32,33 +32,23 @@ const goPegGrammar = `
   loop_cap    <- loop_keyword alias_ref / alias_ref
   loop_keyword <- 'LOOP'
   arrow       <- < '-'+ '>' >
-  alias       <- < [a-zA-Z_] [a-zA-Z0-9_-]* >
-  alias_ref   <- < [a-zA-Z_] [a-zA-Z0-9_-]* >
+  alias       <- < [a-zA-Z_] [-a-zA-Z0-9_]* >
+  alias_ref   <- < [a-zA-Z_] [-a-zA-Z0-9_]* >
   cap_urn     <- < 'cap:' cap_urn_body* >
-  cap_urn_body <- quoted_value / !']' !NEWLINE .
-  NEWLINE     <- '\r\n' / '\n' / '\r'
+  cap_urn_body <- quoted_value / !'\]' .
   quoted_value <- '"' ('\\"' / '\\\\' / !'"' .)* '"'
   %whitespace <- [ \t\r\n]*
 `
 
-// NotationFormat controls the serialization format for machine notation.
-type NotationFormat int
-
-const (
-	// NotationFormatBracketed wraps each statement in [...].
-	NotationFormatBracketed NotationFormat = iota
-	// NotationFormatLineBased emits one statement per line, no brackets.
-	NotationFormatLineBased
-)
-
-// parsedStmt represents a parsed statement (header or wiring).
+// parsedHeader represents a parsed header statement.
 type parsedHeader struct {
 	alias    string
 	capUrn   *urn.CapUrn
 	position int
 }
 
-type parsedWiring struct {
+// rawWiring is one wiring as it comes off the AST walk, with raw alias names.
+type rawWiring struct {
 	sources  []string
 	capAlias string
 	target   string
@@ -68,40 +58,35 @@ type parsedWiring struct {
 
 // ParseMachine parses machine notation into a Machine.
 //
+// Two-phase: PEG grammar parsing → resolver. Either phase may fail; the
+// combined error type is MachineParseError. The cap registry is required by
+// the resolver to look up each cap's args list and run source-to-arg matching.
+//
 // Uses a PEG parser with a grammar equivalent to machine.pest.
 // Fails hard — no fallbacks, no guessing, no recovery.
-func ParseMachine(input string) (*Machine, error) {
+func ParseMachine(input string, registry *cap.CapRegistry) (*Machine, *MachineParseError) {
 	input = strings.TrimSpace(input)
 	if input == "" {
-		return nil, emptyError()
+		return nil, syntaxParseError(emptyError())
 	}
 
-	// Phase 1: Parse with PEG grammar
+	// Phase 1: Parse with PEG grammar.
 	parser, err := peg.NewParser(goPegGrammar)
 	if err != nil {
-		return nil, parseError(fmt.Sprintf("grammar compilation failed: %s", err))
+		return nil, syntaxParseError(parseError(fmt.Sprintf("grammar compilation failed: %s", err)))
 	}
 
-	// Phase 2: Walk the AST and collect headers + wirings
-	var headers []parsedHeader
-	var wirings []parsedWiring
-	stmtIdx := 0
-
-	// Set up semantic actions to extract data from the parse tree
-	g := parser.Grammar
-	g["program"].Action = func(v *peg.Values, d peg.Any) (peg.Any, error) {
-		return nil, nil
-	}
-
-	// Instead of actions, parse to AST and walk it
 	parser.EnableAst()
-
 	ast, err := parser.ParseAndGetAst(input, nil)
 	if err != nil {
-		return nil, parseError(err.Error())
+		return nil, syntaxParseError(parseError(err.Error()))
 	}
 
-	// Walk the AST
+	// Phase 2: Walk the AST collecting headers and wirings.
+	var headers []parsedHeader
+	var wirings []rawWiring
+	stmtIdx := 0
+
 	for _, stmtNode := range ast.Nodes {
 		if stmtNode.Name != "stmt" {
 			continue
@@ -120,14 +105,14 @@ func ParseMachine(input string) (*Machine, error) {
 		switch contentNode.Name {
 		case "header":
 			if len(contentNode.Nodes) < 2 {
-				return nil, parseError(fmt.Sprintf("header at statement %d missing components", stmtIdx))
+				return nil, syntaxParseError(parseError(fmt.Sprintf("header at statement %d missing components", stmtIdx)))
 			}
 			alias := contentNode.Nodes[0].Token
 			capUrnStr := contentNode.Nodes[1].Token
 
 			capUrnParsed, err := urn.NewCapUrnFromString(capUrnStr)
 			if err != nil {
-				return nil, invalidCapUrnError(alias, err.Error())
+				return nil, syntaxParseError(invalidCapUrnError(alias, err.Error()))
 			}
 
 			headers = append(headers, parsedHeader{
@@ -137,22 +122,21 @@ func ParseMachine(input string) (*Machine, error) {
 			})
 
 		case "wiring":
-			// wiring = source arrow loop_cap arrow alias
 			if len(contentNode.Nodes) < 5 {
-				return nil, parseError(fmt.Sprintf("wiring at statement %d missing components", stmtIdx))
+				return nil, syntaxParseError(parseError(fmt.Sprintf("wiring at statement %d missing components", stmtIdx)))
 			}
 
 			sourceNode := contentNode.Nodes[0]
 			sources := parseSourceNode(sourceNode)
 
 			// contentNode.Nodes[1] = arrow (skip)
-			loopMachineNode := contentNode.Nodes[2]
-			isLoop, capAlias := parseLoopMachineNode(loopMachineNode)
+			loopCapNode := contentNode.Nodes[2]
+			isLoop, capAlias := parseLoopCapNode(loopCapNode)
 
 			// contentNode.Nodes[3] = arrow (skip)
 			target := contentNode.Nodes[4].Token
 
-			wirings = append(wirings, parsedWiring{
+			wirings = append(wirings, rawWiring{
 				sources:  sources,
 				capAlias: capAlias,
 				target:   target,
@@ -164,95 +148,194 @@ func ParseMachine(input string) (*Machine, error) {
 		stmtIdx++
 	}
 
-	// Phase 3: Build alias -> CapUrn map, checking for duplicates
+	// Phase 3: Build alias -> CapUrn map, checking for duplicates.
 	type aliasEntry struct {
 		capUrn   *urn.CapUrn
 		position int
 	}
 	aliasMap := make(map[string]aliasEntry)
-	aliasOrder := make([]string, 0)
 
 	for _, h := range headers {
 		if existing, ok := aliasMap[h.alias]; ok {
-			return nil, duplicateAliasError(h.alias, existing.position)
+			return nil, syntaxParseError(duplicateAliasError(h.alias, existing.position))
 		}
 		aliasMap[h.alias] = aliasEntry{capUrn: h.capUrn, position: h.position}
-		aliasOrder = append(aliasOrder, h.alias)
 	}
 
-	// Phase 4: Resolve wirings into MachineEdges
 	if len(wirings) == 0 && len(headers) > 0 {
-		return nil, noEdgesError()
+		return nil, syntaxParseError(noEdgesError())
+	}
+	if len(wirings) == 0 {
+		return nil, syntaxParseError(emptyError())
 	}
 
+	// Phase 4: Derive node-name → MediaUrn bindings.
+	//
+	// Walk wirings in textual order. For each wiring:
+	//   - Primary source: bind to cap.in= URN.
+	//   - Secondary sources: bind to wildcard media: if unbound.
+	//   - Target: bind to cap.out= URN.
+	// Re-binding is allowed iff the new URN is_comparable to the existing one.
 	nodeMedia := make(map[string]*urn.MediaUrn)
-	var edges []*MachineEdge
+	wildcard, _ := urn.NewMediaUrnFromString("media:")
 
 	for _, w := range wirings {
-		// Look up the cap alias
 		entry, ok := aliasMap[w.capAlias]
 		if !ok {
-			return nil, undefinedAliasError(w.capAlias)
+			return nil, syntaxParseError(undefinedAliasError(w.capAlias))
 		}
 		capUrnVal := entry.capUrn
 
-		// Check node-alias collisions
+		// Check node-alias collisions.
 		for _, src := range w.sources {
 			if _, ok := aliasMap[src]; ok {
-				return nil, nodeAliasCollisionError(src, src)
+				return nil, syntaxParseError(nodeAliasCollisionError(src, src))
 			}
 		}
 		if _, ok := aliasMap[w.target]; ok {
-			return nil, nodeAliasCollisionError(w.target, w.target)
+			return nil, syntaxParseError(nodeAliasCollisionError(w.target, w.target))
 		}
 
-		// Derive media URNs from cap's in=/out= specs
+		// Derive media URNs from cap's in=/out= specs.
 		capInMedia, err := capUrnVal.InMediaUrn()
 		if err != nil {
-			return nil, invalidMediaUrnError(w.capAlias, fmt.Sprintf("in= spec: %s", err))
+			return nil, syntaxParseError(invalidMediaUrnError(w.capAlias, fmt.Sprintf("in= spec: %s", err)))
 		}
 
 		capOutMedia, err := capUrnVal.OutMediaUrn()
 		if err != nil {
-			return nil, invalidMediaUrnError(w.capAlias, fmt.Sprintf("out= spec: %s", err))
+			return nil, syntaxParseError(invalidMediaUrnError(w.capAlias, fmt.Sprintf("out= spec: %s", err)))
 		}
 
-		// Resolve source media URNs
-		sourceUrns := make([]*urn.MediaUrn, 0, len(w.sources))
-		for i, src := range w.sources {
-			if i == 0 {
-				// Primary source: use cap's in= spec
-				if err := assignOrCheckNode(src, capInMedia, nodeMedia, w.position); err != nil {
-					return nil, err
-				}
-				sourceUrns = append(sourceUrns, capInMedia)
-			} else {
-				// Secondary source (fan-in): use existing type if assigned,
-				// otherwise use wildcard media:
-				if existing, ok := nodeMedia[src]; ok {
-					sourceUrns = append(sourceUrns, existing)
-				} else {
-					wildcard, _ := urn.NewMediaUrnFromString("media:")
+		// Primary source: bind to cap.in=
+		if len(w.sources) > 0 {
+			if syntaxErr := assignOrCheckNode(w.sources[0], capInMedia, nodeMedia, w.position); syntaxErr != nil {
+				return nil, syntaxParseError(syntaxErr)
+			}
+			// Secondaries: bind to wildcard if unbound.
+			for _, src := range w.sources[1:] {
+				if _, bound := nodeMedia[src]; !bound {
 					nodeMedia[src] = wildcard
-					sourceUrns = append(sourceUrns, wildcard)
 				}
 			}
 		}
 
-		// Assign target media URN
-		if err := assignOrCheckNode(w.target, capOutMedia, nodeMedia, w.position); err != nil {
-			return nil, err
+		// Target: bind to cap.out=
+		if syntaxErr := assignOrCheckNode(w.target, capOutMedia, nodeMedia, w.position); syntaxErr != nil {
+			return nil, syntaxParseError(syntaxErr)
 		}
-
-		edges = append(edges, &MachineEdge{
-			Sources: sourceUrns,
-			CapUrn:  capUrnVal,
-			Target:  capOutMedia,
-			IsLoop:  w.isLoop,
-		})
 	}
 
-	return NewMachine(edges), nil
+	// Phase 5: Connected-components partition by shared node name.
+	// Union-find over wiring indices, where two wirings are unioned iff they
+	// share at least one node name.
+	n := len(wirings)
+	uf := newUnionFind(n)
+
+	// Map: node name → index of the first wiring that touched it.
+	nodeFirstWiring := make(map[string]int)
+	for wIdx, w := range wirings {
+		nodeNames := make([]string, 0, len(w.sources)+1)
+		nodeNames = append(nodeNames, w.sources...)
+		nodeNames = append(nodeNames, w.target)
+		for _, nodeName := range nodeNames {
+			if earlier, seen := nodeFirstWiring[nodeName]; seen {
+				uf.union(earlier, wIdx)
+			} else {
+				nodeFirstWiring[nodeName] = wIdx
+			}
+		}
+	}
+
+	// Group wirings by their union-find root. Order roots by smallest wiring
+	// index in each group (= first-appearance order).
+	groups := make(map[int][]int)
+	for wIdx := 0; wIdx < n; wIdx++ {
+		root := uf.find(wIdx)
+		groups[root] = append(groups[root], wIdx)
+	}
+
+	type groupInfo struct {
+		root   int
+		minIdx int
+	}
+	groupOrder := make([]groupInfo, 0, len(groups))
+	for root, members := range groups {
+		minIdx := members[0]
+		for _, m := range members[1:] {
+			if m < minIdx {
+				minIdx = m
+			}
+		}
+		groupOrder = append(groupOrder, groupInfo{root: root, minIdx: minIdx})
+	}
+	// Sort by minIdx for first-appearance order.
+	for i := 1; i < len(groupOrder); i++ {
+		for j := i; j > 0 && groupOrder[j].minIdx < groupOrder[j-1].minIdx; j-- {
+			groupOrder[j], groupOrder[j-1] = groupOrder[j-1], groupOrder[j]
+		}
+	}
+
+	// Phase 6: Per-component pre-interning + resolution.
+	//
+	// For each connected component (= strand), allocate NodeIds in the order
+	// user node names are encountered (walking the wirings in textual order).
+	// Two distinct user node names that happen to share a media URN stay
+	// distinct NodeIds — that's the parser's identity contract.
+	strands := make([]*MachineStrand, 0, len(groupOrder))
+	for strandIndex, gi := range groupOrder {
+		memberIndices := groups[gi.root]
+		// Sort member indices to walk wirings in textual order.
+		for i := 1; i < len(memberIndices); i++ {
+			for j := i; j > 0 && memberIndices[j] < memberIndices[j-1]; j-- {
+				memberIndices[j], memberIndices[j-1] = memberIndices[j-1], memberIndices[j]
+			}
+		}
+
+		var nodes []*urn.MediaUrn
+		nameToId := make(map[string]NodeId)
+
+		internNamed := func(name string) NodeId {
+			if id, ok := nameToId[name]; ok {
+				return id
+			}
+			u, ok := nodeMedia[name]
+			if !ok {
+				panic("every node name was bound during phase 4: " + name)
+			}
+			id := NodeId(len(nodes))
+			nodes = append(nodes, u)
+			nameToId[name] = id
+			return id
+		}
+
+		wiringSet := make([]preInternedWiring, 0, len(memberIndices))
+		for _, wIdx := range memberIndices {
+			w := wirings[wIdx]
+			entry := aliasMap[w.capAlias]
+
+			sourceNodeIds := make([]NodeId, len(w.sources))
+			for i, name := range w.sources {
+				sourceNodeIds[i] = internNamed(name)
+			}
+			targetNodeId := internNamed(w.target)
+
+			wiringSet = append(wiringSet, preInternedWiring{
+				capUrn:        entry.capUrn,
+				sourceNodeIds: sourceNodeIds,
+				targetNodeId:  targetNodeId,
+				isLoop:        w.isLoop,
+			})
+		}
+
+		strand, absErr := resolvePreInterned(nodes, wiringSet, registry, strandIndex)
+		if absErr != nil {
+			return nil, abstractionParseError(absErr)
+		}
+		strands = append(strands, strand)
+	}
+
+	return fromResolvedStrands(strands), nil
 }
 
 // parseSourceNode extracts source aliases from a source AST node.
@@ -279,8 +362,8 @@ func parseSourceNode(node *peg.Ast) []string {
 	return nil
 }
 
-// parseLoopMachineNode extracts is_loop flag and cap alias from a loop_cap AST node.
-func parseLoopMachineNode(node *peg.Ast) (bool, string) {
+// parseLoopCapNode extracts is_loop flag and cap alias from a loop_cap AST node.
+func parseLoopCapNode(node *peg.Ast) (bool, string) {
 	isLoop := false
 	capAlias := ""
 
@@ -293,7 +376,7 @@ func parseLoopMachineNode(node *peg.Ast) (bool, string) {
 		}
 	}
 
-	// If no children, the token itself might be the alias
+	// If no children, the token itself might be the alias.
 	if capAlias == "" && node.Token != "" {
 		capAlias = node.Token
 	}
@@ -301,13 +384,15 @@ func parseLoopMachineNode(node *peg.Ast) (bool, string) {
 	return isLoop, capAlias
 }
 
-// assignOrCheckNode assigns a media URN to a node, or checks consistency.
+// assignOrCheckNode assigns a media URN to a node, or checks that an existing
+// binding is comparable. Two URNs bound to the same node name must be on the
+// same specialization chain (IsComparable); the more-specific URN wins.
 func assignOrCheckNode(
 	node string,
 	mediaUrn *urn.MediaUrn,
 	nodeMedia map[string]*urn.MediaUrn,
 	position int,
-) error {
+) *MachineSyntaxError {
 	if existing, ok := nodeMedia[node]; ok {
 		if !existing.IsComparable(mediaUrn) {
 			return invalidWiringError(position, fmt.Sprintf(
@@ -315,271 +400,48 @@ func assignOrCheckNode(
 				node, existing, mediaUrn,
 			))
 		}
+		// The more-specific URN wins.
+		if mediaUrn.Specificity() > existing.Specificity() {
+			nodeMedia[node] = mediaUrn
+		}
 	} else {
 		nodeMedia[node] = mediaUrn
 	}
 	return nil
 }
 
-// --- Serializer methods ---
-
-// ToMachineNotation serializes this machine graph to canonical one-line machine notation.
-func (g *Machine) ToMachineNotation() string {
-	if g.IsEmpty() {
-		return ""
-	}
-
-	aliases, nodeNames, edgeOrder := g.buildSerializationMaps()
-	var parts []string
-
-	// Emit headers in alias-sorted order
-	sortedAliases := make([]string, 0, len(aliases))
-	for alias := range aliases {
-		sortedAliases = append(sortedAliases, alias)
-	}
-	sort.Strings(sortedAliases)
-
-	for _, alias := range sortedAliases {
-		info := aliases[alias]
-		edge := g.edges[info.edgeIdx]
-		parts = append(parts, fmt.Sprintf("[%s %s]", alias, edge.CapUrn))
-	}
-
-	// Emit wirings in edge order
-	for _, edgeIdx := range edgeOrder {
-		edge := g.edges[edgeIdx]
-		// Find alias for this edge
-		var alias string
-		for a, info := range aliases {
-			if info.edgeIdx == edgeIdx {
-				alias = a
-				break
-			}
-		}
-
-		// Source node name(s)
-		sources := make([]string, len(edge.Sources))
-		for i, s := range edge.Sources {
-			sources[i] = nodeNames[s.String()]
-		}
-
-		targetName := nodeNames[edge.Target.String()]
-		loopPrefix := ""
-		if edge.IsLoop {
-			loopPrefix = "LOOP "
-		}
-
-		if len(sources) == 1 {
-			parts = append(parts, fmt.Sprintf("[%s -> %s%s -> %s]", sources[0], loopPrefix, alias, targetName))
-		} else {
-			group := strings.Join(sources, ", ")
-			parts = append(parts, fmt.Sprintf("[(%s) -> %s%s -> %s]", group, loopPrefix, alias, targetName))
-		}
-	}
-
-	return strings.Join(parts, "")
+// unionFind is a tiny union-find structure for connected-components partition.
+type unionFind struct {
+	parent []int
+	rank   []int
 }
 
-// ToMachineNotationMultiline serializes to multi-line machine notation.
-func (g *Machine) ToMachineNotationMultiline() string {
-	if g.IsEmpty() {
-		return ""
+func newUnionFind(n int) *unionFind {
+	parent := make([]int, n)
+	for i := range parent {
+		parent[i] = i
 	}
-
-	aliases, nodeNames, edgeOrder := g.buildSerializationMaps()
-	var lines []string
-
-	// Emit headers
-	sortedAliases := make([]string, 0, len(aliases))
-	for alias := range aliases {
-		sortedAliases = append(sortedAliases, alias)
-	}
-	sort.Strings(sortedAliases)
-
-	for _, alias := range sortedAliases {
-		info := aliases[alias]
-		edge := g.edges[info.edgeIdx]
-		lines = append(lines, fmt.Sprintf("[%s %s]", alias, edge.CapUrn))
-	}
-
-	// Emit wirings
-	for _, edgeIdx := range edgeOrder {
-		edge := g.edges[edgeIdx]
-		var alias string
-		for a, info := range aliases {
-			if info.edgeIdx == edgeIdx {
-				alias = a
-				break
-			}
-		}
-
-		sources := make([]string, len(edge.Sources))
-		for i, s := range edge.Sources {
-			sources[i] = nodeNames[s.String()]
-		}
-
-		targetName := nodeNames[edge.Target.String()]
-		loopPrefix := ""
-		if edge.IsLoop {
-			loopPrefix = "LOOP "
-		}
-
-		if len(sources) == 1 {
-			lines = append(lines, fmt.Sprintf("[%s -> %s%s -> %s]", sources[0], loopPrefix, alias, targetName))
-		} else {
-			group := strings.Join(sources, ", ")
-			lines = append(lines, fmt.Sprintf("[(%s) -> %s%s -> %s]", group, loopPrefix, alias, targetName))
-		}
-	}
-
-	return strings.Join(lines, "\n")
+	return &unionFind{parent: parent, rank: make([]int, n)}
 }
 
-// ToMachineNotationFormatted serializes this machine graph to machine notation
-// in the specified format. The output is deterministic.
-func (g *Machine) ToMachineNotationFormatted(format NotationFormat) string {
-	if g.IsEmpty() {
-		return ""
+func (uf *unionFind) find(x int) int {
+	if uf.parent[x] != x {
+		uf.parent[x] = uf.find(uf.parent[x]) // path compression
 	}
-
-	aliases, nodeNames, edgeOrder := g.buildSerializationMaps()
-	var lines []string
-
-	open, close := "", ""
-	if format == NotationFormatBracketed {
-		open, close = "[", "]"
-	}
-
-	// Emit headers in alias-sorted order
-	sortedAliases := make([]string, 0, len(aliases))
-	for alias := range aliases {
-		sortedAliases = append(sortedAliases, alias)
-	}
-	sort.Strings(sortedAliases)
-
-	for _, alias := range sortedAliases {
-		info := aliases[alias]
-		edge := g.edges[info.edgeIdx]
-		lines = append(lines, fmt.Sprintf("%s%s %s%s", open, alias, edge.CapUrn, close))
-	}
-
-	// Emit wirings in edge order
-	for _, edgeIdx := range edgeOrder {
-		edge := g.edges[edgeIdx]
-		var alias string
-		for a, info := range aliases {
-			if info.edgeIdx == edgeIdx {
-				alias = a
-				break
-			}
-		}
-
-		sources := make([]string, len(edge.Sources))
-		for i, s := range edge.Sources {
-			sources[i] = nodeNames[s.String()]
-		}
-
-		targetName := nodeNames[edge.Target.String()]
-		loopPrefix := ""
-		if edge.IsLoop {
-			loopPrefix = "LOOP "
-		}
-
-		if len(sources) == 1 {
-			lines = append(lines, fmt.Sprintf("%s%s -> %s%s -> %s%s", open, sources[0], loopPrefix, alias, targetName, close))
-		} else {
-			group := strings.Join(sources, ", ")
-			lines = append(lines, fmt.Sprintf("%s(%s) -> %s%s -> %s%s", open, group, loopPrefix, alias, targetName, close))
-		}
-	}
-
-	if format == NotationFormatBracketed {
-		return strings.Join(lines, "")
-	}
-	return strings.Join(lines, "\n")
+	return uf.parent[x]
 }
 
-type aliasInfo struct {
-	edgeIdx int
-	capStr  string
-}
-
-// buildSerializationMaps builds alias map, node name map, and edge ordering.
-func (g *Machine) buildSerializationMaps() (map[string]aliasInfo, map[string]string, []int) {
-	// Step 1: Canonical edge ordering
-	edgeOrder := make([]int, len(g.edges))
-	for i := range edgeOrder {
-		edgeOrder[i] = i
+func (uf *unionFind) union(a, b int) {
+	ra, rb := uf.find(a), uf.find(b)
+	if ra == rb {
+		return
 	}
-	sort.Slice(edgeOrder, func(a, b int) bool {
-		ea := g.edges[edgeOrder[a]]
-		eb := g.edges[edgeOrder[b]]
-
-		capCmp := strings.Compare(ea.CapUrn.String(), eb.CapUrn.String())
-		if capCmp != 0 {
-			return capCmp < 0
-		}
-
-		srcA := make([]string, len(ea.Sources))
-		for i, s := range ea.Sources {
-			srcA[i] = s.String()
-		}
-		srcB := make([]string, len(eb.Sources))
-		for i, s := range eb.Sources {
-			srcB[i] = s.String()
-		}
-		for i := 0; i < len(srcA) && i < len(srcB); i++ {
-			if srcA[i] != srcB[i] {
-				return srcA[i] < srcB[i]
-			}
-		}
-		if len(srcA) != len(srcB) {
-			return len(srcA) < len(srcB)
-		}
-
-		return ea.Target.String() < eb.Target.String()
-	})
-
-	// Step 2: Generate aliases from op= tag
-	aliases := make(map[string]aliasInfo)
-	aliasCounts := make(map[string]int)
-
-	for _, idx := range edgeOrder {
-		edge := g.edges[idx]
-		baseAlias, ok := edge.CapUrn.GetTag("op")
-		if !ok {
-			baseAlias = fmt.Sprintf("edge_%d", idx)
-		}
-
-		count := aliasCounts[baseAlias]
-		alias := baseAlias
-		if count > 0 {
-			alias = fmt.Sprintf("%s_%d", baseAlias, count)
-		}
-		aliasCounts[baseAlias] = count + 1
-
-		aliases[alias] = aliasInfo{edgeIdx: idx, capStr: edge.CapUrn.String()}
+	if uf.rank[ra] < uf.rank[rb] {
+		uf.parent[ra] = rb
+	} else if uf.rank[ra] > uf.rank[rb] {
+		uf.parent[rb] = ra
+	} else {
+		uf.parent[rb] = ra
+		uf.rank[ra]++
 	}
-
-	// Step 3: Generate node names
-	nodeNames := make(map[string]string)
-	nodeCounter := 0
-
-	for _, idx := range edgeOrder {
-		edge := g.edges[idx]
-		for _, src := range edge.Sources {
-			key := src.String()
-			if _, ok := nodeNames[key]; !ok {
-				nodeNames[key] = fmt.Sprintf("n%d", nodeCounter)
-				nodeCounter++
-			}
-		}
-		targetKey := edge.Target.String()
-		if _, ok := nodeNames[targetKey]; !ok {
-			nodeNames[targetKey] = fmt.Sprintf("n%d", nodeCounter)
-			nodeCounter++
-		}
-	}
-
-	return aliases, nodeNames, edgeOrder
 }

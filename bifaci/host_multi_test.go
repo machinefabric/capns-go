@@ -617,7 +617,7 @@ func Test422_cartridge_death_sends_err(t *testing.T) {
 	wg.Wait()
 
 	require.NotNil(t, errFrame, "must receive ERR when cartridge dies with pending request")
-	assert.Equal(t, "PLUGIN_DIED", errFrame.ErrorCode())
+	assert.Equal(t, "CARTRIDGE_DIED", errFrame.ErrorCode())
 }
 
 // TEST423: Multiple cartridges with distinct caps route independently

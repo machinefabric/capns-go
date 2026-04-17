@@ -1,12 +1,106 @@
 // Package machine implements machine notation — compact, round-trippable DAG path identifiers.
 //
 // Machine notation replaces the DOT file format for describing capability
-// transformation paths. It provides a typed graph model (Machine, MachineEdge)
+// transformation paths. It provides a typed graph model (Machine, MachineStrand, MachineEdge)
 // with semantic equivalence, a compact textual format, and conversion from
 // resolved paths.
 package machine
 
 import "fmt"
+
+// MachineAbstractionError covers anchor-realization failures during resolution.
+//
+// These are distinct from MachineSyntaxError, which covers lexical/grammatical
+// failures of the notation parser. Resolution-level failures (cap not in
+// registry, ambiguous matching, cyclic strand) are reported here.
+type MachineAbstractionError struct {
+	Kind    AbstractionErrorKind
+	Message string
+}
+
+func (e *MachineAbstractionError) Error() string {
+	return e.Message
+}
+
+// AbstractionErrorKind identifies the category of abstraction error.
+type AbstractionErrorKind int
+
+const (
+	// ErrAbstractionNoCapabilitySteps — strand or wiring set contains no Cap step.
+	ErrAbstractionNoCapabilitySteps AbstractionErrorKind = iota
+	// ErrAbstractionUnknownCap — cap URN not in registry cache.
+	ErrAbstractionUnknownCap
+	// ErrAbstractionUnmatchedSourceInCapArgs — source URN doesn't conform to any cap input arg.
+	ErrAbstractionUnmatchedSourceInCapArgs
+	// ErrAbstractionAmbiguousMachineNotation — multiple minimum-cost matchings exist.
+	ErrAbstractionAmbiguousMachineNotation
+	// ErrAbstractionCyclicMachineStrand — resolved data-flow graph contains a cycle.
+	ErrAbstractionCyclicMachineStrand
+)
+
+func noCapabilityStepsError() *MachineAbstractionError {
+	return &MachineAbstractionError{
+		Kind:    ErrAbstractionNoCapabilitySteps,
+		Message: "strand or wiring set contains no capability steps",
+	}
+}
+
+func unknownCapError(capUrn string) *MachineAbstractionError {
+	return &MachineAbstractionError{
+		Kind:    ErrAbstractionUnknownCap,
+		Message: fmt.Sprintf("cap URN '%s' is not in the cap registry cache", capUrn),
+	}
+}
+
+func unmatchedSourceError(strandIndex int, capUrn, sourceUrn string) *MachineAbstractionError {
+	return &MachineAbstractionError{
+		Kind: ErrAbstractionUnmatchedSourceInCapArgs,
+		Message: fmt.Sprintf(
+			"in strand %d, cap '%s': source URN '%s' does not conform to any of the cap's input arguments",
+			strandIndex, capUrn, sourceUrn,
+		),
+	}
+}
+
+func ambiguousNotationError(strandIndex int, capUrn string) *MachineAbstractionError {
+	return &MachineAbstractionError{
+		Kind: ErrAbstractionAmbiguousMachineNotation,
+		Message: fmt.Sprintf(
+			"in strand %d, cap '%s': source-to-cap-arg assignment is ambiguous (multiple minimum-cost matchings exist)",
+			strandIndex, capUrn,
+		),
+	}
+}
+
+func cyclicStrandError(strandIndex int) *MachineAbstractionError {
+	return &MachineAbstractionError{
+		Kind:    ErrAbstractionCyclicMachineStrand,
+		Message: fmt.Sprintf("strand %d: resolved data-flow graph contains a cycle", strandIndex),
+	}
+}
+
+// MachineParseError is the combined error type returned from ParseMachine and
+// Machine.FromString. Notation parsing has two phases: lexical/grammatical
+// (MachineSyntaxError) and resolution (MachineAbstractionError).
+type MachineParseError struct {
+	Syntax      *MachineSyntaxError
+	Abstraction *MachineAbstractionError
+}
+
+func (e *MachineParseError) Error() string {
+	if e.Syntax != nil {
+		return e.Syntax.Error()
+	}
+	return e.Abstraction.Error()
+}
+
+func syntaxParseError(err *MachineSyntaxError) *MachineParseError {
+	return &MachineParseError{Syntax: err}
+}
+
+func abstractionParseError(err *MachineAbstractionError) *MachineParseError {
+	return &MachineParseError{Abstraction: err}
+}
 
 // MachineSyntaxError represents errors during machine notation parsing.
 type MachineSyntaxError struct {

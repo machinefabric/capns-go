@@ -528,3 +528,19 @@ func NewCapRegistryForTestWithConfig(config RegistryConfig) *CapRegistry {
 	registry.EnsureIdentityCap()
 	return registry
 }
+
+// AddCapsToCache inserts caps directly into the in-memory cache.
+// Intended for use in tests only — production code should use the registry's
+// fetch/cache pipeline. Each cap is keyed by its normalized URN string.
+func (r *CapRegistry) AddCapsToCache(caps []*Cap) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	for _, cap := range caps {
+		urnStr := cap.UrnString()
+		normalized := urnStr
+		if parsed, err := urn.NewCapUrnFromString(urnStr); err == nil {
+			normalized = parsed.String()
+		}
+		r.cachedCaps[normalized] = cap
+	}
+}

@@ -25,10 +25,10 @@ const orchestratorPegGrammar = `
   loop_cap    <- loop_keyword alias_ref / alias_ref
   loop_keyword <- 'LOOP'
   arrow       <- < '-'+ '>' >
-  alias       <- < [a-zA-Z_] [a-zA-Z0-9_-]* >
-  alias_ref   <- < [a-zA-Z_] [a-zA-Z0-9_-]* >
+  alias       <- < [a-zA-Z_] [-a-zA-Z0-9_]* >
+  alias_ref   <- < [a-zA-Z_] [-a-zA-Z0-9_]* >
   cap_urn     <- < 'cap:' cap_urn_body* >
-  cap_urn_body <- quoted_value / !']' .
+  cap_urn_body <- quoted_value / !'\]' .
   quoted_value <- '"' ('\\"' / '\\\\' / !'"' .)* '"'
   %whitespace <- [ \t\r\n]*
 `
@@ -69,10 +69,10 @@ func checkStructureCompatibility(source, target *urn.MediaUrn, nodeName string) 
 // compatibility (record vs opaque) are validated at each node.
 // Caps must be pre-loaded into the registry cache before calling this function.
 func ParseMachineToCapDag(machineStr string, registry *cap.CapRegistry) (*ResolvedGraph, error) {
-	// Step 1: Parse machine notation into a Machine.
-	machine, err := machine.ParseMachine(machineStr)
-	if err != nil {
-		return nil, machineNotationParseFailedError(err.Error())
+	// Step 1: Parse machine notation into a Machine (strand-based).
+	m, parseErr := machine.ParseMachine(machineStr, registry)
+	if parseErr != nil {
+		return nil, machineNotationParseFailedError(parseErr.Error())
 	}
 
 	// Step 2: Extract node names from the machine notation.
@@ -81,103 +81,113 @@ func ParseMachineToCapDag(machineStr string, registry *cap.CapRegistry) (*Resolv
 		return nil, err
 	}
 
-	// Validate that wiring count matches edge count.
-	if len(wirings) != machine.EdgeCount() {
-		return nil, machineNotationParseFailedError(fmt.Sprintf(
-			"internal error: %d wirings but %d edges — machine parser edge ordering invariant violated",
-			len(wirings), machine.EdgeCount()))
+	// Compute total edge count across all strands.
+	totalEdges := 0
+	for _, strand := range m.Strands() {
+		totalEdges += len(strand.Edges())
 	}
 
-	// Step 3: For each edge, resolve cap via registry and build ResolvedEdge entries.
+	// Validate that wiring count matches edge count.
+	if len(wirings) != totalEdges {
+		return nil, machineNotationParseFailedError(fmt.Sprintf(
+			"internal error: %d wirings but %d edges — machine parser edge ordering invariant violated",
+			len(wirings), totalEdges))
+	}
+
+	// Step 3: For each edge (across all strands in order), resolve cap via registry
+	// and build ResolvedEdge entries.
 	nodeMedia := make(map[string]*urn.MediaUrn)
 	var resolvedEdges []*ResolvedEdge
 
-	edges := machine.Edges()
-	for edgeIdx, edge := range edges {
-		capUrnStr := edge.CapUrn.String()
-		capDef, ok := registry.GetCachedCap(capUrnStr)
-		if !ok {
-			return nil, capNotFoundError(capUrnStr)
-		}
+	wiringIdx := 0
+	for _, strand := range m.Strands() {
+		for _, edge := range strand.Edges() {
+			capUrnStr := edge.CapUrn.String()
+			capDef, ok := registry.GetCachedCap(capUrnStr)
+			if !ok {
+				return nil, capNotFoundError(capUrnStr)
+			}
 
-		capInMedia, err := edge.CapUrn.InMediaUrn()
-		if err != nil {
-			return nil, mediaUrnParseError(err.Error())
-		}
+			capInMedia, err := edge.CapUrn.InMediaUrn()
+			if err != nil {
+				return nil, mediaUrnParseError(err.Error())
+			}
 
-		capOutMedia, err := edge.CapUrn.OutMediaUrn()
-		if err != nil {
-			return nil, mediaUrnParseError(err.Error())
-		}
+			capOutMedia, err := edge.CapUrn.OutMediaUrn()
+			if err != nil {
+				return nil, mediaUrnParseError(err.Error())
+			}
 
-		wiring := wirings[edgeIdx]
+			wiring := wirings[wiringIdx]
+			wiringIdx++
 
-		// Build resolved edges — one per source (fan-in produces multiple edges)
-		for i, srcName := range wiring.sourceNames {
-			var edgeInMedia *urn.MediaUrn
-			if i == 0 {
-				// Primary source: use cap's in= spec
-				edgeInMedia = capInMedia
-			} else {
-				// Secondary source (fan-in): resolve from existing assignment
-				// or from the cap's args list
-				existing, hasExisting := nodeMedia[srcName]
-				isWildcard := hasExisting && existing.String() == "media:"
-				if hasExisting && !isWildcard {
-					edgeInMedia = existing
+			// Build resolved edges — one per source (fan-in produces multiple edges)
+			for i, srcName := range wiring.sourceNames {
+				var edgeInMedia *urn.MediaUrn
+				if i == 0 {
+					// Primary source: use cap's in= spec
+					edgeInMedia = capInMedia
 				} else {
-					// Resolve from cap.args — secondary sources map to args
-					// beyond the primary in= spec (arg index i-1 for source i)
-					argIdx := i - 1
-					args := capDef.GetArgs()
-					if argIdx < len(args) {
-						argMedia, err := urn.NewMediaUrnFromString(args[argIdx].MediaUrn)
-						if err == nil {
-							edgeInMedia = argMedia
+					// Secondary source (fan-in): resolve from existing assignment
+					// or from the cap's args list
+					existing, hasExisting := nodeMedia[srcName]
+					isWildcard := hasExisting && existing.String() == "media:"
+					if hasExisting && !isWildcard {
+						edgeInMedia = existing
+					} else {
+						// Resolve from cap.args — secondary sources map to args
+						// beyond the primary in= spec (arg index i-1 for source i)
+						argIdx := i - 1
+						args := capDef.GetArgs()
+						if argIdx < len(args) {
+							argMedia, err := urn.NewMediaUrnFromString(args[argIdx].MediaUrn)
+							if err == nil {
+								edgeInMedia = argMedia
+							}
+						}
+						if edgeInMedia == nil {
+							return nil, machineNotationParseFailedError(fmt.Sprintf(
+								"fan-in secondary source '%s' (index %d) has no media type and cap '%s' has no matching arg at index %d",
+								srcName, i, capUrnStr, argIdx))
 						}
 					}
-					if edgeInMedia == nil {
-						return nil, machineNotationParseFailedError(fmt.Sprintf(
-							"fan-in secondary source '%s' (index %d) has no media type and cap '%s' has no matching arg at index %d",
-							srcName, i, capUrnStr, argIdx))
+				}
+
+				// Validate source node media compatibility
+				if existing, ok := nodeMedia[srcName]; ok {
+					compatible, _ := mediaUrnsCompatible(existing, edgeInMedia)
+					if !compatible {
+						return nil, nodeMediaConflictError(srcName, existing.String(), edgeInMedia.String())
 					}
+					if err := checkStructureCompatibility(existing, edgeInMedia, srcName); err != nil {
+						return nil, err
+					}
+				} else {
+					nodeMedia[srcName] = edgeInMedia
 				}
-			}
 
-			// Validate source node media compatibility
-			if existing, ok := nodeMedia[srcName]; ok {
-				compatible, _ := mediaUrnsCompatible(existing, edgeInMedia)
-				if !compatible {
-					return nil, nodeMediaConflictError(srcName, existing.String(), edgeInMedia.String())
+				// Validate target node media compatibility
+				if existing, ok := nodeMedia[wiring.targetName]; ok {
+					compatible, _ := mediaUrnsCompatible(existing, capOutMedia)
+					if !compatible {
+						return nil, nodeMediaConflictError(wiring.targetName, existing.String(), capOutMedia.String())
+					}
+					if err := checkStructureCompatibility(capOutMedia, existing, wiring.targetName); err != nil {
+						return nil, err
+					}
+				} else {
+					nodeMedia[wiring.targetName] = capOutMedia
 				}
-				if err := checkStructureCompatibility(existing, edgeInMedia, srcName); err != nil {
-					return nil, err
-				}
-			} else {
-				nodeMedia[srcName] = edgeInMedia
-			}
 
-			// Validate target node media compatibility
-			if existing, ok := nodeMedia[wiring.targetName]; ok {
-				compatible, _ := mediaUrnsCompatible(existing, capOutMedia)
-				if !compatible {
-					return nil, nodeMediaConflictError(wiring.targetName, existing.String(), capOutMedia.String())
-				}
-				if err := checkStructureCompatibility(capOutMedia, existing, wiring.targetName); err != nil {
-					return nil, err
-				}
-			} else {
-				nodeMedia[wiring.targetName] = capOutMedia
+				resolvedEdges = append(resolvedEdges, &ResolvedEdge{
+					From:     srcName,
+					To:       wiring.targetName,
+					CapUrn:   capUrnStr,
+					Cap:      capDef,
+					InMedia:  edgeInMedia.String(),
+					OutMedia: capOutMedia.String(),
+				})
 			}
-
-			resolvedEdges = append(resolvedEdges, &ResolvedEdge{
-				From:     srcName,
-				To:       wiring.targetName,
-				CapUrn:   capUrnStr,
-				Cap:      capDef,
-				InMedia:  edgeInMedia.String(),
-				OutMedia: capOutMedia.String(),
-			})
 		}
 	}
 

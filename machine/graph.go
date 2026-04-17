@@ -2,224 +2,424 @@ package machine
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
+	"github.com/machinefabric/capdag-go/cap"
+	"github.com/machinefabric/capdag-go/planner"
 	"github.com/machinefabric/capdag-go/urn"
 )
 
-// MachineEdge represents a single edge in the machine graph.
+// NodeId is an index into a MachineStrand's nodes slice.
+// Dense, starts at 0, stable for the lifetime of the strand.
+// Scoped to a single strand — two strands use disjoint NodeId spaces.
+type NodeId = uint32
+
+// EdgeAssignmentBinding records which cap argument (identified by its slot
+// media URN) is fed by which data-position in the strand (NodeId).
 //
-// Each edge represents a capability that transforms one or more source
-// media types into a target media type. The IsLoop flag indicates
-// ForEach semantics (the capability is applied to each item in a list).
+// MachineEdge.Assignment holds these sorted by CapArgMediaUrn so that
+// two semantically-equivalent edges produce identical assignment slices.
+type EdgeAssignmentBinding struct {
+	CapArgMediaUrn *urn.MediaUrn // slot identity per cap definition
+	Source         NodeId        // which node feeds this arg
+}
+
+// MachineEdge is one resolved cap-step inside a MachineStrand.
+//
+// Assignment carries the explicit source-to-cap-arg mapping computed by the
+// resolver: pairs of (cap arg slot URN, strand node ID). Sorted by
+// CapArgMediaUrn for canonical comparison.
 type MachineEdge struct {
-	// Input media URN(s) — from connected cap's in-spec.
-	// Multiple sources represent fan-in.
-	Sources []*urn.MediaUrn
-	// The capability URN (edge label).
-	CapUrn *urn.CapUrn
-	// Output media URN — from cap's out-spec.
-	Target *urn.MediaUrn
-	// Whether this edge has ForEach semantics.
-	IsLoop bool
+	CapUrn     *urn.CapUrn
+	Assignment []EdgeAssignmentBinding
+	Target     NodeId
+	IsLoop     bool
 }
 
-// IsEquivalent checks if two edges are semantically equivalent.
-//
-// Source order does not matter — fan-in sources are compared as sets.
-func (e *MachineEdge) IsEquivalent(other *MachineEdge) bool {
-	if e.IsLoop != other.IsLoop {
-		return false
-	}
-
-	if !e.CapUrn.IsEquivalent(other.CapUrn) {
-		return false
-	}
-
-	// Target equivalence
-	if !e.Target.IsEquivalent(other.Target) {
-		return false
-	}
-
-	// Source set equivalence — order-independent comparison
-	if len(e.Sources) != len(other.Sources) {
-		return false
-	}
-
-	matched := make([]bool, len(other.Sources))
-	for _, selfSrc := range e.Sources {
-		found := false
-		for j, otherSrc := range other.Sources {
-			if matched[j] {
-				continue
-			}
-			if selfSrc.IsEquivalent(otherSrc) {
-				matched[j] = true
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-
-	return true
-}
-
-// String returns a human-readable representation of the edge.
 func (e *MachineEdge) String() string {
-	sources := make([]string, len(e.Sources))
-	for i, s := range e.Sources {
-		sources[i] = s.String()
+	assignments := make([]string, len(e.Assignment))
+	for i, b := range e.Assignment {
+		assignments[i] = fmt.Sprintf("%s<-#%d", b.CapArgMediaUrn, b.Source)
 	}
 	loopPrefix := ""
 	if e.IsLoop {
 		loopPrefix = "LOOP "
 	}
-	return fmt.Sprintf("(%s) -%s%s-> %s",
-		strings.Join(sources, ", "),
+	return fmt.Sprintf("%s%s (%s) -> #%d",
 		loopPrefix,
-		e.CapUrn.String(),
-		e.Target.String(),
+		e.CapUrn,
+		strings.Join(assignments, ", "),
+		e.Target,
 	)
 }
 
-// Machine is the semantic model behind machine notation.
+// MachineStrand is one connected component of resolved cap edges with
+// explicit anchor commitments.
 //
-// The graph is a collection of directed edges where each edge is a capability
-// that transforms source media types into a target media type.
-//
-// Two graphs are equivalent if they have the same set of edges, regardless
-// of ordering.
-type Machine struct {
+// Built once via resolve functions. After construction the strand is immutable.
+type MachineStrand struct {
+	// Distinct data positions in this strand, indexed by NodeId.
+	nodes []*urn.MediaUrn
+	// Resolved cap-step edges in canonical topological order.
 	edges []*MachineEdge
+	// NodeIds of root nodes (no producer in this strand). Sorted.
+	inputAnchorIds []NodeId
+	// NodeIds of leaf nodes (no consumer in this strand). Sorted.
+	outputAnchorIds []NodeId
 }
 
-// NewMachine creates a new machine graph from a slice of edges.
-func NewMachine(edges []*MachineEdge) *Machine {
-	return &Machine{edges: edges}
+// newMachineStrand constructs a MachineStrand from already-resolved fields.
+// Used by resolve functions after building the canonical node and edge slices.
+func newMachineStrand(
+	nodes []*urn.MediaUrn,
+	edges []*MachineEdge,
+	inputAnchorIds []NodeId,
+	outputAnchorIds []NodeId,
+) *MachineStrand {
+	return &MachineStrand{
+		nodes:           nodes,
+		edges:           edges,
+		inputAnchorIds:  inputAnchorIds,
+		outputAnchorIds: outputAnchorIds,
+	}
 }
 
-// EmptyMachine creates an empty machine graph.
-func EmptyMachine() *Machine {
-	return &Machine{edges: nil}
+// Nodes returns all distinct data positions, indexed by NodeId.
+func (s *MachineStrand) Nodes() []*urn.MediaUrn {
+	return s.nodes
 }
 
-// Edges returns the edges of this graph.
-func (g *Machine) Edges() []*MachineEdge {
-	return g.edges
+// Edges returns the cap-step edges in canonical topological order.
+func (s *MachineStrand) Edges() []*MachineEdge {
+	return s.edges
 }
 
-// EdgeCount returns the number of edges.
-func (g *Machine) EdgeCount() int {
-	return len(g.edges)
+// InputAnchorIds returns the NodeIds of root nodes.
+func (s *MachineStrand) InputAnchorIds() []NodeId {
+	return s.inputAnchorIds
 }
 
-// IsEmpty checks if the graph has no edges.
-func (g *Machine) IsEmpty() bool {
-	return len(g.edges) == 0
+// OutputAnchorIds returns the NodeIds of leaf nodes.
+func (s *MachineStrand) OutputAnchorIds() []NodeId {
+	return s.outputAnchorIds
 }
 
-// IsEquivalent checks if two machine graphs are semantically equivalent.
-func (g *Machine) IsEquivalent(other *Machine) bool {
-	if len(g.edges) != len(other.edges) {
+// NodeUrn returns the MediaUrn for a NodeId. Panics if out of range.
+func (s *MachineStrand) NodeUrn(id NodeId) *urn.MediaUrn {
+	return s.nodes[id]
+}
+
+// InputAnchors returns the sorted multiset of input anchor URNs.
+func (s *MachineStrand) InputAnchors() []*urn.MediaUrn {
+	result := make([]*urn.MediaUrn, len(s.inputAnchorIds))
+	for i, id := range s.inputAnchorIds {
+		result[i] = s.nodes[id]
+	}
+	return result
+}
+
+// OutputAnchors returns the sorted multiset of output anchor URNs.
+func (s *MachineStrand) OutputAnchors() []*urn.MediaUrn {
+	result := make([]*urn.MediaUrn, len(s.outputAnchorIds))
+	for i, id := range s.outputAnchorIds {
+		result[i] = s.nodes[id]
+	}
+	return result
+}
+
+// IsEquivalent checks strict positional equivalence with another MachineStrand.
+//
+// Walks both strands in canonical edge order, building a bijection between
+// NodeIds on the fly. Any anchor or edge mismatch fails the comparison.
+func (s *MachineStrand) IsEquivalent(other *MachineStrand) bool {
+	if len(s.nodes) != len(other.nodes) {
+		return false
+	}
+	if len(s.edges) != len(other.edges) {
+		return false
+	}
+	if len(s.inputAnchorIds) != len(other.inputAnchorIds) {
+		return false
+	}
+	if len(s.outputAnchorIds) != len(other.outputAnchorIds) {
 		return false
 	}
 
-	matched := make([]bool, len(other.edges))
-	for _, selfEdge := range g.edges {
-		found := false
-		for j, otherEdge := range other.edges {
-			if matched[j] {
-				continue
-			}
-			if selfEdge.IsEquivalent(otherEdge) {
-				matched[j] = true
-				found = true
-				break
-			}
+	selfToOther := make([]int, len(s.nodes))
+	otherToSelf := make([]int, len(other.nodes))
+	for i := range selfToOther {
+		selfToOther[i] = -1
+	}
+	for i := range otherToSelf {
+		otherToSelf[i] = -1
+	}
+
+	bindNode := func(selfId, otherId NodeId) bool {
+		// URNs must be equivalent.
+		if !s.nodes[selfId].IsEquivalent(other.nodes[otherId]) {
+			return false
 		}
-		if !found {
+		si, oi := int(selfId), int(otherId)
+		if selfToOther[si] == -1 && otherToSelf[oi] == -1 {
+			selfToOther[si] = oi
+			otherToSelf[oi] = si
+			return true
+		}
+		if selfToOther[si] == oi && otherToSelf[oi] == si {
+			return true
+		}
+		return false
+	}
+
+	// Compare anchors (sorted multisets).
+	for i := range s.inputAnchorIds {
+		if !bindNode(s.inputAnchorIds[i], other.inputAnchorIds[i]) {
+			return false
+		}
+	}
+	for i := range s.outputAnchorIds {
+		if !bindNode(s.outputAnchorIds[i], other.outputAnchorIds[i]) {
 			return false
 		}
 	}
 
+	// Compare edges positionally.
+	for i, se := range s.edges {
+		oe := other.edges[i]
+		if se.IsLoop != oe.IsLoop {
+			return false
+		}
+		if !se.CapUrn.IsEquivalent(oe.CapUrn) {
+			return false
+		}
+		if len(se.Assignment) != len(oe.Assignment) {
+			return false
+		}
+		// Assignment is pre-sorted by CapArgMediaUrn — positional comparison is canonical.
+		for j, sb := range se.Assignment {
+			ob := oe.Assignment[j]
+			if !sb.CapArgMediaUrn.IsEquivalent(ob.CapArgMediaUrn) {
+				return false
+			}
+			if !bindNode(sb.Source, ob.Source) {
+				return false
+			}
+		}
+		if !bindNode(se.Target, oe.Target) {
+			return false
+		}
+	}
 	return true
 }
 
-// RootSources collects all unique source media URNs that are not
-// produced as targets by any other edge.
-func (g *Machine) RootSources() []*urn.MediaUrn {
-	var roots []*urn.MediaUrn
-	for _, edge := range g.edges {
-		for _, src := range edge.Sources {
-			isProduced := false
-			for _, e := range g.edges {
-				if e.Target.IsEquivalent(src) {
-					isProduced = true
-					break
-				}
-			}
-			if !isProduced {
-				alreadyAdded := false
-				for _, r := range roots {
-					if r.IsEquivalent(src) {
-						alreadyAdded = true
-						break
-					}
-				}
-				if !alreadyAdded {
-					roots = append(roots, src)
-				}
-			}
-		}
-	}
-	return roots
+// Machine is an ordered collection of resolved MachineStrands.
+//
+// Strand declaration order matters: the executor walks the strands in this
+// order at runtime, and IsEquivalent compares strand-by-strand positionally.
+type Machine struct {
+	strands []*MachineStrand
 }
 
-// LeafTargets collects all unique target media URNs that are not
-// consumed as sources by any other edge.
-func (g *Machine) LeafTargets() []*urn.MediaUrn {
-	var leaves []*urn.MediaUrn
-	for _, edge := range g.edges {
-		isConsumed := false
-		for _, e := range g.edges {
-			for _, s := range e.Sources {
-				if s.IsEquivalent(edge.Target) {
-					isConsumed = true
-					break
-				}
-			}
-			if isConsumed {
-				break
-			}
+// fromResolvedStrands constructs a Machine from already-resolved strands.
+func fromResolvedStrands(strands []*MachineStrand) *Machine {
+	return &Machine{strands: strands}
+}
+
+// FromStrand builds a Machine containing exactly one MachineStrand from a
+// planner-produced Strand. The cap registry is required to look up each
+// cap's args list for source-to-arg matching.
+func FromStrand(strand *planner.Strand, registry *cap.CapRegistry) (*Machine, *MachineAbstractionError) {
+	resolved, err := resolveStrand(strand, registry, 0)
+	if err != nil {
+		return nil, err
+	}
+	return fromResolvedStrands([]*MachineStrand{resolved}), nil
+}
+
+// FromStrands builds a Machine containing N MachineStrands, one per input
+// strand, in the given order. Each strand is resolved independently.
+func FromStrands(strands []*planner.Strand, registry *cap.CapRegistry) (*Machine, *MachineAbstractionError) {
+	if len(strands) == 0 {
+		return nil, noCapabilityStepsError()
+	}
+	resolved := make([]*MachineStrand, len(strands))
+	for i, s := range strands {
+		ms, err := resolveStrand(s, registry, i)
+		if err != nil {
+			return nil, err
 		}
-		if !isConsumed {
-			alreadyAdded := false
-			for _, l := range leaves {
-				if l.IsEquivalent(edge.Target) {
-					alreadyAdded = true
-					break
-				}
-			}
-			if !alreadyAdded {
-				leaves = append(leaves, edge.Target)
-			}
+		resolved[i] = ms
+	}
+	return fromResolvedStrands(resolved), nil
+}
+
+// Strands returns all resolved strands in declaration order.
+func (m *Machine) Strands() []*MachineStrand {
+	return m.strands
+}
+
+// StrandCount returns the number of strands.
+func (m *Machine) StrandCount() int {
+	return len(m.strands)
+}
+
+// IsEmpty returns true if the machine has no strands.
+func (m *Machine) IsEmpty() bool {
+	return len(m.strands) == 0
+}
+
+// IsEquivalent checks strict positional equivalence with another Machine.
+//
+// Two Machines are equivalent iff they have the same number of strands and
+// strands[i].IsEquivalent(other.strands[i]) for every i. Strand order matters.
+func (m *Machine) IsEquivalent(other *Machine) bool {
+	if len(m.strands) != len(other.strands) {
+		return false
+	}
+	for i, s := range m.strands {
+		if !s.IsEquivalent(other.strands[i]) {
+			return false
 		}
 	}
-	return leaves
+	return true
 }
 
 // FromString parses machine notation into a Machine.
-func FromString(input string) (*Machine, error) {
-	return ParseMachine(input)
+// Requires the cap registry for the resolution phase.
+func FromString(input string, registry *cap.CapRegistry) (*Machine, *MachineParseError) {
+	return ParseMachine(input, registry)
 }
 
 // String returns a human-readable representation.
-func (g *Machine) String() string {
-	if len(g.edges) == 0 {
+func (m *Machine) String() string {
+	if len(m.strands) == 0 {
 		return "Machine(empty)"
 	}
-	return fmt.Sprintf("Machine(%d edges)", len(g.edges))
+	edgeCount := 0
+	for _, s := range m.strands {
+		edgeCount += len(s.edges)
+	}
+	return fmt.Sprintf("Machine(%d strands, %d edges)", len(m.strands), edgeCount)
+}
+
+// --- Serializer ---
+
+// NotationFormat controls the serialization format for machine notation.
+type NotationFormat int
+
+const (
+	NotationFormatBracketed NotationFormat = iota
+	NotationFormatLineBased
+)
+
+// ToMachineNotation serializes this machine to canonical one-line bracketed notation.
+func (m *Machine) ToMachineNotation() string {
+	return m.ToMachineNotationFormatted(NotationFormatBracketed)
+}
+
+// ToMachineNotationMultiline serializes to multi-line notation.
+func (m *Machine) ToMachineNotationMultiline() string {
+	return m.ToMachineNotationFormatted(NotationFormatLineBased)
+}
+
+// ToMachineNotationFormatted serializes in the specified format.
+func (m *Machine) ToMachineNotationFormatted(format NotationFormat) string {
+	if m.IsEmpty() {
+		return ""
+	}
+
+	var parts []string
+	open, close_ := "", ""
+	if format == NotationFormatBracketed {
+		open, close_ = "[", "]"
+	}
+
+	edgeCounter := 0
+	nodeCounter := 0
+
+	for _, strand := range m.strands {
+		// Build per-strand node name map (NodeId -> name).
+		nodeNames := make(map[NodeId]string)
+
+		assignNodeName := func(id NodeId) string {
+			if name, ok := nodeNames[id]; ok {
+				return name
+			}
+			name := fmt.Sprintf("n%d", nodeCounter)
+			nodeCounter++
+			nodeNames[id] = name
+			return name
+		}
+
+		// Collect alias -> edge index mapping.
+		aliases := make(map[string]int) // alias -> edge index within strand
+		aliasOrder := make([]string, len(strand.edges))
+		aliasCounters := make(map[string]int)
+
+		for eIdx, edge := range strand.edges {
+			baseAlias, ok := edge.CapUrn.GetTag("op")
+			if !ok || baseAlias == "" {
+				baseAlias = fmt.Sprintf("edge_%d", edgeCounter)
+			}
+			count := aliasCounters[baseAlias]
+			alias := baseAlias
+			if count > 0 {
+				alias = fmt.Sprintf("%s_%d", baseAlias, count)
+			}
+			aliasCounters[baseAlias] = count + 1
+			aliases[alias] = eIdx
+			aliasOrder[eIdx] = alias
+			edgeCounter++
+		}
+
+		// Sort headers by alias for determinism.
+		sortedAliases := make([]string, 0, len(aliases))
+		for alias := range aliases {
+			sortedAliases = append(sortedAliases, alias)
+		}
+		sort.Strings(sortedAliases)
+
+		for _, alias := range sortedAliases {
+			eIdx := aliases[alias]
+			edge := strand.edges[eIdx]
+			parts = append(parts, fmt.Sprintf("%s%s %s%s", open, alias, edge.CapUrn, close_))
+		}
+
+		// Emit wirings in canonical edge order.
+		for eIdx, edge := range strand.edges {
+			alias := aliasOrder[eIdx]
+			loopPrefix := ""
+			if edge.IsLoop {
+				loopPrefix = "LOOP "
+			}
+
+			// Sort assignment by Source for wiring emission.
+			sortedAssignment := make([]EdgeAssignmentBinding, len(edge.Assignment))
+			copy(sortedAssignment, edge.Assignment)
+			sort.Slice(sortedAssignment, func(a, b int) bool {
+				return sortedAssignment[a].Source < sortedAssignment[b].Source
+			})
+
+			sources := make([]string, len(sortedAssignment))
+			for i, b := range sortedAssignment {
+				sources[i] = assignNodeName(b.Source)
+			}
+			targetName := assignNodeName(edge.Target)
+
+			if len(sources) == 1 {
+				parts = append(parts, fmt.Sprintf("%s%s -> %s%s -> %s%s",
+					open, sources[0], loopPrefix, alias, targetName, close_))
+			} else {
+				group := strings.Join(sources, ", ")
+				parts = append(parts, fmt.Sprintf("%s(%s) -> %s%s -> %s%s",
+					open, group, loopPrefix, alias, targetName, close_))
+			}
+		}
+	}
+
+	if format == NotationFormatBracketed {
+		return strings.Join(parts, "")
+	}
+	return strings.Join(parts, "\n")
 }
