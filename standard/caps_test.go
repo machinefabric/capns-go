@@ -31,6 +31,7 @@ func Test309_model_availability_and_path_are_distinct(t *testing.T) {
 		"availability and path must be distinct cap URNs")
 }
 
+// TEST310: llm_generate_text_urn() produces a valid cap URN with textable in/out specs
 func Test310_llm_generate_text_urn_shape(t *testing.T) {
 	urnStr := LlmGenerateTextUrn()
 	assert.True(t, strings.HasPrefix(urnStr, "cap:"), "must be a cap URN")

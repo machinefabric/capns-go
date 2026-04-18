@@ -1,10 +1,14 @@
 # CapDag-Go Test Catalog
 
-**Total Tests:** 652
+**Total Tests:** 654
 
-**Numbered Tests:** 584
+**Numbered Tests:** 586
 
 **Unnumbered Tests:** 68
+
+**Numbered Tests Missing Descriptions:** 0
+
+**Numbering Mismatches:** 0
 
 All numbered test numbers are unique.
 
@@ -289,24 +293,24 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test307 | `Test307_model_availability_urn` | TEST307: Test model_availability_urn builds valid cap URN with correct op and media specs | standard/caps_test.go:11 |
 | test308 | `Test308_model_path_urn` | TEST308: Test model_path_urn builds valid cap URN with correct op and media specs | standard/caps_test.go:19 |
 | test309 | `Test309_model_availability_and_path_are_distinct` | TEST309: Test model_availability_urn and model_path_urn produce distinct URNs | standard/caps_test.go:27 |
-| test310 | `Test310_llm_generate_text_urn_shape` |  | standard/caps_test.go:34 |
-| test312 | `Test312_all_urn_builders_produce_valid_urns` | TEST312: Test all URN builders produce parseable cap URNs | standard/caps_test.go:45 |
+| test310 | `Test310_llm_generate_text_urn_shape` | TEST310: llm_generate_text_urn() produces a valid cap URN with textable in/out specs | standard/caps_test.go:35 |
+| test312 | `Test312_all_urn_builders_produce_valid_urns` | TEST312: Test all URN builders produce parseable cap URNs | standard/caps_test.go:46 |
 | test320 | `Test320_cartridge_info_construction` | TEST320-335: CartridgeRepoServer and CartridgeRepoClient tests | bifaci/cartridge_repo_test.go:40 |
-| test321 | `Test321_cartridge_info_is_signed` |  | bifaci/cartridge_repo_test.go:70 |
-| test322 | `Test322_cartridge_info_build_for_platform` |  | bifaci/cartridge_repo_test.go:96 |
-| test323 | `Test323_cartridge_repo_server_validate_registry` |  | bifaci/cartridge_repo_test.go:149 |
-| test324 | `Test324_cartridge_repo_server_transform_to_array` |  | bifaci/cartridge_repo_test.go:179 |
-| test325 | `Test325_cartridge_repo_server_get_cartridges` |  | bifaci/cartridge_repo_test.go:227 |
-| test326 | `Test326_cartridge_repo_server_get_cartridge_by_id` |  | bifaci/cartridge_repo_test.go:256 |
-| test327 | `Test327_cartridge_repo_server_search_cartridges` |  | bifaci/cartridge_repo_test.go:293 |
-| test328 | `Test328_cartridge_repo_server_get_by_category` |  | bifaci/cartridge_repo_test.go:331 |
-| test329 | `Test329_cartridge_repo_server_get_by_cap` |  | bifaci/cartridge_repo_test.go:369 |
-| test330 | `Test330_cartridge_repo_client_update_cache` |  | bifaci/cartridge_repo_test.go:409 |
-| test331 | `Test331_cartridge_repo_client_get_suggestions` |  | bifaci/cartridge_repo_test.go:437 |
-| test332 | `Test332_cartridge_repo_client_get_cartridge` |  | bifaci/cartridge_repo_test.go:471 |
-| test333 | `Test333_cartridge_repo_client_get_all_caps` |  | bifaci/cartridge_repo_test.go:502 |
-| test334 | `Test334_cartridge_repo_client_needs_sync` |  | bifaci/cartridge_repo_test.go:551 |
-| test335 | `Test335_cartridge_repo_server_client_integration` |  | bifaci/cartridge_repo_test.go:567 |
+| test321 | `Test321_cartridge_info_is_signed` | TEST321: CartridgeInfo.is_signed() returns true when signature is present | bifaci/cartridge_repo_test.go:71 |
+| test322 | `Test322_cartridge_info_build_for_platform` | TEST322: CartridgeInfo.build_for_platform() returns the build matching the current platform | bifaci/cartridge_repo_test.go:98 |
+| test323 | `Test323_cartridge_repo_server_validate_registry` | TEST323: CartridgeRepoServer validates registry JSON schema version | bifaci/cartridge_repo_test.go:152 |
+| test324 | `Test324_cartridge_repo_server_transform_to_array` | TEST324: CartridgeRepoServer transforms v3 registry JSON into flat cartridge array | bifaci/cartridge_repo_test.go:183 |
+| test325 | `Test325_cartridge_repo_server_get_cartridges` | TEST325: CartridgeRepoServer.get_cartridges() returns all parsed cartridges | bifaci/cartridge_repo_test.go:232 |
+| test326 | `Test326_cartridge_repo_server_get_cartridge_by_id` | TEST326: CartridgeRepoServer.get_cartridge() returns cartridge matching the given ID | bifaci/cartridge_repo_test.go:262 |
+| test327 | `Test327_cartridge_repo_server_search_cartridges` | TEST327: CartridgeRepoServer.search_cartridges() filters by text query against name and description | bifaci/cartridge_repo_test.go:300 |
+| test328 | `Test328_cartridge_repo_server_get_by_category` | TEST328: CartridgeRepoServer.get_by_category() filters cartridges by category tag | bifaci/cartridge_repo_test.go:339 |
+| test329 | `Test329_cartridge_repo_server_get_by_cap` | TEST329: CartridgeRepoServer.get_suggestions_for_cap() finds cartridges providing a given cap URN | bifaci/cartridge_repo_test.go:378 |
+| test330 | `Test330_cartridge_repo_client_update_cache` | TEST330: CartridgeRepoClient updates its local cache from server response | bifaci/cartridge_repo_test.go:419 |
+| test331 | `Test331_cartridge_repo_client_get_suggestions` | TEST331: CartridgeRepoClient.get_suggestions_for_cap() returns cartridge suggestions for a cap URN | bifaci/cartridge_repo_test.go:448 |
+| test332 | `Test332_cartridge_repo_client_get_cartridge` | TEST332: CartridgeRepoClient.get_cartridge() retrieves a specific cartridge by ID from cache | bifaci/cartridge_repo_test.go:483 |
+| test333 | `Test333_cartridge_repo_client_get_all_caps` | TEST333: CartridgeRepoClient.get_all_caps() returns aggregate cap URNs from all cached cartridges | bifaci/cartridge_repo_test.go:515 |
+| test334 | `Test334_cartridge_repo_client_needs_sync` | TEST334: CartridgeRepoClient.needs_sync() returns true when cache TTL has expired | bifaci/cartridge_repo_test.go:565 |
+| test335 | `Test335_cartridge_repo_server_client_integration` | TEST335: Server creates registry response and client consumes it end-to-end | bifaci/cartridge_repo_test.go:582 |
 | test336 | `Test336_FilePathReadsFilePassesBytes` | TEST336: Single file-path arg with stdin source reads file and passes bytes to handler | bifaci/cartridge_runtime_test.go:599 |
 | test337 | `Test337_FilePathWithoutStdinPassesString` | TEST337: file-path arg without stdin source passes path as string (no conversion) | bifaci/cartridge_runtime_test.go:674 |
 | test338 | `Test338_FilePathViaCliFlag` | TEST338: file-path arg reads file via --file CLI flag | bifaci/cartridge_runtime_test.go:715 |
@@ -405,8 +409,8 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test458 | `Test458_reorder_buffer_non_flow_bypass` | TEST458: Non-flow frames bypass reorder entirely | bifaci/frame_test.go:1301 |
 | test459 | `Test459_reorder_buffer_end_frame` | TEST459: Terminal END frame flows through correctly | bifaci/frame_test.go:1317 |
 | test460 | `Test460_reorder_buffer_err_frame` | TEST460: Terminal ERR frame flows through correctly | bifaci/frame_test.go:1335 |
-| test473 | `Test473_cap_discard_parses_as_valid_urn` | TEST473: CAP_DISCARD parses as valid CapUrn with in=media: and out=media:void | standard/caps_test.go:58 |
-| test474 | `Test474_cap_discard_structure` | TEST474: CAP_DISCARD accepts specific-input/void-output caps | standard/caps_test.go:67 |
+| test473 | `Test473_cap_discard_parses_as_valid_urn` | TEST473: CAP_DISCARD parses as valid CapUrn with in=media: and out=media:void | standard/caps_test.go:59 |
+| test474 | `Test474_cap_discard_structure` | TEST474: CAP_DISCARD accepts specific-input/void-output caps | standard/caps_test.go:68 |
 | test475 | `Test475_validate_passes_with_identity` | TEST475: CapManifest::validate() passes when CAP_IDENTITY is present | bifaci/manifest_test.go:356 |
 | test476 | `Test476_validate_fails_without_identity` | TEST476: CapManifest::validate() fails when CAP_IDENTITY is missing | bifaci/manifest_test.go:367 |
 | test497 | `Test497_chunk_corrupted_payload_rejected` | TEST497: Verify CHUNK frame with corrupted payload is rejected by checksum | bifaci/io_test.go:1021 |
@@ -469,8 +473,8 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test601 | `Test601_get_content_type` | TEST601: get_content_type returns correct MIME type for each variant | cap/response_test.go:309 |
 | test602 | `Test602_as_type_binary_error` | TEST602: as_type on binary response returns error (cannot deserialize binary) | cap/response_test.go:321 |
 | test603 | `Test603_as_bool_edge_cases` | TEST603: as_bool handles all accepted truthy/falsy variants and rejects garbage | cap/response_test.go:330 |
-| test605 | `Test605_all_coercion_paths_build_valid_urns` | TEST605: all_coercion_paths each entry builds a valid parseable CapUrn | standard/caps_test.go:80 |
-| test606 | `Test606_coercion_urn_specs` | TEST606: coercion_urn in/out specs match the type's media URN constant | standard/caps_test.go:97 |
+| test605 | `Test605_all_coercion_paths_build_valid_urns` | TEST605: all_coercion_paths each entry builds a valid parseable CapUrn | standard/caps_test.go:81 |
+| test606 | `Test606_coercion_urn_specs` | TEST606: coercion_urn in/out specs match the type's media URN constant | standard/caps_test.go:98 |
 | test607 | `Test607_media_urns_for_extension_unknown` | TEST607: media_urns_for_extension returns error for unknown extension | media/spec_test.go:507 |
 | test608 | `Test608_media_urns_for_extension_populated` | TEST608: media_urns_for_extension returns URNs after adding a spec with extensions | media/spec_test.go:517 |
 | test609 | `Test609_get_extension_mappings` | TEST609: get_extension_mappings returns all registered extension->URN pairs | media/spec_test.go:548 |
@@ -494,8 +498,8 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test627 | `Test627_is_embedded_profile` | TEST627: Verify is_embedded_profile recognizes standard and rejects custom URLs | media/profile_test.go:133 |
 | test628 | `Test628_media_urn_constants_format` | TEST628: Verify media URN constants all start with "media:" prefix | urn/media_urn_test.go:734 |
 | test629 | `Test629_profile_constants_format` | TEST629: Verify profile URL constants all start with capdag.com schema prefix | media/spec_test.go:643 |
-| test630 | `Test630_cartridge_repo_creation` | TEST630: Verify CartridgeRepo creation starts with empty cartridge list | bifaci/cartridge_repo_test.go:625 |
-| test631 | `Test631_needs_sync_empty_cache` | TEST631: Verify needs_sync returns true with empty cache and non-empty URLs | bifaci/cartridge_repo_test.go:633 |
+| test630 | `Test630_cartridge_repo_creation` | TEST630: Verify CartridgeRepo creation starts with empty cartridge list | bifaci/cartridge_repo_test.go:640 |
+| test631 | `Test631_needs_sync_empty_cache` | TEST631: Verify needs_sync returns true with empty cache and non-empty URLs | bifaci/cartridge_repo_test.go:648 |
 | test638 | `Test638_no_peer_router_rejects_all` | TEST638: Verify NoPeerRouter rejects all requests with PeerInvokeNotSupported | bifaci/router_test.go:12 |
 | test639 | `Test639_wildcard_empty_cap_defaults_to_media_wildcard` | TEST639: cap: (empty) defaults to in=media:;out=media: | urn/cap_urn_test.go:1170 |
 | test640 | `Test640_wildcard_002_in_only_defaults_out_to_media` | TEST640: cap:in defaults out to media: | urn/cap_urn_test.go:1496 |
@@ -513,10 +517,10 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test652 | `Test652_cap_identity_constant_works` | TEST652: CAP_IDENTITY constant matches identity caps regardless of string form | urn/cap_urn_test.go:1221 |
 | test653 | `Test653_identity_routing_isolation` | TEST653: Identity (no tags) does not match specific requests via routing | urn/cap_urn_test.go:1236 |
 | test667 | `Test667_verify_chunk_checksum_detects_corruption` | TEST667: verify_chunk_checksum detects corrupted payload | bifaci/frame_test.go:824 |
-| test668 | `Test668_ResolveSlotWithPopulatedByteSlotValues` |  | planner/argument_binding_test.go:19 |
-| test669 | `Test669_ResolveSlotFallsBackToDefault` |  | planner/argument_binding_test.go:46 |
-| test670 | `Test670_ResolveRequiredSlotNoValueReturnsErr` |  | planner/argument_binding_test.go:66 |
-| test671 | `Test671_ResolveOptionalSlotNoValueReturnsNone` |  | planner/argument_binding_test.go:79 |
+| test668 | `Test668_ResolveSlotWithPopulatedByteSlotValues` | TEST668: resolve_binding returns byte values when slot is populated with data | planner/argument_binding_test.go:20 |
+| test669 | `Test669_ResolveSlotFallsBackToDefault` | TEST669: resolve_binding falls back to cap default value when slot has no data | planner/argument_binding_test.go:48 |
+| test670 | `Test670_ResolveRequiredSlotNoValueReturnsErr` | TEST670: resolve_binding returns error when required slot has no value and no default | planner/argument_binding_test.go:69 |
+| test671 | `Test671_ResolveOptionalSlotNoValueReturnsNone` | TEST671: resolve_binding returns None when optional slot has no value and no default | planner/argument_binding_test.go:83 |
 | test678 | `Test678_find_stream_equivalent_urn` | TEST678: find_stream with exact equivalent URN (same tags, different order) succeeds | bifaci/cartridge_runtime_test.go:2539 |
 | test679 | `Test679_find_stream_base_vs_full_fails` | TEST679: find_stream with base URN vs full URN fails — is_equivalent is strict This is the root cause of the cartridge_client.rs bug. Sender sent "media:llm-generation-request" but receiver looked for "media:llm-generation-request;json;record". | bifaci/cartridge_runtime_test.go:2556 |
 | test680 | `Test680_require_stream_missing_fails` | TEST680: require_stream with missing URN returns hard StreamError | bifaci/cartridge_runtime_test.go:2567 |
@@ -550,8 +554,8 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test847 | `Test847_progress_double_roundtrip` | TEST847: Double roundtrip (modelcartridge → relay → candlecartridge) | bifaci/io_test.go:1108 |
 | test848 | `Test848_relay_notify_roundtrip` | TEST848: RelayNotify encode/decode roundtrip preserves manifest and limits | bifaci/io_test.go:886 |
 | test849 | `Test849_relay_state_roundtrip` | TEST849: RelayState encode/decode roundtrip preserves resource payload | bifaci/io_test.go:927 |
-| test850 | `Test850_all_format_conversion_paths_build_valid_urns` | TEST850: all_format_conversion_paths each entry builds a valid parseable CapUrn | standard/caps_test.go:110 |
-| test851 | `Test851_format_conversion_urn_specs` | TEST851: format_conversion_urn in/out specs match the input constants | standard/caps_test.go:124 |
+| test850 | `Test850_all_format_conversion_paths_build_valid_urns` | TEST850: all_format_conversion_paths each entry builds a valid parseable CapUrn | standard/caps_test.go:111 |
+| test851 | `Test851_format_conversion_urn_specs` | TEST851: format_conversion_urn in/out specs match the input constants | standard/caps_test.go:125 |
 | test852 | `Test852_lub_identical` | TEST852: LUB of identical URNs returns the same URN | urn/media_urn_test.go:648 |
 | test853 | `Test853_lub_no_common_tags` | TEST853: LUB of URNs with no common tags returns media: (universal) | urn/media_urn_test.go:656 |
 | test854 | `Test854_lub_partial_overlap` | TEST854: LUB keeps common tags, drops differing ones | urn/media_urn_test.go:668 |
@@ -571,17 +575,19 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test922 | `Test922_cap_documentation_parses_from_json` | TEST922: Tests creation and validation of an empty execution plan with no nodes Verifies that plans without capabilities are valid and handle zero nodes correctly | cap/definition_test.go:544 |
 | test923 | `Test923_cap_documentation_lifecycle` | TEST923: Tests storing and retrieving metadata attached to an execution plan Verifies that arbitrary JSON metadata can be associated with a plan for context preservation | cap/definition_test.go:563 |
 | test976 | `Test976_cap_graph_find_best_path` | TEST976: CapGraph::find_best_path returns highest-specificity path over shortest | cap_matrix_test.go:1091 |
-| test1105 | `Test1105_TwoStepsSameCapUrnDifferentSlotValues` | TEST1105: Two steps with the same cap_urn get distinct slot values via different node_ids. This is the core disambiguation scenario that step-index keying was designed to solve. | planner/argument_binding_test.go:92 |
-| test1106 | `Test1106_SlotFallsThroughToCapSettingsShared` | TEST1106: Slot resolution falls through to cap_settings when no slot_value exists. cap_settings are keyed by cap_urn (shared across steps), so both steps get the same value. | planner/argument_binding_test.go:134 |
-| test1107 | `Test1107_SlotValueOverridesCapSettingsPerStep` | TEST1107: step_0 has a slot_value override, step_1 falls through to cap_settings. Proves per-step override works while shared settings remain as fallback. | planner/argument_binding_test.go:170 |
-| test1108 | `Test1108_ResolveAllPassesNodeID` | TEST1108: ResolveAll with node_id threads correctly through to each binding. | planner/argument_binding_test.go:212 |
-| test1109 | `Test1109_SlotKeyUsesNodeIDNotCapUrn` | TEST1109: Slot key uses node_id, NOT cap_urn — a slot_value keyed by cap_urn must not match. | planner/argument_binding_test.go:263 |
+| test1105 | `Test1105_TwoStepsSameCapUrnDifferentSlotValues` | TEST1105: Two steps with the same cap_urn get distinct slot values via different node_ids. This is the core disambiguation scenario that step-index keying was designed to solve. | planner/argument_binding_test.go:96 |
+| test1106 | `Test1106_SlotFallsThroughToCapSettingsShared` | TEST1106: Slot resolution falls through to cap_settings when no slot_value exists. cap_settings are keyed by cap_urn (shared across steps), so both steps get the same value. | planner/argument_binding_test.go:138 |
+| test1107 | `Test1107_SlotValueOverridesCapSettingsPerStep` | TEST1107: step_0 has a slot_value override, step_1 falls through to cap_settings. Proves per-step override works while shared settings remain as fallback. | planner/argument_binding_test.go:174 |
+| test1108 | `Test1108_ResolveAllPassesNodeID` | TEST1108: ResolveAll with node_id threads correctly through to each binding. | planner/argument_binding_test.go:216 |
+| test1109 | `Test1109_SlotKeyUsesNodeIDNotCapUrn` | TEST1109: Slot key uses node_id, NOT cap_urn — a slot_value keyed by cap_urn must not match. | planner/argument_binding_test.go:267 |
+| test1142 | `Test1142_resolved_graph_to_mermaid_renders_shapes_dedupes_edges_and_escapes` | TEST1142: ResolvedGraph.to_mermaid() renders node shapes, deduplicates edges, and escapes labels | orchestrator/orchestrator_test.go:38 |
 | test1155 | `Test1155_FromStrandProducesSingleStrandMachine` | TEST1155: Building a machine from one strand produces one strand with one resolved edge. | machine/machine_test.go:152 |
 | test1156 | `Test1156_FromStrandsKeepStrandsDisjoint` | TEST1156: Building from multiple strands keeps them disjoint and preserves input strand order. | machine/machine_test.go:169 |
 | test1157 | `Test1157_FromStrandsEmptyInputFailsHard` | TEST1157: Building from zero strands fails with NoCapabilitySteps. | machine/machine_test.go:196 |
 | test1158 | `Test1158_MachineIsEquivalentIsStrictPositional` | TEST1158: Machine equivalence is strict about strand order and rejects reordered strands. | machine/machine_test.go:210 |
 | test1159 | `Test1159_MachineStrandIsEquivalentWalksNodeBijection` | TEST1159: MachineStrand equivalence accepts two separately built but structurally identical strands. | machine/machine_test.go:234 |
 | test1160 | `Test1160_InputOutputAnchors` | TEST1160: Creating a MachineRun stores the canonical notation and starts in the pending state. | machine/machine_test.go:253 |
+| test1161 | `Test1161_simple_linear_chain_conversion` | TEST1161: Converting a simple linear plan produces resolved edges for the cap-to-cap chain. | orchestrator/orchestrator_test.go:88 |
 | test1163 | `Test1163_ParseSingleStrandTwoCapsConnectedViaSharedNode` | TEST1163: Parsing one connected strand yields a single machine strand with both caps connected by the shared node. | machine/machine_test.go:365 |
 | test1164 | `Test1164_ParseTwoDisconnectedStrandsYieldsTwoMachineStrands` | TEST1164: Parsing two disconnected strand definitions yields two separate machine strands. | machine/machine_test.go:395 |
 | test1165 | `Test1165_ParseUnknownCapInRegistryReturnsAbstractionError` | TEST1165: Parsing fails hard when a referenced cap is missing from the registry cache. | machine/machine_test.go:498 |
@@ -743,6 +749,8 @@ The following tests are cataloged but do not currently participate in numeric te
 ---
 
 *Generated from CapDag-Go source tree*
-*Total tests: 652*
-*Total numbered tests: 584*
+*Total tests: 654*
+*Total numbered tests: 586*
 *Total unnumbered tests: 68*
+*Total numbered tests missing descriptions: 0*
+*Total numbering mismatches: 0*

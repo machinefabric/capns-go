@@ -67,6 +67,7 @@ func Test320_cartridge_info_construction(t *testing.T) {
 	}
 }
 
+// TEST321: CartridgeInfo.is_signed() returns true when signature is present
 func Test321_cartridge_info_is_signed(t *testing.T) {
 	cartridge := CartridgeInfo{
 		Id:       "testcartridge",
@@ -93,6 +94,7 @@ func Test321_cartridge_info_is_signed(t *testing.T) {
 	}
 }
 
+// TEST322: CartridgeInfo.build_for_platform() returns the build matching the current platform
 func Test322_cartridge_info_build_for_platform(t *testing.T) {
 	cartridge := CartridgeInfo{
 		Id:      "testcartridge",
@@ -146,6 +148,7 @@ func Test322_cartridge_info_build_for_platform(t *testing.T) {
 	}
 }
 
+// TEST323: CartridgeRepoServer validates registry JSON schema version
 func Test323_cartridge_repo_server_validate_registry(t *testing.T) {
 	registry := CartridgeRegistry{
 		SchemaVersion: "4.0",
@@ -176,6 +179,7 @@ func Test323_cartridge_repo_server_validate_registry(t *testing.T) {
 	}
 }
 
+// TEST324: CartridgeRepoServer transforms v3 registry JSON into flat cartridge array
 func Test324_cartridge_repo_server_transform_to_array(t *testing.T) {
 	versions := makeTestVersions("darwin-arm64")
 	entry := CartridgeRegistryEntry{
@@ -224,6 +228,7 @@ func Test324_cartridge_repo_server_transform_to_array(t *testing.T) {
 	}
 }
 
+// TEST325: CartridgeRepoServer.get_cartridges() returns all parsed cartridges
 func Test325_cartridge_repo_server_get_cartridges(t *testing.T) {
 	entry := CartridgeRegistryEntry{
 		Name:          "Test Cartridge",
@@ -253,6 +258,7 @@ func Test325_cartridge_repo_server_get_cartridges(t *testing.T) {
 	}
 }
 
+// TEST326: CartridgeRepoServer.get_cartridge() returns cartridge matching the given ID
 func Test326_cartridge_repo_server_get_cartridge_by_id(t *testing.T) {
 	entry := CartridgeRegistryEntry{
 		Name:          "Test Cartridge",
@@ -290,6 +296,7 @@ func Test326_cartridge_repo_server_get_cartridge_by_id(t *testing.T) {
 	}
 }
 
+// TEST327: CartridgeRepoServer.search_cartridges() filters by text query against name and description
 func Test327_cartridge_repo_server_search_cartridges(t *testing.T) {
 	entry := CartridgeRegistryEntry{
 		Name:          "PDF Cartridge",
@@ -328,6 +335,7 @@ func Test327_cartridge_repo_server_search_cartridges(t *testing.T) {
 	}
 }
 
+// TEST328: CartridgeRepoServer.get_by_category() filters cartridges by category tag
 func Test328_cartridge_repo_server_get_by_category(t *testing.T) {
 	entry := CartridgeRegistryEntry{
 		Name:          "Doc Cartridge",
@@ -366,6 +374,7 @@ func Test328_cartridge_repo_server_get_by_category(t *testing.T) {
 	}
 }
 
+// TEST329: CartridgeRepoServer.get_suggestions_for_cap() finds cartridges providing a given cap URN
 func Test329_cartridge_repo_server_get_by_cap(t *testing.T) {
 	capUrn := `cap:in="media:pdf";op=disbind;out="media:disbound-page;textable;list"`
 	entry := CartridgeRegistryEntry{
@@ -406,6 +415,7 @@ func Test329_cartridge_repo_server_get_by_cap(t *testing.T) {
 	}
 }
 
+// TEST330: CartridgeRepoClient updates its local cache from server response
 func Test330_cartridge_repo_client_update_cache(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
@@ -434,6 +444,7 @@ func Test330_cartridge_repo_client_update_cache(t *testing.T) {
 	}
 }
 
+// TEST331: CartridgeRepoClient.get_suggestions_for_cap() returns cartridge suggestions for a cap URN
 func Test331_cartridge_repo_client_get_suggestions(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
@@ -468,6 +479,7 @@ func Test331_cartridge_repo_client_get_suggestions(t *testing.T) {
 	}
 }
 
+// TEST332: CartridgeRepoClient.get_cartridge() retrieves a specific cartridge by ID from cache
 func Test332_cartridge_repo_client_get_cartridge(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
@@ -499,6 +511,7 @@ func Test332_cartridge_repo_client_get_cartridge(t *testing.T) {
 	}
 }
 
+// TEST333: CartridgeRepoClient.get_all_caps() returns aggregate cap URNs from all cached cartridges
 func Test333_cartridge_repo_client_get_all_caps(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
@@ -548,6 +561,7 @@ func Test333_cartridge_repo_client_get_all_caps(t *testing.T) {
 	}
 }
 
+// TEST334: CartridgeRepoClient.needs_sync() returns true when cache TTL has expired
 func Test334_cartridge_repo_client_needs_sync(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 	urls := []string{"https://example.com/cartridges"}
@@ -564,6 +578,7 @@ func Test334_cartridge_repo_client_needs_sync(t *testing.T) {
 	}
 }
 
+// TEST335: Server creates registry response and client consumes it end-to-end
 func Test335_cartridge_repo_server_client_integration(t *testing.T) {
 	capUrn := `cap:in="media:test";op=test;out="media:result"`
 	entry := CartridgeRegistryEntry{

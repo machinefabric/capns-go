@@ -16,6 +16,7 @@ func emptyContext(opts ...func(*ArgumentResolutionContext)) *ArgumentResolutionC
 	return ctx
 }
 
+// TEST668: resolve_binding returns byte values when slot is populated with data
 func Test668_ResolveSlotWithPopulatedByteSlotValues(t *testing.T) {
 	ctx := emptyContext(func(c *ArgumentResolutionContext) {
 		c.SlotValues = map[string][]byte{
@@ -43,6 +44,7 @@ func Test668_ResolveSlotWithPopulatedByteSlotValues(t *testing.T) {
 	}
 }
 
+// TEST669: resolve_binding falls back to cap default value when slot has no data
 func Test669_ResolveSlotFallsBackToDefault(t *testing.T) {
 	ctx := emptyContext()
 	binding := NewSlotBinding("media:quality;textable;numeric", nil)
@@ -63,6 +65,7 @@ func Test669_ResolveSlotFallsBackToDefault(t *testing.T) {
 	}
 }
 
+// TEST670: resolve_binding returns error when required slot has no value and no default
 func Test670_ResolveRequiredSlotNoValueReturnsErr(t *testing.T) {
 	ctx := emptyContext()
 	binding := NewSlotBinding("media:question;textable", nil)
@@ -76,6 +79,7 @@ func Test670_ResolveRequiredSlotNoValueReturnsErr(t *testing.T) {
 	}
 }
 
+// TEST671: resolve_binding returns None when optional slot has no value and no default
 func Test671_ResolveOptionalSlotNoValueReturnsNone(t *testing.T) {
 	ctx := emptyContext()
 	binding := NewSlotBinding("media:suffix;textable", nil)
