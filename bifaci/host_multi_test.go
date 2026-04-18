@@ -30,7 +30,7 @@ func simulateCartridge(t *testing.T, cartridgeRead, cartridgeWrite net.Conn, man
 	}
 }
 
-// TEST413: RegisterCartridge adds entries to capTable
+// TEST413: Register cartridge adds entries to cap_table
 func Test413_register_cartridge_adds_cap_table(t *testing.T) {
 	host := NewCartridgeHost()
 	host.RegisterCartridge("/path/to/converter", []string{"cap:op=convert", "cap:op=analyze"})
@@ -48,7 +48,7 @@ func Test413_register_cartridge_adds_cap_table(t *testing.T) {
 	assert.False(t, host.cartridges[0].running, "registered cartridge must not be running")
 }
 
-// TEST414: Capabilities() returns nil when no cartridges are running
+// TEST414: capabilities() returns empty JSON initially (no running cartridges)
 func Test414_capabilities_empty_initially(t *testing.T) {
 	// Case 1: No cartridges at all
 	host := NewCartridgeHost()
@@ -59,7 +59,7 @@ func Test414_capabilities_empty_initially(t *testing.T) {
 	assert.Nil(t, host.Capabilities(), "registered but not running → nil capabilities")
 }
 
-// TEST415: REQ for known cap triggers spawn (expect error for non-existent binary)
+// TEST415: REQ for known cap triggers spawn attempt (verified by expected spawn error for non-existent binary)
 func Test415_req_triggers_spawn(t *testing.T) {
 	host := NewCartridgeHost()
 	host.RegisterCartridge("/nonexistent/cartridge/binary", []string{"cap:op=test"})
@@ -96,7 +96,7 @@ func Test415_req_triggers_spawn(t *testing.T) {
 	_ = err
 }
 
-// TEST416: AttachCartridge performs HELLO handshake, extracts manifest, updates capabilities
+// TEST416: Attach cartridge performs HELLO handshake, extracts manifest, updates capabilities
 func Test416_attach_cartridge_handshake(t *testing.T) {
 	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:in=media:;out=media:"}]}`
 
@@ -134,7 +134,7 @@ func Test416_attach_cartridge_handshake(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST417: Route REQ to correct cartridge by cap_urn (two cartridges)
+// TEST417: Route REQ to correct cartridge by cap_urn (with two attached cartridges)
 func Test417_route_req_by_cap_urn(t *testing.T) {
 	manifestA := `{"name":"CartridgeA","version":"1.0","caps":[{"urn":"cap:op=convert"}]}`
 	manifestB := `{"name":"CartridgeB","version":"1.0","caps":[{"urn":"cap:op=analyze"}]}`
@@ -236,7 +236,7 @@ func Test417_route_req_by_cap_urn(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST418: Route STREAM_START/CHUNK/STREAM_END/END by req_id
+// TEST418: Route STREAM_START/CHUNK/STREAM_END/END by req_id (not cap_urn) Verifies that after the initial REQ→cartridge routing, all subsequent continuation frames with the same req_id are routed to the same cartridge — even though no cap_urn is present on those frames.
 func Test418_route_continuation_by_req_id(t *testing.T) {
 	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:op=cont"}]}`
 
@@ -406,7 +406,7 @@ func Test419_heartbeat_local_handling(t *testing.T) {
 	assert.True(t, found, "LOG must be forwarded to relay")
 }
 
-// TEST420: Cartridge non-HELLO/non-HB frames forwarded to relay
+// TEST420: Cartridge non-HELLO/non-HB frames forwarded to relay (pass-through)
 func Test420_cartridge_frames_forwarded_to_relay(t *testing.T) {
 	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:op=fwd"}]}`
 
@@ -496,7 +496,7 @@ func Test420_cartridge_frames_forwarded_to_relay(t *testing.T) {
 	assert.True(t, typeSet[FrameTypeEnd], "END must be forwarded")
 }
 
-// TEST421: Cartridge death updates capability list (removes dead cartridge's caps)
+// TEST421: Cartridge death updates capability list (caps removed)
 func Test421_cartridge_death_updates_caps(t *testing.T) {
 	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:op=die"}]}`
 
@@ -551,7 +551,7 @@ func Test421_cartridge_death_updates_caps(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST422: Cartridge death sends ERR for all pending requests
+// TEST422: Cartridge death sends ERR for all pending requests via relay
 func Test422_cartridge_death_sends_err(t *testing.T) {
 	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:op=die"}]}`
 
@@ -620,7 +620,7 @@ func Test422_cartridge_death_sends_err(t *testing.T) {
 	assert.Equal(t, "CARTRIDGE_DIED", errFrame.ErrorCode())
 }
 
-// TEST423: Multiple cartridges with distinct caps route independently
+// TEST423: Multiple cartridges registered with distinct caps route independently
 func Test423_multi_cartridge_distinct_caps(t *testing.T) {
 	manifestA := `{"name":"CartridgeA","version":"1.0","caps":[{"urn":"cap:op=alpha"}]}`
 	manifestB := `{"name":"CartridgeB","version":"1.0","caps":[{"urn":"cap:op=beta"}]}`
@@ -741,7 +741,7 @@ func Test423_multi_cartridge_distinct_caps(t *testing.T) {
 	assert.Equal(t, []byte("from-B"), responses["beta"])
 }
 
-// TEST424: Concurrent requests to same cartridge handled independently
+// TEST424: Concurrent requests to the same cartridge are handled independently
 func Test424_concurrent_requests_same_cartridge(t *testing.T) {
 	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:op=conc"}]}`
 
@@ -846,7 +846,7 @@ func Test424_concurrent_requests_same_cartridge(t *testing.T) {
 	assert.Equal(t, []byte("response-1"), responses["1"])
 }
 
-// TEST425: FindCartridgeForCap returns false for unknown cap
+// TEST425: find_cartridge_for_cap returns None for unregistered cap
 func Test425_find_cartridge_for_cap_unknown(t *testing.T) {
 	host := NewCartridgeHost()
 	host.RegisterCartridge("/path/to/cartridge", []string{"cap:op=known"})

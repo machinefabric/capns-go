@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TEST638: NoPeerRouter rejects all requests with PeerInvokeNotSupported
+// TEST638: Verify NoPeerRouter rejects all requests with PeerInvokeNotSupported
 func Test638_no_peer_router_rejects_all(t *testing.T) {
 	router := &NoPeerRouter{}
 	reqId := [16]byte{}

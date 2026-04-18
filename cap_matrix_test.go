@@ -88,7 +88,7 @@ func Test117_register_and_find_cap_set(t *testing.T) {
 	}
 }
 
-// TEST118: Test selecting best cap set based on specificity ranking
+// TEST118: Test selecting best cap set based on specificity ranking With is_dispatchable semantics: - Provider must satisfy ALL request constraints - General request matches specific provider (provider refines request) - Specific request does NOT match general provider (provider lacks constraints)
 func Test118_best_cap_set_selection(t *testing.T) {
 	registry := NewCapMatrix()
 
@@ -934,7 +934,7 @@ func Test571_get_all_capabilities(t *testing.T) {
 	}
 }
 
-// TEST572: get_capabilities_for_host returns caps for specific host, nil for unknown
+// TEST572: get_capabilities_for_host returns caps for specific host, None for unknown
 func Test572_get_capabilities_for_host(t *testing.T) {
 	registry := NewCapMatrix()
 
@@ -979,7 +979,7 @@ func Test573_iter_hosts_and_caps(t *testing.T) {
 	}
 }
 
-// TEST574: CapBlock remove_registry removes by name, returns registry
+// TEST574: CapBlock::remove_registry removes by name, returns Arc
 func Test574_cap_block_remove_registry(t *testing.T) {
 	reg1 := NewCapMatrix()
 	host := &MockCapSetForRegistry{name: "h1"}
@@ -1005,7 +1005,7 @@ func Test574_cap_block_remove_registry(t *testing.T) {
 	}
 }
 
-// TEST575: CapBlock get_registry returns registry by name
+// TEST575: CapBlock::get_registry returns Arc clone by name
 func Test575_cap_block_get_registry(t *testing.T) {
 	reg := NewCapMatrix()
 
@@ -1025,7 +1025,7 @@ func Test575_cap_block_get_registry(t *testing.T) {
 	}
 }
 
-// TEST576: CapBlock get_registry_names returns names in insertion order
+// TEST576: CapBlock::get_registry_names returns names in insertion order
 func Test576_cap_block_get_registry_names(t *testing.T) {
 	block := NewCapBlock()
 
@@ -1044,7 +1044,7 @@ func Test576_cap_block_get_registry_names(t *testing.T) {
 	}
 }
 
-// TEST577: CapGraph get_input_specs and get_output_specs return correct sets
+// TEST577: CapGraph::get_input_specs and get_output_specs return correct sets
 func Test577_cap_graph_input_output_specs(t *testing.T) {
 	graph := NewCapGraph()
 
@@ -1087,7 +1087,7 @@ func Test577_cap_graph_input_output_specs(t *testing.T) {
 	}
 }
 
-// TEST976: cap_graph find_best_path prefers highest total specificity over shortest
+// TEST976: CapGraph::find_best_path returns highest-specificity path over shortest
 func Test976_cap_graph_find_best_path(t *testing.T) {
 	graph := NewCapGraph()
 

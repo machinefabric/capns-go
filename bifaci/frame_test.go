@@ -648,7 +648,7 @@ func Test204_req_frame_empty_payload(t *testing.T) {
 	}
 }
 
-// TEST365: Frame::stream_start stores reqId, streamId, mediaUrn
+// TEST365: Frame::stream_start stores request_id, stream_id, and media_urn
 func Test365_stream_start_frame(t *testing.T) {
 	reqId := NewMessageIdRandom()
 	streamId := "stream-abc-123"
@@ -670,7 +670,7 @@ func Test365_stream_start_frame(t *testing.T) {
 	}
 }
 
-// TEST366: Frame::stream_end stores reqId, streamId
+// TEST366: Frame::stream_end stores request_id and stream_id
 func Test366_stream_end_frame(t *testing.T) {
 	reqId := NewMessageIdRandom()
 	streamId := "stream-xyz-456"
@@ -691,7 +691,7 @@ func Test366_stream_end_frame(t *testing.T) {
 	}
 }
 
-// TEST367: Frame::stream_start with empty streamId still constructs
+// TEST367: StreamStart frame with empty stream_id still constructs (validation happens elsewhere)
 func Test367_stream_start_with_empty_stream_id(t *testing.T) {
 	reqId := NewMessageIdRandom()
 	streamId := ""
@@ -710,7 +710,7 @@ func Test367_stream_start_with_empty_stream_id(t *testing.T) {
 	}
 }
 
-// TEST368: Frame::stream_start with empty mediaUrn still constructs
+// TEST368: StreamStart frame with empty media_urn still constructs (validation happens elsewhere)
 func Test368_stream_start_with_empty_media_urn(t *testing.T) {
 	reqId := NewMessageIdRandom()
 	streamId := "stream-test"
@@ -729,7 +729,7 @@ func Test368_stream_start_with_empty_media_urn(t *testing.T) {
 	}
 }
 
-// TEST399: RelayNotify discriminant roundtrips through uint8 conversion (value 10)
+// TEST399: Verify RelayNotify frame type discriminant roundtrips through u8 (value 10)
 func Test399_relay_notify_discriminant_roundtrip(t *testing.T) {
 	ft := FrameTypeRelayNotify
 	asUint := uint8(ft)
@@ -742,7 +742,7 @@ func Test399_relay_notify_discriminant_roundtrip(t *testing.T) {
 	}
 }
 
-// TEST400: RelayState discriminant roundtrips through uint8 conversion (value 11)
+// TEST400: Verify RelayState frame type discriminant roundtrips through u8 (value 11)
 func Test400_relay_state_discriminant_roundtrip(t *testing.T) {
 	ft := FrameTypeRelayState
 	asUint := uint8(ft)
@@ -755,7 +755,7 @@ func Test400_relay_state_discriminant_roundtrip(t *testing.T) {
 	}
 }
 
-// TEST401: relay_notify factory stores manifest and limits, accessors extract them correctly
+// TEST401: Verify relay_notify factory stores manifest and limits, and accessors extract them
 func Test401_relay_notify_factory_and_accessors(t *testing.T) {
 	manifest := []byte(`{"caps":["cap:op=test"]}`)
 	maxFrame := 2_000_000
@@ -798,7 +798,7 @@ func Test401_relay_notify_factory_and_accessors(t *testing.T) {
 	}
 }
 
-// TEST402: relay_state factory stores resource payload in Payload field
+// TEST402: Verify relay_state factory stores resource payload in frame payload field
 func Test402_relay_state_factory_and_payload(t *testing.T) {
 	resources := []byte(`{"gpu_memory":8192}`)
 
@@ -812,7 +812,7 @@ func Test402_relay_state_factory_and_payload(t *testing.T) {
 	}
 }
 
-// TEST403: FrameType from value 13 is invalid (one past Cancel)
+// TEST403: Verify from_u8 returns None for values past the last valid frame type
 func Test403_frame_type_one_past_cancel(t *testing.T) {
 	ft := FrameType(13)
 	if ft.String() != fmt.Sprintf("UNKNOWN(%d)", 13) {
@@ -820,7 +820,7 @@ func Test403_frame_type_one_past_cancel(t *testing.T) {
 	}
 }
 
-// TEST667: VerifyChunkChecksum detects corrupted payload
+// TEST667: verify_chunk_checksum detects corrupted payload
 func Test667_verify_chunk_checksum_detects_corruption(t *testing.T) {
 	id := NewMessageIdRandom()
 	streamId := "stream-test"
@@ -858,7 +858,7 @@ func Test667_verify_chunk_checksum_detects_corruption(t *testing.T) {
 	}
 }
 
-// TEST436: compute_checksum determinism and sensitivity
+// TEST436: Verify FNV-1a checksum function produces consistent results
 func Test436_compute_checksum(t *testing.T) {
 	data := []byte("hello world")
 	cs1 := ComputeChecksum(data)
@@ -875,7 +875,7 @@ func Test436_compute_checksum(t *testing.T) {
 	}
 }
 
-// TEST442: SeqAssigner assigns monotonically increasing seq for same RID
+// TEST442: SeqAssigner assigns seq 0,1,2,3 for consecutive frames with same RID
 func Test442_seq_assigner_monotonic_same_rid(t *testing.T) {
 	assigner := NewSeqAssigner()
 	rid := NewMessageIdRandom()
@@ -904,7 +904,7 @@ func Test442_seq_assigner_monotonic_same_rid(t *testing.T) {
 	}
 }
 
-// TEST443: SeqAssigner maintains independent per-RID counters
+// TEST443: SeqAssigner maintains independent counters for different RIDs
 func Test443_seq_assigner_independent_rids(t *testing.T) {
 	assigner := NewSeqAssigner()
 	ridA := NewMessageIdRandom()
@@ -930,7 +930,7 @@ func Test443_seq_assigner_independent_rids(t *testing.T) {
 	}
 }
 
-// TEST444: SeqAssigner skips non-flow frames
+// TEST444: SeqAssigner skips non-flow frames (Heartbeat, RelayNotify, RelayState, Hello)
 func Test444_seq_assigner_skips_non_flow(t *testing.T) {
 	assigner := NewSeqAssigner()
 
@@ -958,7 +958,7 @@ func Test444_seq_assigner_skips_non_flow(t *testing.T) {
 	}
 }
 
-// TEST445: SeqAssigner remove resets only the targeted flow key
+// TEST445: SeqAssigner.remove with FlowKey(rid, None) resets that flow; FlowKey(rid, Some(xid)) is unaffected
 func Test445_seq_assigner_remove_by_flow_key(t *testing.T) {
 	assigner := NewSeqAssigner()
 	rid := NewMessageIdRandom()
@@ -1004,7 +1004,7 @@ func Test445_seq_assigner_remove_by_flow_key(t *testing.T) {
 	}
 }
 
-// TEST860: Same RID different XIDs are independent flows
+// TEST860: Same RID with different XIDs get independent seq counters
 func Test860_seq_assigner_same_rid_different_xids_independent(t *testing.T) {
 	assigner := NewSeqAssigner()
 	rid := NewMessageIdRandom()
@@ -1040,7 +1040,7 @@ func Test860_seq_assigner_same_rid_different_xids_independent(t *testing.T) {
 	}
 }
 
-// TEST446: SeqAssigner counts across mixed flow frame types
+// TEST446: SeqAssigner handles mixed frame types (REQ, CHUNK, LOG, END) for same RID
 func Test446_seq_assigner_mixed_types(t *testing.T) {
 	assigner := NewSeqAssigner()
 	rid := NewMessageIdRandom()
@@ -1061,7 +1061,7 @@ func Test446_seq_assigner_mixed_types(t *testing.T) {
 	}
 }
 
-// TEST447: FlowKey with XID extracts correctly from frame
+// TEST447: FlowKey::from_frame extracts (rid, Some(xid)) when routing_id present
 func Test447_flow_key_with_xid(t *testing.T) {
 	rid := NewMessageIdRandom()
 	xid := NewMessageIdRandom()
@@ -1078,7 +1078,7 @@ func Test447_flow_key_with_xid(t *testing.T) {
 	}
 }
 
-// TEST448: FlowKey without XID has empty xid
+// TEST448: FlowKey::from_frame extracts (rid, None) when routing_id absent
 func Test448_flow_key_without_xid(t *testing.T) {
 	rid := NewMessageIdRandom()
 	frame := NewReq(rid, "cap:op=test", nil, "")
@@ -1092,7 +1092,7 @@ func Test448_flow_key_without_xid(t *testing.T) {
 	}
 }
 
-// TEST449: FlowKey equality semantics
+// TEST449: FlowKey equality: same rid+xid equal, different xid different key
 func Test449_flow_key_equality(t *testing.T) {
 	rid := NewMessageIdRandom()
 	xidA := NewMessageIdRandom()
@@ -1114,7 +1114,7 @@ func Test449_flow_key_equality(t *testing.T) {
 	}
 }
 
-// TEST450: FlowKey hash lookup in map
+// TEST450: FlowKey hash: same keys hash equal (HashMap lookup)
 func Test450_flow_key_hash_lookup(t *testing.T) {
 	rid := NewMessageIdRandom()
 	xid := NewMessageIdRandom()
@@ -1128,7 +1128,7 @@ func Test450_flow_key_hash_lookup(t *testing.T) {
 	}
 }
 
-// TEST451: ReorderBuffer delivers frames immediately when in order
+// TEST451: ReorderBuffer in-order delivery: seq 0,1,2 delivered immediately
 func Test451_reorder_buffer_in_order(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
@@ -1153,7 +1153,7 @@ func Test451_reorder_buffer_in_order(t *testing.T) {
 	assert.Len(t, r2, 1)
 }
 
-// TEST452: ReorderBuffer holds out-of-order, releases when gap filled
+// TEST452: ReorderBuffer out-of-order: seq 1 then 0 delivers both in order
 func Test452_reorder_buffer_out_of_order(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
@@ -1176,7 +1176,7 @@ func Test452_reorder_buffer_out_of_order(t *testing.T) {
 	assert.Equal(t, uint64(1), r0[1].Seq)
 }
 
-// TEST453: ReorderBuffer gap fill with arrival order 0, 2, 1
+// TEST453: ReorderBuffer gap fill: seq 0,2,1 delivers 0, buffers 2, then delivers 1+2
 func Test453_reorder_buffer_gap_fill(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
@@ -1203,7 +1203,7 @@ func Test453_reorder_buffer_gap_fill(t *testing.T) {
 	assert.Equal(t, uint64(2), r1[1].Seq)
 }
 
-// TEST454: ReorderBuffer rejects stale/duplicate seq
+// TEST454: ReorderBuffer stale seq is hard error
 func Test454_reorder_buffer_stale_seq(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
@@ -1224,7 +1224,7 @@ func Test454_reorder_buffer_stale_seq(t *testing.T) {
 	assert.Contains(t, err.Error(), "stale")
 }
 
-// TEST455: ReorderBuffer overflow
+// TEST455: ReorderBuffer overflow triggers protocol error
 func Test455_reorder_buffer_overflow(t *testing.T) {
 	rb := NewReorderBuffer(3) // max 3 buffered per flow
 	rid := NewMessageIdRandom()
@@ -1244,7 +1244,7 @@ func Test455_reorder_buffer_overflow(t *testing.T) {
 	assert.Contains(t, err.Error(), "overflow")
 }
 
-// TEST456: ReorderBuffer independent flows
+// TEST456: Multiple concurrent flows reorder independently
 func Test456_reorder_buffer_independent_flows(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	ridA := NewMessageIdRandom()
@@ -1272,7 +1272,7 @@ func Test456_reorder_buffer_independent_flows(t *testing.T) {
 	assert.Len(t, rA0, 2, "A seq=0 releases seq=0 and seq=1")
 }
 
-// TEST457: ReorderBuffer cleanup_flow resets state
+// TEST457: cleanup_flow removes state; new frames start at seq 0
 func Test457_reorder_buffer_cleanup(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
@@ -1297,7 +1297,7 @@ func Test457_reorder_buffer_cleanup(t *testing.T) {
 	assert.Len(t, r, 1)
 }
 
-// TEST458: ReorderBuffer non-flow frames bypass reordering
+// TEST458: Non-flow frames bypass reorder entirely
 func Test458_reorder_buffer_non_flow_bypass(t *testing.T) {
 	rb := NewReorderBuffer(10)
 
@@ -1313,7 +1313,7 @@ func Test458_reorder_buffer_non_flow_bypass(t *testing.T) {
 	}
 }
 
-// TEST459: ReorderBuffer handles END frame correctly
+// TEST459: Terminal END frame flows through correctly
 func Test459_reorder_buffer_end_frame(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
@@ -1331,7 +1331,7 @@ func Test459_reorder_buffer_end_frame(t *testing.T) {
 	assert.Equal(t, uint64(1), r[0].Seq)
 }
 
-// TEST460: ReorderBuffer handles ERR frame correctly
+// TEST460: Terminal ERR frame flows through correctly
 func Test460_reorder_buffer_err_frame(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()

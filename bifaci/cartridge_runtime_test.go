@@ -357,7 +357,7 @@ func Test259_extract_effective_payload_non_cbor(t *testing.T) {
 	}
 }
 
-// TEST260: Test extract_effective_payload with empty content_type returns raw payload unchanged
+// TEST260: Test extract_effective_payload with None content_type returns raw payload unchanged
 func Test260_extract_effective_payload_no_content_type(t *testing.T) {
 	payload := []byte("raw data")
 	result, err := extractEffectivePayload(payload, "", `cap:in="media:void";op=test;out="media:void"`)
@@ -427,7 +427,7 @@ func TestExtractEffectivePayloadInvalidCapUrn(t *testing.T) {
 	}
 }
 
-// TEST270: Test registering multiple handlers for different caps and finding each independently
+// TEST270: Test registering multiple Op handlers for different caps and finding each independently
 func Test270_multiple_handlers(t *testing.T) {
 	runtime, err := NewCartridgeRuntime([]byte(testManifest))
 	if err != nil {
@@ -477,7 +477,7 @@ func Test270_multiple_handlers(t *testing.T) {
 	}
 }
 
-// TEST271: Test handler replacing an existing registration for the same cap URN
+// TEST271: Test Op handler replacing an existing registration for the same cap URN
 func Test271_handler_replacement(t *testing.T) {
 	runtime, err := NewCartridgeRuntime([]byte(testManifest))
 	if err != nil {
@@ -977,7 +977,7 @@ func Test343_NonFilePathArgsUnaffected(t *testing.T) {
 	}
 }
 
-// TEST344: file-path-array with invalid JSON fails clearly
+// TEST344: file-path-array with nonexistent path fails clearly
 func Test344_FilePathArrayInvalidJSONFails(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
@@ -1016,7 +1016,7 @@ func Test344_FilePathArrayInvalidJSONFails(t *testing.T) {
 	}
 }
 
-// TEST345: file-path-array with one file failing stops and reports error
+// TEST345: file-path-array with literal nonexistent path fails hard
 func Test345_FilePathArrayOneFileMissingFailsHard(t *testing.T) {
 	tempDir := t.TempDir()
 	file1 := filepath.Join(tempDir, "test345_exists.txt")
@@ -1309,7 +1309,7 @@ func Test350_FullCLIModeWithFilePathIntegration(t *testing.T) {
 	}
 }
 
-// TEST351: file-path-array with empty array succeeds
+// TEST351: file-path array with empty CBOR array returns empty (CBOR mode)
 func Test351_FilePathArrayEmptyArray(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
@@ -1350,7 +1350,7 @@ func Test351_FilePathArrayEmptyArray(t *testing.T) {
 	}
 }
 
-// TEST352: file permission denied error is clear (Unix-specific, skip on Windows)
+// TEST352: file permission denied error is clear (Unix-specific)
 func Test352_FilePermissionDeniedClearError(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping permission test on Windows")
@@ -1458,7 +1458,7 @@ func Test353_CBORPayloadFormatConsistency(t *testing.T) {
 	}
 }
 
-// TEST354: Glob pattern with no matches produces empty array
+// TEST354: Glob pattern with no matches fails hard (NO FALLBACK)
 func Test354_GlobPatternNoMatchesEmptyArray(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -1640,7 +1640,7 @@ func Test356_MultipleGlobPatternsCombined(t *testing.T) {
 	}
 }
 
-// TEST357: Symlinks are followed when reading files (Unix-specific, skip on Windows)
+// TEST357: Symlinks are followed when reading files
 func Test357_SymlinksFollowed(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping symlink test on Windows")
@@ -1876,14 +1876,7 @@ func Test361_CLIModeFilePath(t *testing.T) {
 	}
 }
 
-// TEST362: CLI mode with binary piped in - pipe binary data via stdin
-//
-// This test simulates real-world conditions:
-// - Pure binary data piped to stdin (NOT CBOR)
-// - CLI mode detected (command arg present)
-// - cap.Cap accepts stdin source
-// - Binary is chunked on-the-fly and accumulated
-// - Handler receives complete CBOR payload
+// TEST362: CLI mode with binary piped in - pipe binary data via stdin This test simulates real-world conditions: - Pure binary data piped to stdin (NOT CBOR) - CLI mode detected (command arg present) - Cap accepts stdin source - Binary is chunked on-the-fly and accumulated - Handler receives complete CBOR payload
 func Test362_CLIModePipedBinary(t *testing.T) {
 	// Simulate large binary being piped (1MB PDF)
 	pdfContent := make([]byte, 1_000_000)
@@ -2304,7 +2297,7 @@ func (e *errorReader) Read(p []byte) (n int, err error) {
 	return 0, fmt.Errorf("simulated read error")
 }
 
-// TEST398: IO error from reader propagates as error
+// TEST398: IO error from reader propagates as RuntimeError::Io
 func Test398_BuildPayloadIOError(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:";op=process;out="media:void"`,
@@ -2334,8 +2327,7 @@ func Test398_BuildPayloadIOError(t *testing.T) {
 // PeerResponse / DemuxPeerResponse Tests
 // =============================================================================
 
-// TEST544: PeerCall finish sends END frame
-// In Go, PeerInvokerImpl.Invoke() sends END after all args.
+// TEST544: PeerCall::finish sends END frame
 func Test544_peer_invoker_sends_end_frame(t *testing.T) {
 	var buf bytes.Buffer
 	writer := NewFrameWriter(&buf)
@@ -2368,7 +2360,7 @@ func Test544_peer_invoker_sends_end_frame(t *testing.T) {
 	}
 }
 
-// TEST545: DemuxPeerResponse yields data items from peer response frames
+// TEST545: PeerCall::finish returns PeerResponse with data
 func Test545_demux_peer_response_returns_data(t *testing.T) {
 	reqId := NewMessageIdRandom()
 	rawCh := make(chan Frame, 10)
@@ -2396,7 +2388,7 @@ func Test545_demux_peer_response_returns_data(t *testing.T) {
 	}
 }
 
-// TEST839: LOG frames arriving BEFORE StreamStart are delivered immediately
+// TEST839: LOG frames arriving BEFORE StreamStart are delivered immediately This tests the critical fix: during a peer call, the peer (e.g., modelcartridge) sends LOG frames for minutes during model download BEFORE sending any data (StreamStart + Chunk). The handler must receive these LOGs in real-time so it can re-emit progress and keep the engine's activity timer alive. Previously, demux_single_stream blocked on awaiting StreamStart before returning PeerResponse, which meant the handler couldn't call recv() until data arrived — causing 120s activity timeouts during long downloads.
 func Test839_peer_response_delivers_logs_before_stream_start(t *testing.T) {
 	reqId := NewMessageIdRandom()
 	rawCh := make(chan Frame, 20)
@@ -2464,7 +2456,7 @@ func Test839_peer_response_delivers_logs_before_stream_start(t *testing.T) {
 	}
 }
 
-// TEST840: PeerResponse.CollectBytes discards LOG frames
+// TEST840: PeerResponse::collect_bytes discards LOG frames
 func Test840_peer_response_collect_bytes_discards_logs(t *testing.T) {
 	reqId := NewMessageIdRandom()
 	rawCh := make(chan Frame, 20)
@@ -2492,7 +2484,7 @@ func Test840_peer_response_collect_bytes_discards_logs(t *testing.T) {
 	}
 }
 
-// TEST841: PeerResponse.CollectValue discards LOG frames
+// TEST841: PeerResponse::collect_value discards LOG frames
 func Test841_peer_response_collect_value_discards_logs(t *testing.T) {
 	reqId := NewMessageIdRandom()
 	rawCh := make(chan Frame, 20)
@@ -2543,7 +2535,7 @@ func streamsToSlice(streams []testStream) []struct {
 	return result
 }
 
-// TEST678: FindStream with exact equivalent URN (same tags, different order) succeeds
+// TEST678: find_stream with exact equivalent URN (same tags, different order) succeeds
 func Test678_find_stream_equivalent_urn(t *testing.T) {
 	streams := streamsToSlice([]testStream{
 		{"media:textable;txt", []byte("hello world")},
@@ -2560,7 +2552,7 @@ func Test678_find_stream_equivalent_urn(t *testing.T) {
 	}
 }
 
-// TEST679: FindStream with base URN vs full URN fails — is_equivalent is strict
+// TEST679: find_stream with base URN vs full URN fails — is_equivalent is strict This is the root cause of the cartridge_client.rs bug. Sender sent "media:llm-generation-request" but receiver looked for "media:llm-generation-request;json;record".
 func Test679_find_stream_base_vs_full_fails(t *testing.T) {
 	streams := streamsToSlice([]testStream{
 		{"media:textable;txt", []byte("hello")},
@@ -2571,7 +2563,7 @@ func Test679_find_stream_base_vs_full_fails(t *testing.T) {
 	}
 }
 
-// TEST680: RequireStream with missing URN returns hard error
+// TEST680: require_stream with missing URN returns hard StreamError
 func Test680_require_stream_missing_fails(t *testing.T) {
 	streams := streamsToSlice([]testStream{
 		{"media:textable;txt", []byte("hello")},
@@ -2585,7 +2577,7 @@ func Test680_require_stream_missing_fails(t *testing.T) {
 	}
 }
 
-// TEST681: FindStream with multiple streams returns the correct one
+// TEST681: find_stream with multiple streams returns the correct one
 func Test681_find_stream_multiple(t *testing.T) {
 	streams := streamsToSlice([]testStream{
 		{"media:textable;txt", []byte("text data")},
@@ -2601,7 +2593,7 @@ func Test681_find_stream_multiple(t *testing.T) {
 	}
 }
 
-// TEST682: RequireStream returns data for matching URN
+// TEST682: require_stream_str returns UTF-8 string for text data
 func Test682_require_stream_returns_data(t *testing.T) {
 	streams := streamsToSlice([]testStream{
 		{"media:textable;txt", []byte("hello text")},
@@ -2615,7 +2607,7 @@ func Test682_require_stream_returns_data(t *testing.T) {
 	}
 }
 
-// TEST683: FindStream returns nil for invalid media URN string
+// TEST683: find_stream returns None for invalid media URN string (not a parse error — just None)
 func Test683_find_stream_invalid_urn_returns_nil(t *testing.T) {
 	streams := streamsToSlice([]testStream{
 		{"media:textable;txt", []byte("data")},
@@ -2640,7 +2632,7 @@ func (m *mockFrameWriter) WriteFrame(frame *Frame) error {
 	return nil
 }
 
-// TEST842: ProgressSender emits progress and log frames
+// TEST842: run_with_keepalive returns closure result (fast operation, no keepalive frames)
 func Test842_progress_sender_emits_frames(t *testing.T) {
 	var buf bytes.Buffer
 	writer := NewFrameWriter(&buf)
@@ -2686,7 +2678,7 @@ func Test842_progress_sender_emits_frames(t *testing.T) {
 	}
 }
 
-// TEST843: ProgressSender from goroutine emits correctly
+// TEST843: run_with_keepalive returns Ok/Err from closure
 func Test843_progress_sender_from_goroutine(t *testing.T) {
 	var buf bytes.Buffer
 	writer := NewFrameWriter(&buf)
@@ -2719,7 +2711,7 @@ func Test843_progress_sender_from_goroutine(t *testing.T) {
 	}
 }
 
-// TEST844: ProgressSender from multiple goroutines emits all frames
+// TEST844: run_with_keepalive propagates errors from closure
 func Test844_progress_sender_multiple_goroutines(t *testing.T) {
 	var buf bytes.Buffer
 	writer := NewFrameWriter(&buf)
@@ -2764,7 +2756,7 @@ func Test844_progress_sender_multiple_goroutines(t *testing.T) {
 	}
 }
 
-// TEST845: ProgressSender emits progress and log frames independently of StreamEmitter
+// TEST845: ProgressSender emits progress and log frames independently of OutputStream
 func Test845_progress_sender_independent_of_emitter(t *testing.T) {
 	var buf bytes.Buffer
 	writer := NewFrameWriter(&buf)

@@ -1203,7 +1203,7 @@ func Test649_specificity_scoring(t *testing.T) {
 	assert.True(t, specific.Specificity() > 0, "Specific cap should have non-zero specificity")
 }
 
-// TEST651: All identity forms produce the same CapUrn (via NewCapUrnFromTags)
+// TEST651: All identity forms produce the same CapUrn
 func Test651_identity_forms_equivalent(t *testing.T) {
 	// In Go, the identity form is created via NewCapUrnFromTags with empty map
 	identity1, err := NewCapUrnFromTags(map[string]string{})
@@ -1252,7 +1252,7 @@ func Test653_identity_routing_isolation(t *testing.T) {
 		"Identity request (no constraints) matches everything")
 }
 
-// TEST823: is_dispatchable exact match
+// TEST823: is_dispatchable — exact match provider dispatches request
 func Test823_dispatch_exact_match(t *testing.T) {
 	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1261,7 +1261,7 @@ func Test823_dispatch_exact_match(t *testing.T) {
 	assert.True(t, provider.IsDispatchable(request))
 }
 
-// TEST824: is_dispatchable contravariant input
+// TEST824: is_dispatchable — provider with broader input handles specific request (contravariance)
 func Test824_dispatch_contravariant_input(t *testing.T) {
 	provider, err := NewCapUrnFromString(`cap:in="media:";op=analyze;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1270,7 +1270,7 @@ func Test824_dispatch_contravariant_input(t *testing.T) {
 	assert.True(t, provider.IsDispatchable(request))
 }
 
-// TEST825: is_dispatchable request unconstrained input
+// TEST825: is_dispatchable — request with unconstrained input dispatches to specific provider media: on the request input axis means "unconstrained" — vacuously true
 func Test825_dispatch_request_unconstrained_input(t *testing.T) {
 	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=analyze;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1280,7 +1280,7 @@ func Test825_dispatch_request_unconstrained_input(t *testing.T) {
 		"Request in=media: is unconstrained — axis is vacuously true")
 }
 
-// TEST826: is_dispatchable covariant output
+// TEST826: is_dispatchable — provider output must satisfy request output (covariance)
 func Test826_dispatch_covariant_output(t *testing.T) {
 	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1290,7 +1290,7 @@ func Test826_dispatch_covariant_output(t *testing.T) {
 		"Provider output record;textable conforms to request output textable")
 }
 
-// TEST827: is_dispatchable generic output fails
+// TEST827: is_dispatchable — provider with generic output cannot satisfy specific request
 func Test827_dispatch_generic_output_fails(t *testing.T) {
 	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:"`)
 	require.NoError(t, err)
@@ -1300,7 +1300,7 @@ func Test827_dispatch_generic_output_fails(t *testing.T) {
 		"Provider out=media: cannot guarantee specific output")
 }
 
-// TEST828: is_dispatchable wildcard requires tag presence
+// TEST828: is_dispatchable — wildcard * tag in request, provider missing tag → reject
 func Test828_dispatch_wildcard_requires_tag_presence(t *testing.T) {
 	provider, err := NewCapUrnFromString(`cap:in="media:model-spec";op=run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1310,7 +1310,7 @@ func Test828_dispatch_wildcard_requires_tag_presence(t *testing.T) {
 		"Wildcard * means tag must be present — provider has no candle tag")
 }
 
-// TEST829: is_dispatchable wildcard with tag present
+// TEST829: is_dispatchable — wildcard * tag in request, provider has tag → accept
 func Test829_dispatch_wildcard_with_tag_present(t *testing.T) {
 	provider, err := NewCapUrnFromString(`cap:candle=metal;in="media:model-spec";op=run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1320,7 +1320,7 @@ func Test829_dispatch_wildcard_with_tag_present(t *testing.T) {
 		"Provider has candle=metal, request has candle=* — tag present, any value OK")
 }
 
-// TEST830: is_dispatchable provider extra tags
+// TEST830: is_dispatchable — provider extra tags are refinement, always OK
 func Test830_dispatch_provider_extra_tags(t *testing.T) {
 	provider, err := NewCapUrnFromString(`cap:candle=metal;in="media:model-spec";op=run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1330,7 +1330,7 @@ func Test830_dispatch_provider_extra_tags(t *testing.T) {
 		"Provider extra tag candle=metal is refinement — always OK")
 }
 
-// TEST831: is_dispatchable cross-backend mismatch
+// TEST831: is_dispatchable — cross-backend mismatch prevented
 func Test831_dispatch_cross_backend_mismatch(t *testing.T) {
 	ggufProvider, err := NewCapUrnFromString(`cap:gguf=q4_k_m;in="media:model-spec";op=run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1340,7 +1340,7 @@ func Test831_dispatch_cross_backend_mismatch(t *testing.T) {
 		"GGUF provider has no candle tag — cross-backend mismatch")
 }
 
-// TEST832: is_dispatchable is asymmetric
+// TEST832: is_dispatchable is NOT symmetric
 func Test832_dispatch_asymmetric(t *testing.T) {
 	broad, err := NewCapUrnFromString(`cap:in="media:";op=process;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1350,7 +1350,7 @@ func Test832_dispatch_asymmetric(t *testing.T) {
 	assert.False(t, narrow.IsDispatchable(broad))
 }
 
-// TEST833: is_comparable symmetric
+// TEST833: is_comparable — both directions checked
 func Test833_comparable_symmetric(t *testing.T) {
 	a, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:textable"`)
 	require.NoError(t, err)
@@ -1360,7 +1360,7 @@ func Test833_comparable_symmetric(t *testing.T) {
 	assert.True(t, b.IsComparable(a))
 }
 
-// TEST834: is_comparable unrelated
+// TEST834: is_comparable — unrelated caps are NOT comparable
 func Test834_comparable_unrelated(t *testing.T) {
 	a, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:textable"`)
 	require.NoError(t, err)
@@ -1370,7 +1370,7 @@ func Test834_comparable_unrelated(t *testing.T) {
 	assert.False(t, b.IsComparable(a))
 }
 
-// TEST835: is_equivalent identical
+// TEST835: is_equivalent — identical caps
 func Test835_equivalent_identical(t *testing.T) {
 	a, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1380,7 +1380,7 @@ func Test835_equivalent_identical(t *testing.T) {
 	assert.True(t, b.IsEquivalent(a))
 }
 
-// TEST836: is_equivalent non-equivalent
+// TEST836: is_equivalent — non-equivalent comparable caps
 func Test836_equivalent_non_equivalent(t *testing.T) {
 	a, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:textable"`)
 	require.NoError(t, err)
@@ -1390,7 +1390,7 @@ func Test836_equivalent_non_equivalent(t *testing.T) {
 	assert.False(t, a.IsEquivalent(b))
 }
 
-// TEST837: is_dispatchable op mismatch
+// TEST837: is_dispatchable — op tag mismatch rejects
 func Test837_dispatch_op_mismatch(t *testing.T) {
 	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1399,7 +1399,7 @@ func Test837_dispatch_op_mismatch(t *testing.T) {
 	assert.False(t, provider.IsDispatchable(request))
 }
 
-// TEST838: is_dispatchable request wildcard output
+// TEST838: is_dispatchable — request with wildcard output accepts any provider output
 func Test838_dispatch_request_wildcard_output(t *testing.T) {
 	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
 	require.NoError(t, err)
@@ -1424,7 +1424,7 @@ func TestCapUrn_JSONSerialization(t *testing.T) {
 	assert.True(t, original.Equals(&decoded))
 }
 
-// TEST561: in_media_urn and out_media_urn parse direction specs as MediaUrn
+// TEST561: in_media_urn and out_media_urn parse direction specs into MediaUrn
 func Test561_in_out_media_urn(t *testing.T) {
 	cap, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:txt;textable"`)
 	require.NoError(t, err)
@@ -1447,7 +1447,7 @@ func Test561_in_out_media_urn(t *testing.T) {
 	assert.NotNil(t, wildcardIn)
 }
 
-// TEST562: CanonicalOption with nil, valid, and invalid inputs
+// TEST562: canonical_option returns None for None input, canonical string for Some
 func Test562_canonical_option(t *testing.T) {
 	// nil input -> (nil, nil)
 	result, err := CanonicalOption(nil)
@@ -1473,7 +1473,7 @@ func Test562_canonical_option(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-// TEST568: is_dispatchable with tags in different order (record;textable vs textable;record)
+// TEST568: is_dispatchable with different tag order in output spec
 func Test568_dispatch_output_tag_order(t *testing.T) {
 	provider, err := NewCapUrnFromString(
 		`cap:in="media:model-spec;textable";op=download-model;out="media:download-result;record;textable"`)
@@ -1492,7 +1492,7 @@ func Test568_dispatch_output_tag_order(t *testing.T) {
 		"Provider should dispatch request with same tags in different order")
 }
 
-// TEST640: cap:in defaults both in and out to media:
+// TEST640: cap:in defaults out to media:
 func Test640_wildcard_002_in_only_defaults_out_to_media(t *testing.T) {
 	cap, err := NewCapUrnFromString("cap:in")
 	require.NoError(t, err, "in without out should default out to media:")
@@ -1500,7 +1500,7 @@ func Test640_wildcard_002_in_only_defaults_out_to_media(t *testing.T) {
 	assert.Equal(t, "media:", cap.OutSpec())
 }
 
-// TEST641: cap:out defaults both in and out to media:
+// TEST641: cap:out defaults in to media:
 func Test641_wildcard_003_out_only_defaults_in_to_media(t *testing.T) {
 	cap, err := NewCapUrnFromString("cap:out")
 	require.NoError(t, err, "out without in should default in to media:")
@@ -1516,7 +1516,7 @@ func Test642_wildcard_004_in_out_no_values_become_media(t *testing.T) {
 	assert.Equal(t, "media:", cap.OutSpec())
 }
 
-// TEST643: cap:in=*;out=* both become media:
+// TEST643: cap:in=*;out=* becomes media:
 func Test643_wildcard_005_explicit_asterisk_becomes_media(t *testing.T) {
 	cap, err := NewCapUrnFromString("cap:in=*;out=*")
 	require.NoError(t, err, "in=*;out=* should become media:")
@@ -1552,7 +1552,7 @@ func Test647_wildcard_009_invalid_out_spec_fails(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TEST650: cap:in;out;op=test preserves non-in/out tags while defaulting in/out to media:
+// TEST650: cap:in;out;op=test preserves other tags
 func Test650_wildcard_012_preserve_other_tags(t *testing.T) {
 	cap, err := NewCapUrnFromString("cap:in;out;op=test")
 	require.NoError(t, err)

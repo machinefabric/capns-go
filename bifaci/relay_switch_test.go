@@ -205,7 +205,7 @@ func Test428_relay_switch_unknown_cap_returns_error(t *testing.T) {
 	}
 }
 
-// TEST429: cap.Cap routing logic (find_master_for_cap)
+// TEST429: Cap routing logic (find_master_for_cap)
 func Test429_relay_switch_find_master_for_cap(t *testing.T) {
 	engineRead1, slaveWrite1 := net.Pipe()
 	slaveRead1, engineWrite1 := net.Pipe()
@@ -278,7 +278,7 @@ func Test429_relay_switch_find_master_for_cap(t *testing.T) {
 	}
 }
 
-// TEST430: Tie-breaking (same cap on multiple masters)
+// TEST430: Tie-breaking (same cap on multiple masters - first match wins, routing is consistent)
 func Test430_relay_switch_tie_breaking(t *testing.T) {
 	engineRead1, slaveWrite1 := net.Pipe()
 	slaveRead1, engineWrite1 := net.Pipe()
@@ -349,7 +349,7 @@ func Test430_relay_switch_tie_breaking(t *testing.T) {
 	}
 }
 
-// TEST431: Continuation frame routing
+// TEST431: Continuation frame routing (CHUNK, END follow REQ)
 func Test431_relay_switch_continuation_frame_routing(t *testing.T) {
 	engineRead, slaveWrite := net.Pipe()
 	slaveRead, engineWrite := net.Pipe()
@@ -426,7 +426,7 @@ func Test431_relay_switch_continuation_frame_routing(t *testing.T) {
 	}
 }
 
-// TEST432: Empty masters list returns error
+// TEST432: Empty masters list creates empty switch, add_master works
 func Test432_relay_switch_empty_masters_list_error(t *testing.T) {
 	_, err := NewRelaySwitch([]SocketPair{})
 	if err == nil {
@@ -441,7 +441,7 @@ func Test432_relay_switch_empty_masters_list_error(t *testing.T) {
 	}
 }
 
-// TEST433: Capability aggregation deduplicates
+// TEST433: Capability aggregation deduplicates caps
 func Test433_relay_switch_capability_aggregation_deduplicates(t *testing.T) {
 	engineRead1, slaveWrite1 := net.Pipe()
 	slaveRead1, engineWrite1 := net.Pipe()
@@ -548,7 +548,7 @@ func Test434_relay_switch_limits_negotiation_minimum(t *testing.T) {
 	}
 }
 
-// TEST435: URN matching (exact and is_dispatchable contravariant/covariant semantics)
+// TEST435: URN matching (exact vs accepts())
 func Test435_relay_switch_urn_matching(t *testing.T) {
 	engineRead, slaveWrite := net.Pipe()
 	slaveRead, engineWrite := net.Pipe()

@@ -16,7 +16,6 @@ func emptyContext(opts ...func(*ArgumentResolutionContext)) *ArgumentResolutionC
 	return ctx
 }
 
-// TEST668: Resolve slot with populated byte slot_values using step-index key
 func Test668_ResolveSlotWithPopulatedByteSlotValues(t *testing.T) {
 	ctx := emptyContext(func(c *ArgumentResolutionContext) {
 		c.SlotValues = map[string][]byte{
@@ -44,7 +43,6 @@ func Test668_ResolveSlotWithPopulatedByteSlotValues(t *testing.T) {
 	}
 }
 
-// TEST669: Resolve slot falls back to default when no slot_value or cap_setting
 func Test669_ResolveSlotFallsBackToDefault(t *testing.T) {
 	ctx := emptyContext()
 	binding := NewSlotBinding("media:quality;textable;numeric", nil)
@@ -65,7 +63,6 @@ func Test669_ResolveSlotFallsBackToDefault(t *testing.T) {
 	}
 }
 
-// TEST670: Required slot with no value returns error
 func Test670_ResolveRequiredSlotNoValueReturnsErr(t *testing.T) {
 	ctx := emptyContext()
 	binding := NewSlotBinding("media:question;textable", nil)
@@ -79,7 +76,6 @@ func Test670_ResolveRequiredSlotNoValueReturnsErr(t *testing.T) {
 	}
 }
 
-// TEST671: Optional slot with no value returns nil
 func Test671_ResolveOptionalSlotNoValueReturnsNone(t *testing.T) {
 	ctx := emptyContext()
 	binding := NewSlotBinding("media:suffix;textable", nil)
@@ -92,8 +88,7 @@ func Test671_ResolveOptionalSlotNoValueReturnsNone(t *testing.T) {
 	}
 }
 
-// TEST1105: Two steps with the same cap_urn get distinct slot values via different node_ids.
-// This is the core disambiguation scenario that step-index keying was designed to solve.
+// TEST1105: Two steps with the same cap_urn get distinct slot values via different node_ids. This is the core disambiguation scenario that step-index keying was designed to solve.
 func Test1105_TwoStepsSameCapUrnDifferentSlotValues(t *testing.T) {
 	capUrn := `cap:in="media:pdf";op=make_decision;out="media:bool;textable"`
 	slotName := "media:list;question;textable"
@@ -135,8 +130,7 @@ func Test1105_TwoStepsSameCapUrnDifferentSlotValues(t *testing.T) {
 	}
 }
 
-// TEST1106: Slot resolution falls through to cap_settings when no slot_value exists.
-// cap_settings are keyed by cap_urn (shared across steps), so both steps get the same value.
+// TEST1106: Slot resolution falls through to cap_settings when no slot_value exists. cap_settings are keyed by cap_urn (shared across steps), so both steps get the same value.
 func Test1106_SlotFallsThroughToCapSettingsShared(t *testing.T) {
 	capUrn := `cap:in="media:pdf";op=make_decision;out="media:bool;textable"`
 	slotName := "media:language;textable"
@@ -172,8 +166,7 @@ func Test1106_SlotFallsThroughToCapSettingsShared(t *testing.T) {
 	}
 }
 
-// TEST1107: step_0 has a slot_value override, step_1 falls through to cap_settings.
-// Proves per-step override works while shared settings remain as fallback.
+// TEST1107: step_0 has a slot_value override, step_1 falls through to cap_settings. Proves per-step override works while shared settings remain as fallback.
 func Test1107_SlotValueOverridesCapSettingsPerStep(t *testing.T) {
 	capUrn := `cap:in="media:pdf";op=make_decision;out="media:bool;textable"`
 	slotName := "media:language;textable"
@@ -220,7 +213,7 @@ func Test1108_ResolveAllPassesNodeID(t *testing.T) {
 	ctx := emptyContext(func(c *ArgumentResolutionContext) {
 		c.SlotValues = map[string][]byte{
 			"step_3:media:width;textable;numeric":   []byte("1024"),
-			"step_3:media:quality;textable;numeric":  []byte("95"),
+			"step_3:media:quality;textable;numeric": []byte("95"),
 		}
 	})
 

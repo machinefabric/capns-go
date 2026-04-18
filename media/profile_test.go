@@ -14,7 +14,7 @@ func createTestRegistry(t *testing.T) *ProfileSchemaRegistry {
 	return registry
 }
 
-// TEST611: is_embedded_profile recognizes all 9 standard URLs and rejects custom URLs
+// TEST611: is_embedded_profile recognizes all 9 embedded profiles and rejects non-embedded
 func Test611_is_embedded_profile_comprehensive(t *testing.T) {
 	allEmbedded := []string{
 		ProfileStr, ProfileInt, ProfileNum, ProfileBool, ProfileObj,
@@ -30,7 +30,7 @@ func Test611_is_embedded_profile_comprehensive(t *testing.T) {
 	assert.False(t, IsEmbeddedProfile("https://capdag.com/schema/nonexistent"))
 }
 
-// TEST612: clear_cache empties the registry
+// TEST612: clear_cache empties all in-memory schemas
 func Test612_clear_cache(t *testing.T) {
 	registry := createTestRegistry(t)
 	assert.True(t, len(registry.GetCachedProfiles()) > 0)
@@ -38,7 +38,7 @@ func Test612_clear_cache(t *testing.T) {
 	assert.Equal(t, 0, len(registry.GetCachedProfiles()))
 }
 
-// TEST613: validate_cached validates against cached schemas
+// TEST613: validate_cached validates against cached standard schemas
 func Test613_validate_cached(t *testing.T) {
 	registry := createTestRegistry(t)
 
@@ -57,14 +57,14 @@ func Test613_validate_cached(t *testing.T) {
 	assert.Nil(t, registry.ValidateCached("https://example.com/unknown", "anything"))
 }
 
-// TEST618: registry creation succeeds with embedded schemas loaded
+// TEST618: Verify profile schema registry creation succeeds with temp cache
 func Test618_registry_creation(t *testing.T) {
 	registry := createTestRegistry(t)
 	profiles := registry.GetCachedProfiles()
 	assert.True(t, len(profiles) > 0)
 }
 
-// TEST619: all 9 standard schema URLs present after construction
+// TEST619: Verify all 9 embedded standard schemas are loaded on creation
 func Test619_embedded_schemas_loaded(t *testing.T) {
 	registry := createTestRegistry(t)
 	allEmbedded := []string{
@@ -76,14 +76,14 @@ func Test619_embedded_schemas_loaded(t *testing.T) {
 	}
 }
 
-// TEST620: string validation — "hello" passes, 42 fails
+// TEST620: Verify string schema validates strings and rejects non-strings
 func Test620_string_validation(t *testing.T) {
 	registry := createTestRegistry(t)
 	assert.Nil(t, registry.Validate(ProfileStr, "hello"))
 	assert.NotNil(t, registry.Validate(ProfileStr, 42))
 }
 
-// TEST621: integer validation — 42 passes, 3.14 fails, "hello" fails
+// TEST621: Verify integer schema validates integers and rejects floats and strings
 func Test621_integer_validation(t *testing.T) {
 	registry := createTestRegistry(t)
 	assert.Nil(t, registry.Validate(ProfileInt, 42))
@@ -91,7 +91,7 @@ func Test621_integer_validation(t *testing.T) {
 	assert.NotNil(t, registry.Validate(ProfileInt, "hello"))
 }
 
-// TEST622: number validation — 42 passes, 3.14 passes, "hello" fails
+// TEST622: Verify number schema validates integers and floats, rejects strings
 func Test622_number_validation(t *testing.T) {
 	registry := createTestRegistry(t)
 	assert.Nil(t, registry.Validate(ProfileNum, 42))
@@ -99,7 +99,7 @@ func Test622_number_validation(t *testing.T) {
 	assert.NotNil(t, registry.Validate(ProfileNum, "hello"))
 }
 
-// TEST623: boolean validation — true/false pass, "true" fails
+// TEST623: Verify boolean schema validates true/false and rejects string "true"
 func Test623_boolean_validation(t *testing.T) {
 	registry := createTestRegistry(t)
 	assert.Nil(t, registry.Validate(ProfileBool, true))
@@ -107,14 +107,14 @@ func Test623_boolean_validation(t *testing.T) {
 	assert.NotNil(t, registry.Validate(ProfileBool, "true"))
 }
 
-// TEST624: object validation — {"key":"value"} passes, [1,2,3] fails
+// TEST624: Verify object schema validates objects and rejects arrays
 func Test624_object_validation(t *testing.T) {
 	registry := createTestRegistry(t)
 	assert.Nil(t, registry.Validate(ProfileObj, map[string]interface{}{"key": "value"}))
 	assert.NotNil(t, registry.Validate(ProfileObj, []int{1, 2, 3}))
 }
 
-// TEST625: string array validation — ["a","b","c"] passes, ["a",1,"c"] fails, "hello" fails
+// TEST625: Verify string array schema validates string arrays and rejects mixed arrays
 func Test625_string_array_validation(t *testing.T) {
 	registry := createTestRegistry(t)
 	assert.Nil(t, registry.Validate(ProfileStrArray, []string{"a", "b", "c"}))
@@ -122,14 +122,14 @@ func Test625_string_array_validation(t *testing.T) {
 	assert.NotNil(t, registry.Validate(ProfileStrArray, "hello"))
 }
 
-// TEST626: unknown profile URL returns nil (skip validation)
+// TEST626: Verify unknown profile URL skips validation and returns Ok
 func Test626_unknown_profile_skips_validation(t *testing.T) {
 	registry := createTestRegistry(t)
 	result := registry.Validate("https://example.com/unknown", "anything")
 	assert.Nil(t, result)
 }
 
-// TEST627: is_embedded_profile recognizes standard profiles but not custom
+// TEST627: Verify is_embedded_profile recognizes standard and rejects custom URLs
 func Test627_is_embedded_profile(t *testing.T) {
 	assert.True(t, IsEmbeddedProfile(ProfileStr))
 	assert.True(t, IsEmbeddedProfile(ProfileInt))

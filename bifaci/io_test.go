@@ -351,7 +351,7 @@ func Test217_read_frame_rejects_oversized(t *testing.T) {
 	}
 }
 
-// TEST218: Test write_chunked splits data into chunks respecting max_chunk and reconstructs correctly
+// TEST218: Test write_chunked splits data into chunks respecting max_chunk and reconstructs correctly Chunks from write_chunked have seq=0. SeqAssigner at the output stage assigns final seq. Chunk ordering within a stream is tracked by chunk_index (chunk_index field).
 func Test218_write_chunked(t *testing.T) {
 	var buf bytes.Buffer
 	writer := NewFrameWriter(&buf)
@@ -1017,7 +1017,7 @@ func Test441_stream_end_chunk_count_roundtrip(t *testing.T) {
 	}
 }
 
-// TEST497: Corrupted payload detectable via checksum mismatch
+// TEST497: Verify CHUNK frame with corrupted payload is rejected by checksum
 func Test497_chunk_corrupted_payload_rejected(t *testing.T) {
 	id := NewMessageIdRandom()
 	payload := []byte("original data")

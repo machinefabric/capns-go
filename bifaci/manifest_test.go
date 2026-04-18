@@ -352,7 +352,7 @@ func TestCapManifestCompatibility(t *testing.T) {
 	assert.IsType(t, providerMap["caps"], cartridgeMap["caps"])
 }
 
-// TEST475: CapManifest.Validate() passes when CAP_IDENTITY is present
+// TEST475: CapManifest::validate() passes when CAP_IDENTITY is present
 func Test475_validate_passes_with_identity(t *testing.T) {
 	identityUrn, err := urn.NewCapUrnFromString(standard.CapIdentity)
 	require.NoError(t, err)
@@ -363,7 +363,7 @@ func Test475_validate_passes_with_identity(t *testing.T) {
 	assert.NoError(t, err, "Manifest with CAP_IDENTITY must validate")
 }
 
-// TEST476: CapManifest.Validate() fails when CAP_IDENTITY is missing
+// TEST476: CapManifest::validate() fails when CAP_IDENTITY is missing
 func Test476_validate_fails_without_identity(t *testing.T) {
 	specificUrn, err := urn.NewCapUrnFromString(manifestTestUrn("op=convert"))
 	require.NoError(t, err)

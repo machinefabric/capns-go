@@ -165,7 +165,7 @@ func Test1155_FromStrandProducesSingleStrandMachine(t *testing.T) {
 
 // TestFromStrandsKeepStrandsDisjoint verifies that FromStrands does NOT join
 // two strands even when their URNs are type-compatible at runtime.
-// TEST1156: Building from multiple strands keeps them disjoint and preserves input/output anchors.
+// TEST1156: Building from multiple strands keeps them disjoint and preserves input strand order.
 func Test1156_FromStrandsKeepStrandsDisjoint(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef(), embedCapDef()})
 	m, err := FromStrands([]*planner.Strand{pdfToTxtStrand(), txtToVecStrand()}, registry)
@@ -249,7 +249,7 @@ func Test1159_MachineStrandIsEquivalentWalksNodeBijection(t *testing.T) {
 
 // TestInputOutputAnchors verifies that the resolver correctly identifies
 // root (input) and leaf (output) nodes for a simple linear strand.
-// TEST1160: Creating a MachineRun stores the canonical notation and starts in the Pending state.
+// TEST1160: Creating a MachineRun stores the canonical notation and starts in the pending state.
 func Test1160_InputOutputAnchors(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef()})
 	m, err := FromStrand(pdfToTxtStrand(), registry)
@@ -284,7 +284,7 @@ func Test1160_InputOutputAnchors(t *testing.T) {
 
 // TestForEachSetsIsLoop verifies that a ForEach step preceding a Cap step
 // sets IsLoop=true on the resulting MachineEdge.
-// TEST1169: Loop markers in notation set the resolved edge loop flag on the following cap.
+// TEST1169: Loop markers in notation set the resolved edge loop flag on the following cap step.
 func Test1169_ForEachSetsIsLoop(t *testing.T) {
 	loopCap := buildCap(
 		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
@@ -361,7 +361,7 @@ func Test1170_CollectIsElided(t *testing.T) {
 
 // TestParseSingleStrandTwoCapsConnectedViaSharedNode verifies that two wirings
 // sharing the node name `txt` become a single connected component (one strand).
-// TEST1163: Parsing one connected strand yields a single machine strand with both caps resolved.
+// TEST1163: Parsing one connected strand yields a single machine strand with both caps connected by the shared node.
 func Test1163_ParseSingleStrandTwoCapsConnectedViaSharedNode(t *testing.T) {
 	registry := pdfExtractEmbedRegistry()
 	notation := `[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
@@ -592,7 +592,7 @@ func Test1172_MachineStringRepr(t *testing.T) {
 // TestStrandEquivalenceWithDifferentNodeAllocationOrders verifies that two
 // equivalent strands remain equivalent even when their NodeIds were allocated
 // in different positions (bijection check).
-// TEST1189: Strand resolution keeps canonical anchor ordering stable across equivalent builds.
+// TEST1189: Strand resolution keeps canonical anchor ordering stable across equivalent inputs.
 func Test1189_StrandEquivalenceWithDifferentNodeAllocationOrders(t *testing.T) {
 	// Build two machines from identical strands — node allocation order is
 	// deterministic but this confirms the bijection handles it correctly.

@@ -419,7 +419,7 @@ func Test281_cap_argument_value_string_types(t *testing.T) {
 	assert.Equal(t, "media:borrowed", arg2.MediaUrn)
 }
 
-// TEST282: Test CapArgumentValue from_str with Unicode string preserves all characters
+// TEST282: Test CapArgumentValue::from_str with Unicode string preserves all characters
 func Test282_cap_argument_value_unicode(t *testing.T) {
 	arg := NewCapArgumentValueFromStr("media:string", "hello 世界 🌍")
 	val, err := arg.ValueAsStr()

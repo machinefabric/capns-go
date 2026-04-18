@@ -191,7 +191,7 @@ func Test584_rule6_position_gap(t *testing.T) {
 	assert.Contains(t, err.Error(), "RULE6")
 }
 
-// TEST585: RULE6 - sequential positions (0, 1) pass
+// TEST585: RULE6 - sequential positions (0, 1, 2) pass
 func Test585_rule6_sequential_ok(t *testing.T) {
 	cap := makeTestCapWithArgs(t, []CapArg{
 		NewCapArg(standard.MediaString, true, []ArgSource{positionSource(0)}),

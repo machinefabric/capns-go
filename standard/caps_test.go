@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TEST307: Test ModelAvailabilityUrn builds valid cap URN with correct op and media specs
+// TEST307: Test model_availability_urn builds valid cap URN with correct op and media specs
 func Test307_model_availability_urn(t *testing.T) {
 	urnStr := ModelAvailabilityUrn()
 	assert.True(t, strings.Contains(urnStr, "op=model-availability"), "URN must have op=model-availability")
@@ -15,7 +15,7 @@ func Test307_model_availability_urn(t *testing.T) {
 	assert.True(t, strings.Contains(urnStr, "out=media:availability-output"), "output must be availability output")
 }
 
-// TEST308: Test ModelPathUrn builds valid cap URN with correct op and media specs
+// TEST308: Test model_path_urn builds valid cap URN with correct op and media specs
 func Test308_model_path_urn(t *testing.T) {
 	urnStr := ModelPathUrn()
 	assert.True(t, strings.Contains(urnStr, "op=model-path"), "URN must have op=model-path")
@@ -23,7 +23,7 @@ func Test308_model_path_urn(t *testing.T) {
 	assert.True(t, strings.Contains(urnStr, "out=media:path-output"), "output must be path output")
 }
 
-// TEST309: Test ModelAvailabilityUrn and ModelPathUrn produce distinct URNs
+// TEST309: Test model_availability_urn and model_path_urn produce distinct URNs
 func Test309_model_availability_and_path_are_distinct(t *testing.T) {
 	availStr := ModelAvailabilityUrn()
 	pathStr := ModelPathUrn()
@@ -31,7 +31,6 @@ func Test309_model_availability_and_path_are_distinct(t *testing.T) {
 		"availability and path must be distinct cap URNs")
 }
 
-// TEST310: Test LlmGenerateTextUrn builds a cap URN with llm, ml-model, and op=generate_text
 func Test310_llm_generate_text_urn_shape(t *testing.T) {
 	urnStr := LlmGenerateTextUrn()
 	assert.True(t, strings.HasPrefix(urnStr, "cap:"), "must be a cap URN")
@@ -55,7 +54,7 @@ func Test312_all_urn_builders_produce_valid_urns(t *testing.T) {
 	assert.True(t, strings.HasPrefix(llmStr, "cap:"), "must be a cap URN")
 }
 
-// TEST473: CAP_DISCARD constant has correct format with wildcard input and void output
+// TEST473: CAP_DISCARD parses as valid CapUrn with in=media: and out=media:void
 func Test473_cap_discard_parses_as_valid_urn(t *testing.T) {
 	// Cannot import urn package from standard_test (import cycle),
 	// so verify via string assertions on the constant value
@@ -64,9 +63,7 @@ func Test473_cap_discard_parses_as_valid_urn(t *testing.T) {
 	assert.True(t, strings.Contains(CapDiscard, "out=media:void"), "CAP_DISCARD output must be media:void")
 }
 
-// TEST474: CAP_DISCARD structure — wildcard input, void output
-// NOTE: Full accepts() semantics tested in urn/cap_urn_test.go where urn package is available.
-// Here we verify the structural properties that make discard work.
+// TEST474: CAP_DISCARD accepts specific-input/void-output caps
 func Test474_cap_discard_structure(t *testing.T) {
 	// Discard has no op tag — it's a pattern that accepts anything with void output
 	assert.False(t, strings.Contains(CapDiscard, "op="),
@@ -79,7 +76,7 @@ func Test474_cap_discard_structure(t *testing.T) {
 		"CAP_DISCARD output must be media:void")
 }
 
-// TEST605: all_coercion_paths builds valid URNs with op=coerce
+// TEST605: all_coercion_paths each entry builds a valid parseable CapUrn
 func Test605_all_coercion_paths_build_valid_urns(t *testing.T) {
 	paths := AllCoercionPaths()
 	assert.True(t, len(paths) > 0, "Coercion paths must not be empty")
@@ -109,7 +106,7 @@ func Test606_coercion_urn_specs(t *testing.T) {
 		"out_spec should contain '%s', got '%s'", MediaInteger, urnStr)
 }
 
-// TEST850: all_format_conversion_paths returns non-empty list with valid URNs
+// TEST850: all_format_conversion_paths each entry builds a valid parseable CapUrn
 func Test850_all_format_conversion_paths_build_valid_urns(t *testing.T) {
 	paths := AllFormatConversionPaths()
 	assert.True(t, len(paths) > 0, "Format conversion paths must not be empty")
@@ -123,7 +120,7 @@ func Test850_all_format_conversion_paths_build_valid_urns(t *testing.T) {
 	}
 }
 
-// TEST851: format_conversion_urn in/out specs are set correctly
+// TEST851: format_conversion_urn in/out specs match the input constants
 func Test851_format_conversion_urn_specs(t *testing.T) {
 	urnStr := FormatConversionUrn(MediaJSONRecord, MediaYAMLRecord)
 	assert.True(t, strings.Contains(urnStr, "op=convert_format"), "must have op=convert_format")

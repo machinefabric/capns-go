@@ -370,7 +370,7 @@ func Test596_with_full_definition_constructor(t *testing.T) {
 	assert.Nil(t, c.GetRegisteredBy())
 }
 
-// TEST597: CapArg with_full_definition stores all fields including optional ones
+// TEST597: CapArg::with_full_definition stores all fields including optional ones
 func Test597_cap_arg_with_full_definition(t *testing.T) {
 	defaultVal := "default_text"
 	meta := map[string]any{"hint": "enter name"}
@@ -510,7 +510,7 @@ func TestCapWithMediaSpecs(t *testing.T) {
 	assert.NotNil(t, outResolved.Schema)
 }
 
-// TEST920: Cap documentation round-trips through JSON serialize/deserialize
+// TEST920: Tests creation of a simple execution plan with a single capability Verifies that single_cap() generates a valid plan with input_slot, cap node, and output node
 func Test920_cap_documentation_roundtrip(t *testing.T) {
 	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
 	require.NoError(t, err)
@@ -528,7 +528,7 @@ func Test920_cap_documentation_roundtrip(t *testing.T) {
 	assert.Equal(t, "# My Cap\n\nThis cap does things.\n\n## Usage\n\nCall it.", *restored.GetDocumentation())
 }
 
-// TEST921: When documentation is nil, it is omitted from JSON
+// TEST921: Tests creation of a linear chain of capabilities connected in sequence Verifies that linear_chain() correctly links multiple caps with proper edges and topological order
 func Test921_cap_documentation_omitted_when_nil(t *testing.T) {
 	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
 	require.NoError(t, err)
@@ -540,7 +540,7 @@ func Test921_cap_documentation_omitted_when_nil(t *testing.T) {
 	assert.NotContains(t, string(data), "documentation")
 }
 
-// TEST922: Documentation parses from JSON with documentation field
+// TEST922: Tests creation and validation of an empty execution plan with no nodes Verifies that plans without capabilities are valid and handle zero nodes correctly
 func Test922_cap_documentation_parses_from_json(t *testing.T) {
 	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
 	require.NoError(t, err)
@@ -559,7 +559,7 @@ func Test922_cap_documentation_parses_from_json(t *testing.T) {
 	assert.Equal(t, "Docs here.", *c.GetDocumentation())
 }
 
-// TEST923: set/clear lifecycle for documentation
+// TEST923: Tests storing and retrieving metadata attached to an execution plan Verifies that arbitrary JSON metadata can be associated with a plan for context preservation
 func Test923_cap_documentation_lifecycle(t *testing.T) {
 	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
 	require.NoError(t, err)

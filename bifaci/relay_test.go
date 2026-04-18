@@ -11,7 +11,7 @@ func relayPipe() (net.Conn, net.Conn) {
 	return net.Pipe()
 }
 
-// TEST404: Slave sends RelayNotify on connect (initialNotify parameter)
+// TEST404: Slave sends RelayNotify on connect (initial_notify parameter)
 func Test404_slave_sends_relay_notify_on_connect(t *testing.T) {
 	manifest := []byte(`{"caps":["cap:op=test"]}`)
 	limits := DefaultLimits()
@@ -108,7 +108,7 @@ func Test405_master_reads_relay_notify(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST406: Slave stores RelayState from master (ResourceState() returns payload)
+// TEST406: Slave stores RelayState from master
 func Test406_slave_stores_relay_state(t *testing.T) {
 	resources := []byte(`{"memory_mb":4096}`)
 
@@ -289,7 +289,7 @@ func Test407_protocol_frames_pass_through(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST408: RelayNotify/RelayState are NOT forwarded through relay (intercepted)
+// TEST408: RelayNotify/RelayState are NOT forwarded through relay
 func Test408_relay_frames_not_forwarded(t *testing.T) {
 	// Master sends RelayState — slave should NOT forward it to local
 	slaveSocketRead, masterSocketWrite := relayPipe()
@@ -445,7 +445,7 @@ func Test409_slave_injects_relay_notify_midstream(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST410: Master receives updated RelayNotify (cap change via ReadFrame)
+// TEST410: Master receives updated RelayNotify (cap change callback via read_frame)
 func Test410_master_receives_updated_relay_notify(t *testing.T) {
 	masterSocketRead, slaveSocketWrite := relayPipe()
 

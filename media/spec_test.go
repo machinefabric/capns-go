@@ -571,7 +571,7 @@ func Test609_get_extension_mappings(t *testing.T) {
 	assert.True(t, extNames["epub"], "Should contain epub")
 }
 
-// TEST610: get_cached_spec returns nil for unknown and non-nil for known
+// TEST610: get_cached_spec returns None for unknown and Some for known
 func Test610_get_cached_spec(t *testing.T) {
 	registry, err := NewMediaUrnRegistryForTest()
 	require.NoError(t, err)
@@ -591,7 +591,7 @@ func Test610_get_cached_spec(t *testing.T) {
 	assert.Equal(t, "Test Spec", retrieved.Title)
 }
 
-// TEST614: Verify registry creation succeeds
+// TEST614: Verify registry creation succeeds and cache directory exists
 func Test614_registry_creation(t *testing.T) {
 	registry, err := NewMediaUrnRegistryForTest()
 	require.NoError(t, err)
@@ -630,7 +630,7 @@ func Test616_stored_media_spec_to_def(t *testing.T) {
 	assert.Equal(t, []string{"pdf"}, def.Extensions)
 }
 
-// TEST617: Verify normalizeMediaUrn produces consistent non-empty results
+// TEST617: Verify normalize_media_urn produces consistent non-empty results
 func Test617_normalize_media_urn(t *testing.T) {
 	urn1 := normalizeMediaUrn("media:string")
 	urn2 := normalizeMediaUrn("media:string")

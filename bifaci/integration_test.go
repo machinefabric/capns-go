@@ -463,7 +463,7 @@ func createSocketPair(t *testing.T) (net.Conn, net.Conn) {
 	return conn1, conn2
 }
 
-// TEST284: Test host-cartridge handshake exchanges HELLO frames, negotiates limits, and transfers manifest
+// TEST284: Handshake exchanges HELLO frames, negotiates limits
 func Test284_HandshakeHostCartridge(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
@@ -505,7 +505,7 @@ func Test284_HandshakeHostCartridge(t *testing.T) {
 	assert.Equal(t, hostLimits.MaxChunk, cartridgeLimits.MaxChunk)
 }
 
-// TEST285: Test simple request-response flow: host sends REQ, cartridge sends END with payload
+// TEST285: Simple request-response flow (REQ → END with payload)
 func Test285_RequestResponseSimple(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
@@ -567,7 +567,7 @@ func Test285_RequestResponseSimple(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST286: Test streaming response with multiple CHUNK frames collected by host
+// TEST286: Streaming response with multiple CHUNK frames
 func Test286_StreamingChunks(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
@@ -645,7 +645,7 @@ func Test286_StreamingChunks(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST287: Test host-initiated heartbeat is received and responded to by cartridge
+// TEST287: Host-initiated heartbeat
 func Test287_HeartbeatFromHost(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
@@ -836,7 +836,7 @@ func TestLogFramesDuringRequest(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST290: Test limit negotiation picks minimum of host and cartridge max_frame and max_chunk
+// TEST290: Limit negotiation picks minimum
 func Test290_LimitsNegotiation(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
@@ -876,7 +876,7 @@ func Test290_LimitsNegotiation(t *testing.T) {
 	assert.True(t, hostLimits.MaxChunk > 0)
 }
 
-// TEST291: Test binary payload with all 256 byte values roundtrips through host-cartridge communication
+// TEST291: Binary payload roundtrip (all 256 byte values)
 func Test291_BinaryPayloadRoundtrip(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
@@ -950,7 +950,7 @@ func Test291_BinaryPayloadRoundtrip(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST292: Test three sequential requests get distinct MessageIds on the wire
+// TEST292: Sequential requests get distinct MessageIds
 func Test292_MessageIdUniqueness(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
@@ -1021,7 +1021,7 @@ func Test292_MessageIdUniqueness(t *testing.T) {
 	}
 }
 
-// TEST293: Test CartridgeRuntime handler registration and lookup by exact and non-existent cap URN
+// TEST293: Test CartridgeRuntime Op registration and lookup by exact and non-existent cap URN
 func Test293_CartridgeRuntimeHandlerRegistration(t *testing.T) {
 	runtime, err := NewCartridgeRuntime([]byte(testCBORManifest))
 	require.NoError(t, err)
@@ -1357,7 +1357,7 @@ func TestCartridgeSuddenDisconnect(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST299: Test empty payload request and response roundtrip through host-cartridge communication
+// TEST299: Empty payload request/response roundtrip
 func Test299_EmptyPayloadRoundtrip(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()

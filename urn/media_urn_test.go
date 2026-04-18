@@ -583,7 +583,7 @@ func Test552_is_file_path_array(t *testing.T) {
 	assert.False(t, strListUrn.IsFilePathArray())
 }
 
-// TEST553: is_any_file_path returns true for both scalar and list file-path
+// TEST553: is_any_file_path returns true for both scalar and array file-path
 func Test553_is_any_file_path(t *testing.T) {
 	fpUrn, err := NewMediaUrnFromString(standard.MediaFilePath)
 	require.NoError(t, err)
@@ -604,7 +604,7 @@ func Test553_is_any_file_path(t *testing.T) {
 }
 
 
-// TEST558: predicates are consistent with constants -- every constant triggers exactly the expected predicates
+// TEST558: predicates are consistent with constants — every constant triggers exactly the expected predicates
 func Test558_predicate_constant_consistency(t *testing.T) {
 	// MEDIA_INTEGER must be numeric, text, scalar, NOT binary/bool/image/audio/video
 	intUrn, err := NewMediaUrnFromString(standard.MediaInteger)
@@ -738,7 +738,7 @@ func Test628_media_urn_constants_format(t *testing.T) {
 	assert.True(t, len(standard.MediaIdentity) >= 6 && standard.MediaIdentity[:6] == "media:")
 }
 
-// TEST555: with_tag and without_tag on MediaUrn
+// TEST555: with_tag adds a tag and without_tag removes it
 func Test555_with_tag_and_without_tag(t *testing.T) {
 	urn, err := NewMediaUrnFromString("media:string")
 	require.NoError(t, err)
@@ -762,7 +762,7 @@ func Test555_with_tag_and_without_tag(t *testing.T) {
 	assert.True(t, urn.Equals(same))
 }
 
-// TEST556: image_media_urn_for_ext creates valid image URN
+// TEST556: image_media_urn_for_ext creates valid image media URN
 func Test556_image_media_urn_for_ext(t *testing.T) {
 	jpgUrn := ImageMediaUrnForExt("jpg")
 	parsed, err := NewMediaUrnFromString(jpgUrn)
@@ -774,7 +774,7 @@ func Test556_image_media_urn_for_ext(t *testing.T) {
 	assert.Equal(t, "jpg", ext)
 }
 
-// TEST557: audio_media_urn_for_ext creates valid audio URN
+// TEST557: audio_media_urn_for_ext creates valid audio media URN
 func Test557_audio_media_urn_for_ext(t *testing.T) {
 	mp3Urn := AudioMediaUrnForExt("mp3")
 	parsed, err := NewMediaUrnFromString(mp3Urn)

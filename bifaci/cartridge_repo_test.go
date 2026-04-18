@@ -36,7 +36,7 @@ func makeTestRegistry(id string, entry CartridgeRegistryEntry) CartridgeRegistry
 	}
 }
 
-// TEST320: Construct CartridgeInfo and verify fields
+// TEST320-335: CartridgeRepoServer and CartridgeRepoClient tests
 func Test320_cartridge_info_construction(t *testing.T) {
 	cartridge := CartridgeInfo{
 		Id:                "testcartridge",
@@ -67,7 +67,6 @@ func Test320_cartridge_info_construction(t *testing.T) {
 	}
 }
 
-// TEST321: Verify IsSigned() method
 func Test321_cartridge_info_is_signed(t *testing.T) {
 	cartridge := CartridgeInfo{
 		Id:       "testcartridge",
@@ -94,7 +93,6 @@ func Test321_cartridge_info_is_signed(t *testing.T) {
 	}
 }
 
-// TEST322: Verify BuildForPlatform() method
 func Test322_cartridge_info_build_for_platform(t *testing.T) {
 	cartridge := CartridgeInfo{
 		Id:      "testcartridge",
@@ -148,7 +146,6 @@ func Test322_cartridge_info_build_for_platform(t *testing.T) {
 	}
 }
 
-// TEST323: Validate registry schema version
 func Test323_cartridge_repo_server_validate_registry(t *testing.T) {
 	registry := CartridgeRegistry{
 		SchemaVersion: "4.0",
@@ -179,7 +176,6 @@ func Test323_cartridge_repo_server_validate_registry(t *testing.T) {
 	}
 }
 
-// TEST324: Transform v4 registry to flat cartridge array
 func Test324_cartridge_repo_server_transform_to_array(t *testing.T) {
 	versions := makeTestVersions("darwin-arm64")
 	entry := CartridgeRegistryEntry{
@@ -228,7 +224,6 @@ func Test324_cartridge_repo_server_transform_to_array(t *testing.T) {
 	}
 }
 
-// TEST325: Get all cartridges via GetCartridges()
 func Test325_cartridge_repo_server_get_cartridges(t *testing.T) {
 	entry := CartridgeRegistryEntry{
 		Name:          "Test Cartridge",
@@ -258,7 +253,6 @@ func Test325_cartridge_repo_server_get_cartridges(t *testing.T) {
 	}
 }
 
-// TEST326: Get cartridge by ID
 func Test326_cartridge_repo_server_get_cartridge_by_id(t *testing.T) {
 	entry := CartridgeRegistryEntry{
 		Name:          "Test Cartridge",
@@ -296,7 +290,6 @@ func Test326_cartridge_repo_server_get_cartridge_by_id(t *testing.T) {
 	}
 }
 
-// TEST327: Search cartridges by text query
 func Test327_cartridge_repo_server_search_cartridges(t *testing.T) {
 	entry := CartridgeRegistryEntry{
 		Name:          "PDF Cartridge",
@@ -335,7 +328,6 @@ func Test327_cartridge_repo_server_search_cartridges(t *testing.T) {
 	}
 }
 
-// TEST328: Filter cartridges by category
 func Test328_cartridge_repo_server_get_by_category(t *testing.T) {
 	entry := CartridgeRegistryEntry{
 		Name:          "Doc Cartridge",
@@ -374,7 +366,6 @@ func Test328_cartridge_repo_server_get_by_category(t *testing.T) {
 	}
 }
 
-// TEST329: Find cartridges by cap URN
 func Test329_cartridge_repo_server_get_by_cap(t *testing.T) {
 	capUrn := `cap:in="media:pdf";op=disbind;out="media:disbound-page;textable;list"`
 	entry := CartridgeRegistryEntry{
@@ -415,7 +406,6 @@ func Test329_cartridge_repo_server_get_by_cap(t *testing.T) {
 	}
 }
 
-// TEST330: CartridgeRepo cache update
 func Test330_cartridge_repo_client_update_cache(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
@@ -444,7 +434,6 @@ func Test330_cartridge_repo_client_update_cache(t *testing.T) {
 	}
 }
 
-// TEST331: Get suggestions for missing cap
 func Test331_cartridge_repo_client_get_suggestions(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
@@ -479,17 +468,16 @@ func Test331_cartridge_repo_client_get_suggestions(t *testing.T) {
 	}
 }
 
-// TEST332: Get cartridge by ID from client
 func Test332_cartridge_repo_client_get_cartridge(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
 	registry := &CartridgeRegistryResponse{
 		Cartridges: []CartridgeInfo{
 			{
-				Id:      "testcartridge",
-				Name:    "Test Cartridge",
-				Version: "1.0.0",
-				Caps:    []CartridgeCapSummary{},
+				Id:       "testcartridge",
+				Name:     "Test Cartridge",
+				Version:  "1.0.0",
+				Caps:     []CartridgeCapSummary{},
 				Versions: makeTestVersions("darwin-arm64"),
 			},
 		},
@@ -511,7 +499,6 @@ func Test332_cartridge_repo_client_get_cartridge(t *testing.T) {
 	}
 }
 
-// TEST333: Get all available caps
 func Test333_cartridge_repo_client_get_all_caps(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
@@ -521,17 +508,17 @@ func Test333_cartridge_repo_client_get_all_caps(t *testing.T) {
 	registry := &CartridgeRegistryResponse{
 		Cartridges: []CartridgeInfo{
 			{
-				Id:      "cartridge1",
-				Name:    "Cartridge 1",
-				Version: "1.0.0",
-				Caps:    []CartridgeCapSummary{{Urn: cap1, Title: "Cap 1"}},
+				Id:       "cartridge1",
+				Name:     "Cartridge 1",
+				Version:  "1.0.0",
+				Caps:     []CartridgeCapSummary{{Urn: cap1, Title: "Cap 1"}},
 				Versions: makeTestVersions("darwin-arm64"),
 			},
 			{
-				Id:      "cartridge2",
-				Name:    "Cartridge 2",
-				Version: "1.0.0",
-				Caps:    []CartridgeCapSummary{{Urn: cap2, Title: "Cap 2"}},
+				Id:       "cartridge2",
+				Name:     "Cartridge 2",
+				Version:  "1.0.0",
+				Caps:     []CartridgeCapSummary{{Urn: cap2, Title: "Cap 2"}},
 				Versions: makeTestVersions("darwin-arm64"),
 			},
 		},
@@ -561,7 +548,6 @@ func Test333_cartridge_repo_client_get_all_caps(t *testing.T) {
 	}
 }
 
-// TEST334: Check if client needs sync
 func Test334_cartridge_repo_client_needs_sync(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 	urls := []string{"https://example.com/cartridges"}
@@ -578,7 +564,6 @@ func Test334_cartridge_repo_client_needs_sync(t *testing.T) {
 	}
 }
 
-// TEST335: Server creates response, client consumes it
 func Test335_cartridge_repo_server_client_integration(t *testing.T) {
 	capUrn := `cap:in="media:test";op=test;out="media:result"`
 	entry := CartridgeRegistryEntry{
@@ -636,7 +621,7 @@ func Test335_cartridge_repo_server_client_integration(t *testing.T) {
 	}
 }
 
-// TEST630: CartridgeRepo creation starts with empty cartridge list
+// TEST630: Verify CartridgeRepo creation starts with empty cartridge list
 func Test630_cartridge_repo_creation(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 	if len(repo.GetAllCartridges()) != 0 {
@@ -644,7 +629,7 @@ func Test630_cartridge_repo_creation(t *testing.T) {
 	}
 }
 
-// TEST631: needs_sync returns true with empty cache
+// TEST631: Verify needs_sync returns true with empty cache and non-empty URLs
 func Test631_needs_sync_empty_cache(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 	urls := []string{"https://example.com/cartridges"}
