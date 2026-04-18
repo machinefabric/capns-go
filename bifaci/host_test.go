@@ -191,7 +191,7 @@ func Test243_host_error_variants(t *testing.T) {
 	assert.Contains(t, recvErr.Error(), "Receive error")
 }
 
-// TEST244: Test HostError conversion creates correct error type
+// TEST244: Test AsyncHostError::from converts CborError to Cbor variant
 func Test244_host_error_conversion(t *testing.T) {
 	// Test creating Cbor error
 	err := &HostError{
@@ -202,7 +202,7 @@ func Test244_host_error_conversion(t *testing.T) {
 	assert.Contains(t, err.Error(), "CBOR error")
 }
 
-// TEST245: Test HostError Io variant
+// TEST245: Test AsyncHostError::from converts io::Error to Io variant
 func Test245_host_error_io_variant(t *testing.T) {
 	err := &HostError{
 		Type:    HostErrorTypeIo,
@@ -213,7 +213,7 @@ func Test245_host_error_io_variant(t *testing.T) {
 	assert.Contains(t, err.Error(), "read timeout")
 }
 
-// TEST246: Test ResponseChunk can be copied with same data
+// TEST246: Test AsyncHostError Clone implementation produces equal values
 func Test246_response_chunk_copy(t *testing.T) {
 	original := &ResponseChunk{
 		Payload: []byte("test"),

@@ -213,19 +213,19 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test215 | `Test215_read_multiple_frames` | TEST215: Test reading multiple sequential frames from a single buffer | bifaci/io_test.go:281 |
 | test216 | `Test216_write_frame_rejects_oversized` | TEST216: Test write_frame rejects frames exceeding max_frame limit | bifaci/io_test.go:315 |
 | test217 | `Test217_read_frame_rejects_oversized` | TEST217: Test read_frame rejects incoming frames exceeding the negotiated max_frame limit | bifaci/io_test.go:334 |
-| test218 | `Test218_write_chunked` | TEST218: Test write_chunked splits data into chunks respecting max_chunk (updated for stream multiplexing) | bifaci/io_test.go:355 |
-| test219 | `Test219_write_chunked_empty` | TEST219: Test write_chunked with empty data produces STREAM_START + STREAM_END + END | bifaci/io_test.go:413 |
-| test220 | `Test220_write_chunked_exact_chunk_size` | TEST220: Test write_chunked with data exactly equal to max_chunk produces STREAM_START + CHUNK + STREAM_END + END | bifaci/io_test.go:456 |
+| test218 | `Test218_write_chunked` | TEST218: Test write_chunked splits data into chunks respecting max_chunk and reconstructs correctly | bifaci/io_test.go:355 |
+| test219 | `Test219_write_chunked_empty` | TEST219: Test write_chunked with empty data produces a single EOF chunk | bifaci/io_test.go:413 |
+| test220 | `Test220_write_chunked_exact_chunk_size` | TEST220: Test write_chunked with data exactly equal to max_chunk produces exactly one chunk | bifaci/io_test.go:456 |
 | test221 | `Test221_read_frame_eof` | TEST221: Test read_frame returns Ok(None) on clean EOF (empty stream) | bifaci/io_test.go:493 |
-| test222 | `Test222_read_frame_truncated_length_prefix` | TEST222: Test read_frame handles truncated length prefix | bifaci/io_test.go:504 |
-| test223 | `Test223_read_frame_truncated_body` | TEST223: Test read_frame returns error on truncated frame body | bifaci/io_test.go:515 |
+| test222 | `Test222_read_frame_truncated_length_prefix` | TEST222: Test read_frame handles truncated length prefix (fewer than 4 bytes available) | bifaci/io_test.go:504 |
+| test223 | `Test223_read_frame_truncated_body` | TEST223: Test read_frame returns error on truncated frame body (length prefix says more bytes than available) | bifaci/io_test.go:515 |
 | test224 | `Test224_message_id_uint_roundtrip` | TEST224: Test MessageId::Uint roundtrips through encode/decode | bifaci/io_test.go:531 |
 | test225 | `Test225_decode_non_map_value` | TEST225: Test decode_frame rejects non-map CBOR values (e.g., array, integer, string) | bifaci/io_test.go:551 |
 | test226 | `Test226_decode_missing_version` | TEST226: Test decode_frame rejects CBOR map missing required version field | bifaci/io_test.go:562 |
 | test227 | `Test227_decode_invalid_frame_type_value` | TEST227: Test decode_frame rejects CBOR map with invalid frame_type value | bifaci/io_test.go:577 |
 | test228 | `Test228_decode_missing_id` | TEST228: Test decode_frame rejects CBOR map missing required id field | bifaci/io_test.go:591 |
-| test229 | `Test229_frame_reader_writer_set_limits` | TEST229: Test FrameReader/FrameWriter SetLimits updates the negotiated limits | bifaci/io_test.go:605 |
-| test230 | `Test230_sync_handshake` | TEST230: Test sync handshake exchanges HELLO frames and negotiates minimum limits | bifaci/io_test.go:629 |
+| test229 | `Test229_frame_reader_writer_set_limits` | TEST229: Test FrameReader/FrameWriter set_limits updates the negotiated limits | bifaci/io_test.go:605 |
+| test230 | `Test230_sync_handshake` | TEST230: Test async handshake exchanges HELLO frames and negotiates minimum limits | bifaci/io_test.go:629 |
 | test231 | `Test231_handshake_rejects_non_hello` | TEST231: Test handshake fails when peer sends non-HELLO frame | bifaci/io_test.go:727 |
 | test232 | `Test232_handshake_rejects_missing_manifest` | TEST232: Test handshake fails when cartridge HELLO is missing required manifest | bifaci/io_test.go:763 |
 | test233 | `Test233_binary_payload_all_byte_values` | TEST233: Test binary payload with all 256 byte values roundtrips through encode/decode | bifaci/io_test.go:797 |
@@ -239,21 +239,21 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test241 | `Test241_cartridge_response_streaming_empty_chunks` | TEST241: Test CartridgeResponse::Streaming with empty chunks vec returns empty concatenation | bifaci/host_test.go:113 |
 | test242 | `Test242_cartridge_response_streaming_preallocation` | TEST242: Test CartridgeResponse::Streaming concatenated capacity is pre-allocated correctly for large payloads | bifaci/host_test.go:127 |
 | test243 | `Test243_host_error_variants` | TEST243: Test AsyncHostError variants display correct error messages | bifaci/host_test.go:146 |
-| test244 | `Test244_host_error_conversion` | TEST244: Test HostError conversion creates correct error type | bifaci/host_test.go:195 |
-| test245 | `Test245_host_error_io_variant` | TEST245: Test HostError Io variant | bifaci/host_test.go:206 |
-| test246 | `Test246_response_chunk_copy` | TEST246: Test ResponseChunk can be copied with same data | bifaci/host_test.go:217 |
+| test244 | `Test244_host_error_conversion` | TEST244: Test AsyncHostError::from converts CborError to Cbor variant | bifaci/host_test.go:195 |
+| test245 | `Test245_host_error_io_variant` | TEST245: Test AsyncHostError::from converts io::Error to Io variant | bifaci/host_test.go:206 |
+| test246 | `Test246_response_chunk_copy` | TEST246: Test AsyncHostError Clone implementation produces equal values | bifaci/host_test.go:217 |
 | test247 | `Test247_response_chunk_clone` | TEST247: Test ResponseChunk Clone produces independent copy with same data | bifaci/host_test.go:241 |
-| test248 | `Test248_register_and_find_handler` | TEST248: Test register handler by exact cap URN and find it by the same URN | bifaci/cartridge_runtime_test.go:99 |
-| test249 | `Test249_raw_handler` | TEST249: Test register_raw handler works with bytes directly without deserialization | bifaci/cartridge_runtime_test.go:117 |
-| test250 | `Test250_typed_handler_deserialization` | TEST250: Test register typed handler deserializes JSON and executes correctly | bifaci/cartridge_runtime_test.go:155 |
-| test251 | `Test251_typed_handler_rejects_invalid_json` | TEST251: Test typed handler returns error for invalid JSON input | bifaci/cartridge_runtime_test.go:195 |
+| test248 | `Test248_register_and_find_handler` | TEST248: Test register_op and find_handler by exact cap URN | bifaci/cartridge_runtime_test.go:99 |
+| test249 | `Test249_raw_handler` | TEST249: Test register_op handler echoes bytes directly | bifaci/cartridge_runtime_test.go:117 |
+| test250 | `Test250_typed_handler_deserialization` | TEST250: Test Op handler collects input and processes it | bifaci/cartridge_runtime_test.go:155 |
+| test251 | `Test251_typed_handler_rejects_invalid_json` | TEST251: Test Op handler propagates errors through RuntimeError::Handler | bifaci/cartridge_runtime_test.go:195 |
 | test252 | `Test252_find_handler_unknown_cap` | TEST252: Test find_handler returns None for unregistered cap URNs | bifaci/cartridge_runtime_test.go:224 |
-| test253 | `Test253_handler_is_send_sync` | TEST253: Test handler function can be cloned via Arc and sent across threads (Send + Sync) | bifaci/cartridge_runtime_test.go:237 |
-| test254 | `Test254_no_peer_invoker` | TEST254: Test NoPeerInvoker always returns PeerRequest error regardless of arguments | bifaci/cartridge_runtime_test.go:275 |
-| test255 | `Test255_no_peer_invoker_with_arguments` | TEST255: Test NoPeerInvoker returns error even with valid arguments | bifaci/cartridge_runtime_test.go:287 |
-| test256 | `Test256_new_cartridge_runtime_with_valid_json` | TEST256: Test NewCartridgeRuntime stores manifest data and parses when valid | bifaci/cartridge_runtime_test.go:299 |
-| test257 | `Test257_new_cartridge_runtime_with_invalid_json` | TEST257: Test NewCartridgeRuntime with invalid JSON still creates runtime (manifest is None) | bifaci/cartridge_runtime_test.go:314 |
-| test258 | `Test258_new_cartridge_runtime_with_manifest_struct` | TEST258: Test NewCartridgeRuntimeWithManifest creates runtime with valid manifest data | bifaci/cartridge_runtime_test.go:329 |
+| test253 | `Test253_handler_is_send_sync` | TEST253: Test OpFactory can be cloned via Arc and sent across tasks (Send + Sync) | bifaci/cartridge_runtime_test.go:237 |
+| test254 | `Test254_no_peer_invoker` | TEST254: Test NoPeerInvoker always returns PeerRequest error | bifaci/cartridge_runtime_test.go:275 |
+| test255 | `Test255_no_peer_invoker_with_arguments` | TEST255: Test NoPeerInvoker call_with_bytes also returns error | bifaci/cartridge_runtime_test.go:287 |
+| test256 | `Test256_new_cartridge_runtime_with_valid_json` | TEST256: Test CartridgeRuntime::with_manifest_json stores manifest data and parses when valid | bifaci/cartridge_runtime_test.go:299 |
+| test257 | `Test257_new_cartridge_runtime_with_invalid_json` | TEST257: Test CartridgeRuntime::new with invalid JSON still creates runtime (manifest is None) | bifaci/cartridge_runtime_test.go:314 |
+| test258 | `Test258_new_cartridge_runtime_with_manifest_struct` | TEST258: Test CartridgeRuntime::with_manifest creates runtime with valid manifest data | bifaci/cartridge_runtime_test.go:329 |
 | test259 | `Test259_extract_effective_payload_non_cbor` | TEST259: Test extract_effective_payload with non-CBOR content_type returns raw payload unchanged | bifaci/cartridge_runtime_test.go:349 |
 | test260 | `Test260_extract_effective_payload_no_content_type` | TEST260: Test extract_effective_payload with empty content_type returns raw payload unchanged | bifaci/cartridge_runtime_test.go:361 |
 | test261 | `Test261_extract_effective_payload_cbor_match` | TEST261: Test extract_effective_payload with CBOR content extracts matching argument value | bifaci/cartridge_runtime_test.go:373 |
@@ -576,26 +576,26 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test1107 | `Test1107_SlotValueOverridesCapSettingsPerStep` | TEST1107: step_0 has a slot_value override, step_1 falls through to cap_settings. Proves per-step override works while shared settings remain as fallback. | planner/argument_binding_test.go:177 |
 | test1108 | `Test1108_ResolveAllPassesNodeID` | TEST1108: ResolveAll with node_id threads correctly through to each binding. | planner/argument_binding_test.go:219 |
 | test1109 | `Test1109_SlotKeyUsesNodeIDNotCapUrn` | TEST1109: Slot key uses node_id, NOT cap_urn — a slot_value keyed by cap_urn must not match. | planner/argument_binding_test.go:270 |
-| test1155 | `Test1155_FromStrandProducesSingleStrandMachine` | TestFromStrandProducesSingleStrandMachine verifies that a single-step planner strand yields a Machine with exactly one MachineStrand and one edge. TEST1155: Building a machine from one strand produces one strand with one resolved edge. | machine/machine_test.go:152 |
-| test1156 | `Test1156_FromStrandsKeepStrandsDisjoint` | TestFromStrandsKeepStrandsDisjoint verifies that FromStrands does NOT join two strands even when their URNs are type-compatible at runtime. TEST1156: Building from multiple strands keeps them disjoint and preserves input/output anchors. | machine/machine_test.go:169 |
-| test1157 | `Test1157_FromStrandsEmptyInputFailsHard` | TestFromStrandsEmptyInputFailsHard verifies that passing an empty slice to FromStrands returns a NoCapabilitySteps error. TEST1157: Building from zero strands fails with NoCapabilitySteps. | machine/machine_test.go:196 |
-| test1158 | `Test1158_MachineIsEquivalentIsStrictPositional` | TestMachineIsEquivalentIsStrictPositional verifies that swapping strand order breaks IsEquivalent — strand declaration order is part of identity. TEST1158: Machine equivalence is strict about strand order and rejects reordered strands. | machine/machine_test.go:210 |
-| test1159 | `Test1159_MachineStrandIsEquivalentWalksNodeBijection` | TestMachineStrandIsEquivalentWalksNodeBijection verifies that two MachineStrands built from the same planner strand are equivalent. TEST1159: MachineStrand equivalence accepts two separately built but structurally identical strands. | machine/machine_test.go:234 |
-| test1160 | `Test1160_InputOutputAnchors` | TestInputOutputAnchors verifies that the resolver correctly identifies root (input) and leaf (output) nodes for a simple linear strand. TEST1160: Creating a MachineRun stores the canonical notation and starts in the Pending state. | machine/machine_test.go:253 |
-| test1163 | `Test1163_ParseSingleStrandTwoCapsConnectedViaSharedNode` | TestParseSingleStrandTwoCapsConnectedViaSharedNode verifies that two wirings sharing the node name `txt` become a single connected component (one strand). TEST1163: Parsing one connected strand yields a single machine strand with both caps resolved. | machine/machine_test.go:365 |
-| test1164 | `Test1164_ParseTwoDisconnectedStrandsYieldsTwoMachineStrands` | TestParseTwoDisconnectedStrandsYieldsTwoMachineStrands verifies that wirings with no shared node names are partitioned into two separate strands. TEST1164: Parsing two disconnected strand definitions yields two separate machine strands. | machine/machine_test.go:395 |
+| test1155 | `Test1155_FromStrandProducesSingleStrandMachine` | TEST1155: Building a machine from one strand produces one strand with one resolved edge. | machine/machine_test.go:152 |
+| test1156 | `Test1156_FromStrandsKeepStrandsDisjoint` | TEST1156: Building from multiple strands keeps them disjoint and preserves input/output anchors. | machine/machine_test.go:169 |
+| test1157 | `Test1157_FromStrandsEmptyInputFailsHard` | TEST1157: Building from zero strands fails with NoCapabilitySteps. | machine/machine_test.go:196 |
+| test1158 | `Test1158_MachineIsEquivalentIsStrictPositional` | TEST1158: Machine equivalence is strict about strand order and rejects reordered strands. | machine/machine_test.go:210 |
+| test1159 | `Test1159_MachineStrandIsEquivalentWalksNodeBijection` | TEST1159: MachineStrand equivalence accepts two separately built but structurally identical strands. | machine/machine_test.go:234 |
+| test1160 | `Test1160_InputOutputAnchors` | TEST1160: Creating a MachineRun stores the canonical notation and starts in the Pending state. | machine/machine_test.go:253 |
+| test1163 | `Test1163_ParseSingleStrandTwoCapsConnectedViaSharedNode` | TEST1163: Parsing one connected strand yields a single machine strand with both caps resolved. | machine/machine_test.go:365 |
+| test1164 | `Test1164_ParseTwoDisconnectedStrandsYieldsTwoMachineStrands` | TEST1164: Parsing two disconnected strand definitions yields two separate machine strands. | machine/machine_test.go:395 |
 | test1165 | `Test1165_ParseUnknownCapInRegistryReturnsAbstractionError` | TEST1165: Parsing fails hard when a referenced cap is missing from the registry cache. | machine/machine_test.go:498 |
-| test1166 | `Test1166_ParseDuplicateAliasReturnsError` | TestParseDuplicateAliasReturnsError verifies that two headers with the same alias name return ErrDuplicateAlias. TEST1166: Duplicate header aliases are reported as syntax errors. | machine/machine_test.go:468 |
-| test1167 | `Test1167_ParseUndefinedAliasReturnsError` | TestParseUndefinedAliasReturnsError verifies that a wiring referencing an undefined cap alias returns ErrUndefinedAlias. TEST1167: Wiring that references an undefined alias is reported as a syntax error. | machine/machine_test.go:485 |
-| test1168 | `Test1168_ParseNodeNameCollidesWithCapAlias` | TestParseNodeNameCollidesWithCapAlias verifies that a node name matching a cap alias returns ErrNodeAliasCollision. TEST1168: Parsing rejects node names that collide with declared cap aliases. | machine/machine_test.go:515 |
-| test1169 | `Test1169_ForEachSetsIsLoop` | TestForEachSetsIsLoop verifies that a ForEach step preceding a Cap step sets IsLoop=true on the resulting MachineEdge. TEST1169: Loop markers in notation set the resolved edge loop flag on the following cap. | machine/machine_test.go:288 |
-| test1170 | `Test1170_CollectIsElided` | TestCollectIsElided verifies that a Collect step produces no MachineEdge — the resolved strand has only one edge (from the Cap step). TEST1170: Parsing and then serializing machine notation round-trips to the canonical form. | machine/machine_test.go:325 |
-| test1171 | `Test1171_ParseEmptyInputReturnsError` | TestParseEmptyInputReturnsError verifies that empty/whitespace input fails with an ErrEmpty error. TEST1171: Empty machine notation is rejected as a syntax error. | machine/machine_test.go:441 |
-| test1172 | `Test1172_MachineStringRepr` | TestMachineStringRepr verifies the String() representation of a machine. TEST1172: Serializing a two-step strand emits the expected aliases and node names. | machine/machine_test.go:576 |
-| test1173 | `Test1173_ToMachineNotationRoundTrips` | TestToMachineNotationRoundTrips verifies that a machine parsed from notation and re-serialized produces a machine equivalent to the original. TEST1173: Serializing and reparsing a machine preserves strict machine equivalence. | machine/machine_test.go:536 |
-| test1175 | `Test1175_EmptyMachineSerializesToEmpty` | TestEmptyMachineSerializesToEmpty verifies that an empty machine produces an empty string from ToMachineNotation. TEST1175: Serializing an empty machine produces an empty string. | machine/machine_test.go:567 |
-| test1187 | `Test1187_StrandNonEquivalenceDifferentCap` | TestStrandNonEquivalenceDifferentCap verifies that strands with different cap URNs are not equivalent. TEST1187: Strand resolution fails when a referenced cap is not found in the registry. | machine/machine_test.go:645 |
-| test1189 | `Test1189_StrandEquivalenceWithDifferentNodeAllocationOrders` | TestStrandEquivalenceWithDifferentNodeAllocationOrders verifies that two equivalent strands remain equivalent even when their NodeIds were allocated in different positions (bijection check). TEST1189: Strand resolution keeps canonical anchor ordering stable across equivalent builds. | machine/machine_test.go:596 |
+| test1166 | `Test1166_ParseDuplicateAliasReturnsError` | TEST1166: Duplicate header aliases are reported as syntax errors. | machine/machine_test.go:468 |
+| test1167 | `Test1167_ParseUndefinedAliasReturnsError` | TEST1167: Wiring that references an undefined alias is reported as a syntax error. | machine/machine_test.go:485 |
+| test1168 | `Test1168_ParseNodeNameCollidesWithCapAlias` | TEST1168: Parsing rejects node names that collide with declared cap aliases. | machine/machine_test.go:515 |
+| test1169 | `Test1169_ForEachSetsIsLoop` | TEST1169: Loop markers in notation set the resolved edge loop flag on the following cap. | machine/machine_test.go:288 |
+| test1170 | `Test1170_CollectIsElided` | TEST1170: Parsing and then serializing machine notation round-trips to the canonical form. | machine/machine_test.go:325 |
+| test1171 | `Test1171_ParseEmptyInputReturnsError` | TEST1171: Empty machine notation is rejected as a syntax error. | machine/machine_test.go:441 |
+| test1172 | `Test1172_MachineStringRepr` | TEST1172: Serializing a two-step strand emits the expected aliases and node names. | machine/machine_test.go:576 |
+| test1173 | `Test1173_ToMachineNotationRoundTrips` | TEST1173: Serializing and reparsing a machine preserves strict machine equivalence. | machine/machine_test.go:536 |
+| test1175 | `Test1175_EmptyMachineSerializesToEmpty` | TEST1175: Serializing an empty machine produces an empty string. | machine/machine_test.go:567 |
+| test1187 | `Test1187_StrandNonEquivalenceDifferentCap` | TEST1187: Strand resolution fails when a referenced cap is not found in the registry. | machine/machine_test.go:645 |
+| test1189 | `Test1189_StrandEquivalenceWithDifferentNodeAllocationOrders` | TEST1189: Strand resolution keeps canonical anchor ordering stable across equivalent builds. | machine/machine_test.go:596 |
 | | | | |
 | unnumbered | `TestArgumentsMultiple` | Mirror-specific coverage: Test multiple arguments are correctly serialized in CBOR payload | bifaci/integration_test.go:1592 |
 | unnumbered | `TestArgumentsRoundtrip` | Mirror-specific coverage: Test host call with unified CBOR arguments sends correct content_type and payload | bifaci/integration_test.go:1232 |

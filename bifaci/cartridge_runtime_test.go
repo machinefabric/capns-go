@@ -95,7 +95,7 @@ func bytesToFrameChannel(payload []byte) <-chan Frame {
 	return ch
 }
 
-// TEST248: Test register handler by exact cap URN and find it by the same URN
+// TEST248: Test register_op and find_handler by exact cap URN
 func Test248_register_and_find_handler(t *testing.T) {
 	runtime, err := NewCartridgeRuntime([]byte(testManifest))
 	if err != nil {
@@ -113,7 +113,7 @@ func Test248_register_and_find_handler(t *testing.T) {
 	}
 }
 
-// TEST249: Test register_raw handler works with bytes directly without deserialization
+// TEST249: Test register_op handler echoes bytes directly
 func Test249_raw_handler(t *testing.T) {
 	runtime, err := NewCartridgeRuntime([]byte(testManifest))
 	if err != nil {
@@ -151,7 +151,7 @@ func Test249_raw_handler(t *testing.T) {
 	}
 }
 
-// TEST250: Test register typed handler deserializes JSON and executes correctly
+// TEST250: Test Op handler collects input and processes it
 func Test250_typed_handler_deserialization(t *testing.T) {
 	runtime, err := NewCartridgeRuntime([]byte(testManifest))
 	if err != nil {
@@ -191,7 +191,7 @@ func Test250_typed_handler_deserialization(t *testing.T) {
 	}
 }
 
-// TEST251: Test typed handler returns error for invalid JSON input
+// TEST251: Test Op handler propagates errors through RuntimeError::Handler
 func Test251_typed_handler_rejects_invalid_json(t *testing.T) {
 	runtime, err := NewCartridgeRuntime([]byte(testManifest))
 	if err != nil {
@@ -233,7 +233,7 @@ func Test252_find_handler_unknown_cap(t *testing.T) {
 	}
 }
 
-// TEST253: Test handler function can be cloned via Arc and sent across threads (Send + Sync)
+// TEST253: Test OpFactory can be cloned via Arc and sent across tasks (Send + Sync)
 func Test253_handler_is_send_sync(t *testing.T) {
 	runtime, err := NewCartridgeRuntime([]byte(testManifest))
 	if err != nil {
@@ -271,7 +271,7 @@ func Test253_handler_is_send_sync(t *testing.T) {
 	<-doneCh
 }
 
-// TEST254: Test NoPeerInvoker always returns PeerRequest error regardless of arguments
+// TEST254: Test NoPeerInvoker always returns PeerRequest error
 func Test254_no_peer_invoker(t *testing.T) {
 	peer := &noPeerInvoker{}
 	_, err := peer.Invoke(`cap:in="media:void";op=test;out="media:void"`, []cap.CapArgumentValue{})
@@ -283,7 +283,7 @@ func Test254_no_peer_invoker(t *testing.T) {
 	}
 }
 
-// TEST255: Test NoPeerInvoker returns error even with valid arguments
+// TEST255: Test NoPeerInvoker call_with_bytes also returns error
 func Test255_no_peer_invoker_with_arguments(t *testing.T) {
 	peer := &noPeerInvoker{}
 	args := []cap.CapArgumentValue{
@@ -295,7 +295,7 @@ func Test255_no_peer_invoker_with_arguments(t *testing.T) {
 	}
 }
 
-// TEST256: Test NewCartridgeRuntime stores manifest data and parses when valid
+// TEST256: Test CartridgeRuntime::with_manifest_json stores manifest data and parses when valid
 func Test256_new_cartridge_runtime_with_valid_json(t *testing.T) {
 	runtime, err := NewCartridgeRuntime([]byte(testManifest))
 	if err != nil {
@@ -310,7 +310,7 @@ func Test256_new_cartridge_runtime_with_valid_json(t *testing.T) {
 	}
 }
 
-// TEST257: Test NewCartridgeRuntime with invalid JSON still creates runtime (manifest is None)
+// TEST257: Test CartridgeRuntime::new with invalid JSON still creates runtime (manifest is None)
 func Test257_new_cartridge_runtime_with_invalid_json(t *testing.T) {
 	runtime, err := NewCartridgeRuntime([]byte("not json"))
 	if err != nil {
@@ -325,7 +325,7 @@ func Test257_new_cartridge_runtime_with_invalid_json(t *testing.T) {
 	}
 }
 
-// TEST258: Test NewCartridgeRuntimeWithManifest creates runtime with valid manifest data
+// TEST258: Test CartridgeRuntime::with_manifest creates runtime with valid manifest data
 func Test258_new_cartridge_runtime_with_manifest_struct(t *testing.T) {
 	var manifest CapManifest
 	if err := json.Unmarshal([]byte(testManifest), &manifest); err != nil {

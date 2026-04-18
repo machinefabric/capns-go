@@ -351,7 +351,7 @@ func Test217_read_frame_rejects_oversized(t *testing.T) {
 	}
 }
 
-// TEST218: Test write_chunked splits data into chunks respecting max_chunk (updated for stream multiplexing)
+// TEST218: Test write_chunked splits data into chunks respecting max_chunk and reconstructs correctly
 func Test218_write_chunked(t *testing.T) {
 	var buf bytes.Buffer
 	writer := NewFrameWriter(&buf)
@@ -409,7 +409,7 @@ func Test218_write_chunked(t *testing.T) {
 	}
 }
 
-// TEST219: Test write_chunked with empty data produces STREAM_START + STREAM_END + END
+// TEST219: Test write_chunked with empty data produces a single EOF chunk
 func Test219_write_chunked_empty(t *testing.T) {
 	var buf bytes.Buffer
 	writer := NewFrameWriter(&buf)
@@ -452,7 +452,7 @@ func Test219_write_chunked_empty(t *testing.T) {
 	}
 }
 
-// TEST220: Test write_chunked with data exactly equal to max_chunk produces STREAM_START + CHUNK + STREAM_END + END
+// TEST220: Test write_chunked with data exactly equal to max_chunk produces exactly one chunk
 func Test220_write_chunked_exact_chunk_size(t *testing.T) {
 	var buf bytes.Buffer
 	writer := NewFrameWriter(&buf)
@@ -500,7 +500,7 @@ func Test221_read_frame_eof(t *testing.T) {
 	}
 }
 
-// TEST222: Test read_frame handles truncated length prefix
+// TEST222: Test read_frame handles truncated length prefix (fewer than 4 bytes available)
 func Test222_read_frame_truncated_length_prefix(t *testing.T) {
 	buf := bytes.NewBuffer([]byte{0x00, 0x00}) // Only 2 bytes of 4-byte length prefix
 	reader := NewFrameReader(buf)
@@ -511,7 +511,7 @@ func Test222_read_frame_truncated_length_prefix(t *testing.T) {
 	}
 }
 
-// TEST223: Test read_frame returns error on truncated frame body
+// TEST223: Test read_frame returns error on truncated frame body (length prefix says more bytes than available)
 func Test223_read_frame_truncated_body(t *testing.T) {
 	var buf bytes.Buffer
 	// Write a length prefix indicating 100 bytes
@@ -601,7 +601,7 @@ func Test228_decode_missing_id(t *testing.T) {
 	}
 }
 
-// TEST229: Test FrameReader/FrameWriter SetLimits updates the negotiated limits
+// TEST229: Test FrameReader/FrameWriter set_limits updates the negotiated limits
 func Test229_frame_reader_writer_set_limits(t *testing.T) {
 	buf := &bytes.Buffer{}
 	reader := NewFrameReader(buf)
@@ -625,7 +625,7 @@ func Test229_frame_reader_writer_set_limits(t *testing.T) {
 	}
 }
 
-// TEST230: Test sync handshake exchanges HELLO frames and negotiates minimum limits
+// TEST230: Test async handshake exchanges HELLO frames and negotiates minimum limits
 func Test230_sync_handshake(t *testing.T) {
 	// Use in-memory buffer for testing instead of pipes
 	// This simulates the handshake without needing bidirectional sockets
