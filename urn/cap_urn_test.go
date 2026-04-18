@@ -374,7 +374,7 @@ func Test018_matching_case_sensitive_values(t *testing.T) {
 	assert.True(t, cap1.Accepts(cap3))
 }
 
-// TEST019: Missing tag in instance causes rejection -- pattern's tags are constraints
+// TEST019: Missing tag in instance causes rejection — pattern's tags are constraints
 func Test019_missing_tag_handling(t *testing.T) {
 	cap, err := NewCapUrnFromString(testUrn("op=generate"))
 	require.NoError(t, err)
@@ -481,7 +481,7 @@ func Test023_builder_preserves_case(t *testing.T) {
 	assert.Equal(t, "ValueWithCase", value)
 }
 
-// TEST024: Directional accepts -- pattern's tags are constraints, instance must satisfy
+// TEST024: Directional accepts — pattern's tags are constraints, instance must satisfy
 func Test024_directional_accepts(t *testing.T) {
 	cap1, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
 	require.NoError(t, err)
@@ -501,7 +501,7 @@ func Test024_directional_accepts(t *testing.T) {
 	// Routing: general request(op) accepts specific cap(op,ext) — instance has op → match
 	cap4, err := NewCapUrnFromString(testUrn("op=generate"))
 	require.NoError(t, err)
-	assert.True(t, cap4.Accepts(cap1))  // cap4 only requires op, cap1 has it
+	assert.True(t, cap4.Accepts(cap1)) // cap4 only requires op, cap1 has it
 	// Reverse: specific cap(op,ext) rejects general request missing ext
 	assert.False(t, cap1.Accepts(cap4))
 
@@ -891,7 +891,7 @@ func Test048_matching_semantics_wildcard_direction_matches_anything(t *testing.T
 	assert.True(t, cap.Accepts(request2), "Wildcard cap also accepts simpler requests")
 }
 
-// TEST049: Non-overlapping tags -- neither direction accepts
+// TEST049: Non-overlapping tags — neither direction accepts
 func Test049_matching_semantics_cross_dimension_independence(t *testing.T) {
 	cap, err := NewCapUrnFromString(testUrn("op=generate"))
 	require.NoError(t, err)

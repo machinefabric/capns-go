@@ -5,12 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TEST171: Test all FrameType discriminants roundtrip through uint8 conversion preserving identity
+// TEST171: Test all FrameType discriminants roundtrip through u8 conversion preserving identity
 func Test171_frame_type_roundtrip(t *testing.T) {
 	types := []FrameType{
 		FrameTypeReq,
@@ -35,7 +34,7 @@ func Test171_frame_type_roundtrip(t *testing.T) {
 	}
 }
 
-// TEST172: Test FrameType::from_u8 returns invalid for values outside the valid discriminant range
+// TEST172: Test FrameType::from_u8 returns None for values outside the valid discriminant range
 func Test172_frame_type_valid_range(t *testing.T) {
 	validTypes := map[uint8]bool{
 		0:  true,  // HELLO
@@ -115,10 +114,12 @@ func Test174_message_id_new_uuid_roundtrip(t *testing.T) {
 		t.Fatal("Expected non-empty UUID string")
 	}
 
-	// Verify it's a valid UUID format
-	_, err := uuid.Parse(uuidStr)
+	recovered, err := NewMessageIdFromUuidString(uuidStr)
 	if err != nil {
-		t.Errorf("Invalid UUID string: %v", err)
+		t.Fatalf("expected UUID string to parse: %v", err)
+	}
+	if !id.Equals(recovered) {
+		t.Fatalf("roundtrip mismatch: original=%s recovered=%s", id.ToString(), recovered.ToString())
 	}
 }
 
@@ -132,7 +133,7 @@ func Test175_message_id_uuid_distinct(t *testing.T) {
 	}
 }
 
-// TEST176: Test MessageId::Uint does not produce a UUID string, to_uuid_string returns empty
+// TEST176: Test MessageId::Uint does not produce a UUID string, to_uuid_string returns None
 func Test176_message_id_uint_no_uuid_string(t *testing.T) {
 	id := NewMessageIdFromUint(42)
 	if id.IsUuid() {
@@ -145,17 +146,13 @@ func Test176_message_id_uint_no_uuid_string(t *testing.T) {
 	}
 }
 
-// TEST177: Test MessageId::from_uuid_bytes rejects invalid UUID bytes
-func Test177_message_id_from_uuid_invalid_bytes(t *testing.T) {
-	// UUID must be exactly 16 bytes
-	_, err := NewMessageIdFromUuid([]byte{1, 2, 3}) // too short
-	if err == nil {
-		t.Error("Expected error for invalid UUID length")
-	}
-
-	_, err = NewMessageIdFromUuid(make([]byte, 20)) // too long
-	if err == nil {
-		t.Error("Expected error for invalid UUID length")
+// TEST177: Test MessageId::from_uuid_str rejects invalid UUID strings
+func Test177_message_id_from_invalid_uuid_str(t *testing.T) {
+	invalid := []string{"not-a-uuid", "", "12345678"}
+	for _, value := range invalid {
+		if _, err := NewMessageIdFromUuidString(value); err == nil {
+			t.Fatalf("expected invalid UUID string %q to fail", value)
+		}
 	}
 }
 
@@ -180,19 +177,18 @@ func Test178_message_id_as_bytes(t *testing.T) {
 	}
 }
 
-// TEST179: Test MessageId::default creates appropriate variant
+// TEST179: Test MessageId::default creates a UUID variant (not Uint)
 func Test179_message_id_default(t *testing.T) {
 	id := NewMessageIdDefault()
-	// Default is Uint 0
-	if id.IsUuid() {
-		t.Error("Default should be Uint variant")
+	if !id.IsUuid() {
+		t.Fatal("default MessageId must be UUID")
 	}
-	if id.ToString() != "0" {
-		t.Errorf("Default Uint should be 0, got %s", id.ToString())
+	if id.ToUuidString() == "" {
+		t.Fatal("default UUID MessageId must render to UUID string")
 	}
 }
 
-// TEST180: Test Frame::hello without manifest produces correct HELLO frame
+// TEST180: Test Frame::hello without manifest produces correct HELLO frame for host side
 func Test180_frame_hello_without_manifest(t *testing.T) {
 	frame := NewHello(DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer)
 	if frame.FrameType != FrameTypeHello {
@@ -207,7 +203,7 @@ func Test180_frame_hello_without_manifest(t *testing.T) {
 	}
 }
 
-// TEST181: Test Frame::hello_with_manifest produces HELLO with manifest bytes
+// TEST181: Test Frame::hello_with_manifest produces HELLO with manifest bytes for cartridge side
 func Test181_frame_hello_with_manifest(t *testing.T) {
 	manifest := []byte(`{"name":"test"}`)
 	frame := NewHelloWithManifest(DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer, manifest)
@@ -248,7 +244,7 @@ func Test182_frame_req(t *testing.T) {
 
 // TEST183: REMOVED - RES frame no longer supported in protocol v2
 
-// TEST184: Test Frame::chunk stores seq and payload for streaming (updated for stream_id)
+// TEST184: Test Frame::chunk stores seq and payload for streaming (with stream_id)
 func Test184_frame_chunk(t *testing.T) {
 	id := NewMessageIdRandom()
 	streamId := "stream-123"
@@ -273,7 +269,7 @@ func Test184_frame_chunk(t *testing.T) {
 	}
 }
 
-// TEST185: Test Frame::err stores error code and message
+// TEST185: Test Frame::err stores error code and message in metadata
 func Test185_frame_err(t *testing.T) {
 	id := NewMessageIdRandom()
 	code := "HANDLER_ERROR"
@@ -292,7 +288,7 @@ func Test185_frame_err(t *testing.T) {
 	}
 }
 
-// TEST186: Test Frame::log stores level and message
+// TEST186: Test Frame::log stores level and message in metadata
 func Test186_frame_log(t *testing.T) {
 	id := NewMessageIdRandom()
 	level := "info"
@@ -311,7 +307,7 @@ func Test186_frame_log(t *testing.T) {
 	}
 }
 
-// TEST187: Test Frame::end with payload sets final payload
+// TEST187: Test Frame::end with payload sets eof and optional final payload
 func Test187_frame_end_with_payload(t *testing.T) {
 	id := NewMessageIdRandom()
 	payload := []byte("final data")
@@ -329,7 +325,7 @@ func Test187_frame_end_with_payload(t *testing.T) {
 	}
 }
 
-// TEST188: Test Frame::end without payload
+// TEST188: Test Frame::end without payload still sets eof marker
 func Test188_frame_end_without_payload(t *testing.T) {
 	id := NewMessageIdRandom()
 	frame := NewEnd(id, []byte{})
@@ -345,11 +341,54 @@ func Test188_frame_end_without_payload(t *testing.T) {
 	}
 }
 
-// TEST189: Test chunk with offset (future enhancement - not yet implemented)
+// TEST189: Test chunk_with_offset sets offset on all chunks but len only on seq=0 (with stream_id)
 func Test189_frame_chunk_with_offset(t *testing.T) {
-	// This test documents expected behavior for offset/len fields
-	// Currently not implemented in Go version
-	t.Skip("Offset/len fields not yet implemented in Go version")
+	id := NewMessageIdRandom()
+	streamId := "stream-456"
+
+	payload1 := []byte("data")
+	checksum1 := ComputeChecksum(payload1)
+	totalLen := uint64(1000)
+	first := NewChunkWithOffset(id, streamId, 0, payload1, 0, &totalLen, false, 0, checksum1)
+	if first.Seq != 0 {
+		t.Fatalf("expected first chunk seq 0, got %d", first.Seq)
+	}
+	if first.Offset == nil || *first.Offset != 0 {
+		t.Fatalf("expected first chunk offset 0, got %v", first.Offset)
+	}
+	if first.Len == nil || *first.Len != totalLen {
+		t.Fatalf("expected first chunk len %d, got %v", totalLen, first.Len)
+	}
+	if first.IsEof() {
+		t.Fatal("first chunk must not be EOF")
+	}
+
+	payload2 := []byte("mid")
+	checksum2 := ComputeChecksum(payload2)
+	midTotalLen := uint64(9999)
+	mid := NewChunkWithOffset(id, streamId, 3, payload2, 500, &midTotalLen, false, 3, checksum2)
+	if mid.Offset == nil || *mid.Offset != 500 {
+		t.Fatalf("expected mid chunk offset 500, got %v", mid.Offset)
+	}
+	if mid.Len != nil {
+		t.Fatalf("non-first chunk must not carry len, got %v", *mid.Len)
+	}
+	if mid.IsEof() {
+		t.Fatal("mid chunk must not be EOF")
+	}
+
+	payload3 := []byte("last")
+	checksum3 := ComputeChecksum(payload3)
+	last := NewChunkWithOffset(id, streamId, 5, payload3, 900, nil, true, 5, checksum3)
+	if last.Offset == nil || *last.Offset != 900 {
+		t.Fatalf("expected last chunk offset 900, got %v", last.Offset)
+	}
+	if last.Len != nil {
+		t.Fatalf("last non-first chunk must not carry len, got %v", *last.Len)
+	}
+	if !last.IsEof() {
+		t.Fatal("last chunk must be EOF")
+	}
 }
 
 // TEST190: Test Frame::heartbeat creates minimal frame with no payload or metadata
@@ -368,7 +407,7 @@ func Test190_frame_heartbeat(t *testing.T) {
 	}
 }
 
-// TEST191: Test error_code and error_message return empty for non-Err frame types
+// TEST191: Test error_code and error_message return None for non-Err frame types
 func Test191_error_accessors_on_non_err_frame(t *testing.T) {
 	req := NewReq(NewMessageIdRandom(), "cap:op=test", []byte{}, "text/plain")
 	if req.ErrorCode() != "" {
@@ -384,7 +423,7 @@ func Test191_error_accessors_on_non_err_frame(t *testing.T) {
 	}
 }
 
-// TEST192: Test log_level and log_message return empty for non-Log frame types
+// TEST192: Test log_level and log_message return None for non-Log frame types
 func Test192_log_accessors_on_non_log_frame(t *testing.T) {
 	req := NewReq(NewMessageIdRandom(), "cap:op=test", []byte{}, "text/plain")
 	if req.LogLevel() != "" {
@@ -395,7 +434,7 @@ func Test192_log_accessors_on_non_log_frame(t *testing.T) {
 	}
 }
 
-// TEST193: Test hello_max_frame and hello_max_chunk return appropriate values
+// TEST193: Test hello_max_frame and hello_max_chunk return None for non-Hello frame types
 func Test193_hello_accessors_on_non_hello_frame(t *testing.T) {
 	err := NewErr(NewMessageIdRandom(), "E", "m")
 	// ERR frames have no Meta with hello limits
@@ -406,7 +445,7 @@ func Test193_hello_accessors_on_non_hello_frame(t *testing.T) {
 	}
 }
 
-// TEST194: Test newFrame sets version and defaults correctly, optional fields are nil
+// TEST194: Test Frame::new sets version and defaults correctly, optional fields are None
 func Test194_frame_new_defaults(t *testing.T) {
 	id := NewMessageIdRandom()
 	frame := newFrame(FrameTypeChunk, id)
@@ -446,10 +485,9 @@ func Test194_frame_new_defaults(t *testing.T) {
 	}
 }
 
-// TEST195: Test default frame type (Go doesn't have Frame::default, skip or use REQ as default)
+// TEST195: Test Frame::default creates a Req frame (the documented default)
 func Test195_frame_default_type(t *testing.T) {
-	// Go doesn't have a Frame::default(), but we can verify REQ is a common default
-	frame := NewReq(NewMessageIdDefault(), "cap:op=test", []byte{}, "text/plain")
+	frame := DefaultFrame()
 	if frame.FrameType != FrameTypeReq {
 		t.Error("Expected REQ frame type")
 	}
@@ -458,7 +496,7 @@ func Test195_frame_default_type(t *testing.T) {
 	}
 }
 
-// TEST196: Test IsEof returns false when eof field is nil (unset)
+// TEST196: Test is_eof returns false when eof field is None (unset)
 func Test196_is_eof_when_none(t *testing.T) {
 	frame := newFrame(FrameTypeChunk, MessageId{uintValue: new(uint64)})
 	if frame.IsEof() {
@@ -466,7 +504,7 @@ func Test196_is_eof_when_none(t *testing.T) {
 	}
 }
 
-// TEST197: Test IsEof returns false when eof field is explicitly false
+// TEST197: Test is_eof returns false when eof field is explicitly Some(false)
 func Test197_is_eof_when_false(t *testing.T) {
 	frame := newFrame(FrameTypeChunk, MessageId{uintValue: new(uint64)})
 	falseVal := false
@@ -560,7 +598,7 @@ func Test201_hello_manifest_binary_data(t *testing.T) {
 	}
 }
 
-// TEST202: Test MessageId Eq semantics: equal UUIDs are equal, different ones are not
+// TEST202: Test MessageId Eq/Hash semantics: equal UUIDs are equal, different ones are not
 func Test202_message_id_equality_and_hash(t *testing.T) {
 	id1 := MessageId{uuidBytes: []byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}}
 	id2 := MessageId{uuidBytes: []byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}}
@@ -599,7 +637,7 @@ func Test203_message_id_cross_variant_inequality(t *testing.T) {
 	}
 }
 
-// TEST204: Test Frame::req with empty payload stores empty slice not nil
+// TEST204: Test Frame::req with empty payload stores Some(empty vec) not None
 func Test204_req_frame_empty_payload(t *testing.T) {
 	frame := NewReq(NewMessageIdRandom(), "cap:op=test", []byte{}, "text/plain")
 	if frame.Payload == nil {

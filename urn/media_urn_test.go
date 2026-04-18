@@ -5,20 +5,21 @@ import (
 	"testing"
 
 	"github.com/machinefabric/capdag-go/standard"
+	taggedurn "github.com/machinefabric/tagged-urn-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TEST057: Test parsing simple media URN verifies correct structure with no version, subtype, or profile
-func Test057_parse_simple(t *testing.T) {
+// Mirror-specific coverage: Test parsing simple media URN verifies correct structure with no version, subtype, or profile
+func TestParseSimple(t *testing.T) {
 	urn, err := NewMediaUrnFromString("media:string")
 	require.NoError(t, err)
 	assert.True(t, urn.HasTag("string"))
 	assert.False(t, urn.HasTag("textable"))
 }
 
-// TEST058: Test parsing media URN with marker tags works correctly
-func Test058_parse_with_subtype(t *testing.T) {
+// Mirror-specific coverage: Test parsing media URN with marker tags works correctly
+func TestParseWithSubtype(t *testing.T) {
 	urn, err := NewMediaUrnFromString("media:string")
 	require.NoError(t, err)
 	assert.True(t, urn.HasTag("string"))
@@ -27,17 +28,22 @@ func Test058_parse_with_subtype(t *testing.T) {
 	assert.False(t, urn.IsList())
 }
 
-// TEST059: Test parsing media URN with profile extracts profile URL correctly
-func Test059_parse_with_profile(t *testing.T) {
+// Mirror-specific coverage: Test parsing media URN with profile extracts profile URL correctly
+func TestParseWithProfile(t *testing.T) {
 	urn, err := NewMediaUrnFromString("media:string;textable")
 	require.NoError(t, err)
 	assert.True(t, urn.HasTag("textable"))
 }
 
-// TEST060: Test wrong prefix fails with InvalidPrefix error
+// TEST060: Test wrong prefix fails with InvalidPrefix error showing expected and actual prefix
 func Test060_wrong_prefix_fails(t *testing.T) {
-	_, err := NewMediaUrnFromString("notmedia:string")
-	assert.Error(t, err)
+	_, err := NewMediaUrnFromString("cap:string")
+	require.Error(t, err)
+	taggedErr, ok := err.(*taggedurn.TaggedUrnError)
+	require.True(t, ok)
+	assert.Equal(t, taggedurn.ErrorPrefixMismatch, taggedErr.Code)
+	assert.Contains(t, taggedErr.Error(), "media")
+	assert.Contains(t, taggedErr.Error(), "cap")
 }
 
 // TEST061: Test is_binary returns true when textable tag is absent (binary = not textable)
@@ -106,7 +112,7 @@ func Test062_is_record(t *testing.T) {
 	assert.False(t, listUrn2.IsRecord()) // list, no record marker
 }
 
-// TEST063: Test is_scalar returns true when no list marker is present (scalar = default cardinality)
+// TEST063: Test is_scalar returns true when list marker tag is absent (scalar is default)
 func Test063_is_scalar(t *testing.T) {
 	stringUrn, err := NewMediaUrnFromString(standard.MediaString)
 	require.NoError(t, err)
@@ -127,7 +133,7 @@ func Test063_is_scalar(t *testing.T) {
 	assert.False(t, listUrn.IsScalar())
 }
 
-// TEST064: Test is_list returns true when list tag is present indicating ordered collection
+// TEST064: Test is_list returns true when list marker tag is present indicating ordered collection
 func Test064_is_list(t *testing.T) {
 	strList, err := NewMediaUrnFromString(standard.MediaStringList)
 	require.NoError(t, err)
@@ -142,29 +148,35 @@ func Test064_is_list(t *testing.T) {
 	assert.False(t, scalar.IsList())
 }
 
-// TEST065: Test is_structured returns true for record (has internal structure)
-func Test065_is_structured(t *testing.T) {
+// TEST065: Test is_opaque returns true when record marker is absent (opaque is default)
+func Test065_is_opaque(t *testing.T) {
+	stringUrn, err := NewMediaUrnFromString(standard.MediaString)
+	require.NoError(t, err)
+	assert.True(t, stringUrn.IsOpaque())
+
+	strList, err := NewMediaUrnFromString(standard.MediaStringList)
+	require.NoError(t, err)
+	assert.True(t, strList.IsOpaque())
+
+	pdfUrn, err := NewMediaUrnFromString(standard.MediaPDF)
+	require.NoError(t, err)
+	assert.True(t, pdfUrn.IsOpaque())
+
+	textUrn, err := NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+	assert.True(t, textUrn.IsOpaque())
+
 	objUrn, err := NewMediaUrnFromString(standard.MediaObject)
 	require.NoError(t, err)
-	assert.True(t, objUrn.IsStructured())
+	assert.False(t, objUrn.IsOpaque())
 
 	jsonUrn, err := NewMediaUrnFromString(standard.MediaJSON)
 	require.NoError(t, err)
-	assert.True(t, jsonUrn.IsStructured())
+	assert.False(t, jsonUrn.IsOpaque())
 
-	// list of opaque items (no record marker) is NOT structured
-	strList, err := NewMediaUrnFromString(standard.MediaStringList)
+	objListUrn, err := NewMediaUrnFromString(standard.MediaObjectList)
 	require.NoError(t, err)
-	assert.False(t, strList.IsStructured())
-
-	// scalar opaque is NOT structured
-	scalar, err := NewMediaUrnFromString("media:string")
-	require.NoError(t, err)
-	assert.False(t, scalar.IsStructured())
-
-	binary, err := NewMediaUrnFromString("media:")
-	require.NoError(t, err)
-	assert.False(t, binary.IsStructured())
+	assert.False(t, objListUrn.IsOpaque())
 }
 
 // TEST066: Test is_json returns true only when json marker tag is present for JSON representation
@@ -208,15 +220,15 @@ func Test068_is_void(t *testing.T) {
 	assert.False(t, nonVoid.IsVoid())
 }
 
-// TEST069: Test simple constructor creates media URN with type tag
-func Test069_constructor(t *testing.T) {
+// Mirror-specific coverage: Test simple constructor creates media URN with type tag
+func TestConstructor(t *testing.T) {
 	urn, err := NewMediaUrnFromString("media:string")
 	require.NoError(t, err)
 	assert.True(t, urn.HasTag("string"))
 }
 
-// TEST070: Test with_subtype constructor creates media URN with subtype
-func Test070_with_subtype_constructor(t *testing.T) {
+// Mirror-specific coverage: Test with_subtype constructor creates media URN with subtype
+func TestWithSubtypeConstructor(t *testing.T) {
 	urn, err := NewMediaUrnFromString("media:application;subtype=json")
 	require.NoError(t, err)
 	assert.True(t, urn.HasTag("application"))

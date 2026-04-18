@@ -28,7 +28,6 @@ func createCapWithSchema(t *testing.T, argSchema interface{}) *Cap {
 	return cap
 }
 
-// TEST051: Test input validation succeeds with valid positional argument
 // TEST163: Test argument schema validation succeeds with valid JSON matching schema
 func Test163_schema_validator_validate_argument_with_schema_success(t *testing.T) {
 	validator := NewSchemaValidator()
@@ -68,7 +67,6 @@ func Test163_schema_validator_validate_argument_with_schema_success(t *testing.T
 	assert.NoError(t, err)
 }
 
-// TEST052: Test input validation fails with MissingRequiredArgument when required arg missing
 // TEST164: Test argument schema validation fails with JSON missing required fields
 func Test164_schema_validator_validate_argument_with_schema_failure(t *testing.T) {
 	validator := NewSchemaValidator()
@@ -113,8 +111,8 @@ func Test164_schema_validator_validate_argument_with_schema_failure(t *testing.T
 	assert.Contains(t, schemaErr.Details, "name")
 }
 
-// TEST053: Test input validation fails with InvalidArgumentType when wrong type provided
-func Test053_schema_validator_validate_argument_with_schema_nil_schema(t *testing.T) {
+// Additional Go-specific coverage: nil schema skips direct schema validation
+func TestSchemaValidator_ValidateArgumentWithSchema_NilSchema(t *testing.T) {
 	validator := NewSchemaValidator()
 
 	// Create argument using new architecture

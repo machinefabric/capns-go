@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
+	cborlib "github.com/fxamacker/cbor/v2"
 	"github.com/machinefabric/capdag-go/cap"
 	"github.com/machinefabric/capdag-go/urn"
-	cborlib "github.com/fxamacker/cbor/v2"
 )
 
 const testManifest = `{"name":"TestCartridge","version":"1.0.0","description":"Test cartridge","caps":[{"urn":"cap:in=\"media:void\";op=test;out=\"media:void\"","title":"Test","command":"test"}]}`
@@ -418,8 +418,8 @@ func Test264_extract_effective_payload_cbor_not_array(t *testing.T) {
 	}
 }
 
-// TEST265: Test extract_effective_payload with invalid cap URN returns CapUrn error
-func Test265_extract_effective_payload_invalid_cap_urn(t *testing.T) {
+// Mirror-specific coverage: Test extract_effective_payload with invalid cap URN returns CapUrn error
+func TestExtractEffectivePayloadInvalidCapUrn(t *testing.T) {
 	payload := []byte("test")
 	_, err := extractEffectivePayload(payload, "application/cbor", "not-a-cap-urn")
 	if err == nil {
@@ -876,7 +876,7 @@ func Test341_StdinPrecedenceOverFilePath(t *testing.T) {
 				Required: true,
 				Sources: []cap.ArgSource{
 					stdinSource("media:"), // First
-					positionSource(0),          // Second
+					positionSource(0),     // Second
 				},
 			},
 		},
@@ -1165,7 +1165,7 @@ func Test348_FilePathConversionRespectsSourceOrder(t *testing.T) {
 				MediaUrn: "media:file-path;textable",
 				Required: true,
 				Sources: []cap.ArgSource{
-					positionSource(0),          // First
+					positionSource(0),     // First
 					stdinSource("media:"), // Second
 				},
 			},
@@ -1207,9 +1207,9 @@ func Test349_FilePathMultipleSourcesFallback(t *testing.T) {
 				MediaUrn: "media:file-path;textable",
 				Required: true,
 				Sources: []cap.ArgSource{
-					cliFlagSource("--file"),    // First (not provided)
-					positionSource(0),          // Second (provided)
-					stdinSource("media:"), // Third (not used)
+					cliFlagSource("--file"), // First (not provided)
+					positionSource(0),       // Second (provided)
+					stdinSource("media:"),   // Third (not used)
 				},
 			},
 		},

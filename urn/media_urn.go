@@ -22,12 +22,16 @@ func NewMediaUrnFromString(s string) (*MediaUrn, error) {
 		return nil, err
 	}
 
-	// Verify it has the "media:" prefix by checking the string representation
+	// Verify it has the "media:" prefix and preserve the actual prefix in the error.
 	urnStr := urn.String()
 	if !strings.HasPrefix(strings.ToLower(urnStr), "media:") {
+		actual := s
+		if idx := strings.Index(actual, ":"); idx >= 0 {
+			actual = actual[:idx]
+		}
 		return nil, &taggedurn.TaggedUrnError{
 			Code:    taggedurn.ErrorPrefixMismatch,
-			Message: "invalid prefix for media URN: expected 'media:'",
+			Message: fmt.Sprintf("invalid prefix for media URN: expected 'media:', got '%s:'", actual),
 		}
 	}
 

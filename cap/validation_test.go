@@ -46,7 +46,7 @@ func cliFlagSource(flag string) ArgSource {
 // Input validation tests (051-052)
 // -------------------------------------------------------------------------
 
-// TEST051: Input validation succeeds with valid positional argument
+// TEST051: Test input validation succeeds with valid positional argument
 func Test051_input_validation_success(t *testing.T) {
 	u, err := urn.NewCapUrnFromString(valTestUrn("op=cap;type=test"))
 	require.NoError(t, err)
@@ -63,7 +63,7 @@ func Test051_input_validation_success(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TEST052: Input validation fails with MissingRequiredArgument when required arg missing
+// TEST052: Test input validation fails with MissingRequiredArgument when required arg missing
 func Test052_input_validation_missing_required(t *testing.T) {
 	u, err := urn.NewCapUrnFromString(valTestUrn("op=cap;type=test"))
 	require.NoError(t, err)
@@ -79,6 +79,35 @@ func Test052_input_validation_missing_required(t *testing.T) {
 	err = validator.ValidateArguments(cap, inputArgs, registry)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), standard.MediaString)
+}
+
+// TEST053: Test input validation fails with InvalidArgumentType when wrong type provided
+func Test053_input_validation_wrong_type(t *testing.T) {
+	u, err := urn.NewCapUrnFromString(valTestUrn("op=cap;type=test"))
+	require.NoError(t, err)
+	cap := NewCap(u, "Test Capability", "test-command")
+
+	cap.AddMediaSpec(media.NewMediaSpecDefWithSchema(
+		standard.MediaInteger,
+		"text/plain",
+		"https://capdag.com/schema/integer",
+		map[string]interface{}{"type": "integer"},
+	))
+	cap.AddArg(NewCapArg(standard.MediaInteger, true, []ArgSource{positionSource(0)}))
+
+	inputArgs := []interface{}{"not_a_number"}
+
+	validator := NewInputValidator()
+	registry, err := media.NewMediaUrnRegistry()
+	require.NoError(t, err)
+
+	err = validator.ValidateArguments(cap, inputArgs, registry)
+	require.Error(t, err)
+
+	validationErr, ok := err.(*ValidationError)
+	require.True(t, ok, "expected ValidationError")
+	assert.Equal(t, "InvalidArgumentType", validationErr.Type)
+	assert.Equal(t, standard.MediaInteger, validationErr.ArgumentName)
 }
 
 // -------------------------------------------------------------------------

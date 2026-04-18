@@ -8,6 +8,21 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
+func assertUintMetaValue(t *testing.T, meta map[string]interface{}, key string, expected uint64) {
+	t.Helper()
+	value, ok := meta[key]
+	if !ok {
+		t.Fatalf("Expected %s in Meta", key)
+	}
+	actual, ok := value.(uint64)
+	if !ok {
+		t.Fatalf("Expected %s to decode as uint64, got %T", key, value)
+	}
+	if actual != expected {
+		t.Fatalf("Expected %s %d, got %d", key, expected, actual)
+	}
+}
+
 // TEST205: Test REQ frame encode/decode roundtrip preserves all fields
 func Test205_req_frame_roundtrip(t *testing.T) {
 	id := NewMessageIdRandom()
@@ -40,7 +55,7 @@ func Test205_req_frame_roundtrip(t *testing.T) {
 	}
 }
 
-// TEST206: Test HELLO frame encode/decode roundtrip preserves metadata
+// TEST206: Test HELLO frame encode/decode roundtrip preserves max_frame, max_chunk, max_reorder_buffer
 func Test206_hello_frame_roundtrip(t *testing.T) {
 	original := NewHello(DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer)
 
@@ -60,9 +75,9 @@ func Test206_hello_frame_roundtrip(t *testing.T) {
 	if decoded.Meta == nil {
 		t.Error("Expected Meta map with limits")
 	}
-	if decoded.Meta["max_frame"] == nil {
-		t.Error("Expected max_frame in Meta")
-	}
+	assertUintMetaValue(t, decoded.Meta, "max_frame", uint64(DefaultMaxFrame))
+	assertUintMetaValue(t, decoded.Meta, "max_chunk", uint64(DefaultMaxChunk))
+	assertUintMetaValue(t, decoded.Meta, "max_reorder_buffer", uint64(DefaultMaxReorderBuffer))
 }
 
 // TEST207: Test ERR frame encode/decode roundtrip preserves error code and message
@@ -117,7 +132,7 @@ func Test208_log_frame_roundtrip(t *testing.T) {
 
 // TEST209: REMOVED - RES frame no longer supported in protocol v2
 
-// TEST210: Test END frame encode/decode roundtrip preserves payload
+// TEST210: Test END frame encode/decode roundtrip preserves eof marker and optional payload
 func Test210_end_frame_roundtrip(t *testing.T) {
 	id := NewMessageIdRandom()
 	payload := []byte("final data")
@@ -144,7 +159,7 @@ func Test210_end_frame_roundtrip(t *testing.T) {
 	}
 }
 
-// TEST211: Test HELLO with manifest encode/decode roundtrip preserves manifest bytes
+// TEST211: Test HELLO with manifest encode/decode roundtrip preserves manifest bytes and limits
 func Test211_hello_with_manifest_roundtrip(t *testing.T) {
 	manifest := []byte(`{"name":"test","version":"1.0.0"}`)
 	original := NewHelloWithManifest(DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer, manifest)
@@ -165,18 +180,22 @@ func Test211_hello_with_manifest_roundtrip(t *testing.T) {
 	if manifestBytes, ok := decoded.Meta["manifest"].([]byte); !ok || string(manifestBytes) != string(manifest) {
 		t.Errorf("Manifest mismatch: expected %s, got %v", string(manifest), decoded.Meta["manifest"])
 	}
+	assertUintMetaValue(t, decoded.Meta, "max_frame", uint64(DefaultMaxFrame))
+	assertUintMetaValue(t, decoded.Meta, "max_chunk", uint64(DefaultMaxChunk))
+	assertUintMetaValue(t, decoded.Meta, "max_reorder_buffer", uint64(DefaultMaxReorderBuffer))
 }
 
-// TEST212: Test chunk encode/decode roundtrip with streamId
+// TEST212: Test chunk_with_offset encode/decode roundtrip preserves offset, len, eof (with stream_id)
 func Test212_chunk_with_offset_roundtrip(t *testing.T) {
 	id := NewMessageIdRandom()
 	streamId := "test-stream"
-	seq := uint64(3)
-	payload := []byte("chunk data")
+	payload := []byte("data")
+	totalLen := uint64(5000)
+	offset := uint64(100)
 	chunkIndex := uint64(0)
 	checksum := ComputeChecksum(payload)
 
-	original := NewChunk(id, streamId, seq, payload, chunkIndex, checksum)
+	original := NewChunkWithOffset(id, streamId, 0, payload, offset, &totalLen, true, chunkIndex, checksum)
 	encoded, err := EncodeFrame(original)
 	if err != nil {
 		t.Fatalf("Encode failed: %v", err)
@@ -187,11 +206,26 @@ func Test212_chunk_with_offset_roundtrip(t *testing.T) {
 		t.Fatalf("Decode failed: %v", err)
 	}
 
-	if decoded.Seq != seq {
-		t.Errorf("Seq mismatch: expected %d, got %d", seq, decoded.Seq)
+	if decoded.FrameType != FrameTypeChunk {
+		t.Fatalf("FrameType mismatch: expected %v, got %v", FrameTypeChunk, decoded.FrameType)
+	}
+	if !decoded.Id.Equals(id) {
+		t.Fatalf("ID mismatch: expected %s, got %s", id.ToString(), decoded.Id.ToString())
+	}
+	if decoded.Seq != 0 {
+		t.Errorf("Seq mismatch: expected 0, got %d", decoded.Seq)
+	}
+	if decoded.Offset == nil || *decoded.Offset != offset {
+		t.Fatalf("Offset mismatch: expected %d, got %v", offset, decoded.Offset)
+	}
+	if decoded.Len == nil || *decoded.Len != totalLen {
+		t.Fatalf("Len mismatch: expected %d, got %v", totalLen, decoded.Len)
+	}
+	if !decoded.IsEof() {
+		t.Fatal("Expected eof to be true")
 	}
 	if string(decoded.Payload) != string(payload) {
-		t.Error("Payload mismatch")
+		t.Fatalf("Payload mismatch: expected %q, got %q", string(payload), string(decoded.Payload))
 	}
 }
 

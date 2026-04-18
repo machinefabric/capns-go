@@ -703,8 +703,8 @@ func Test287_HeartbeatFromHost(t *testing.T) {
 	assert.Equal(t, heartbeatID.ToString(), response.Id.ToString())
 }
 
-// TEST288: Test cartridge ERR frame is received by host as error
-func Test288_CartridgeErrorResponse(t *testing.T) {
+// Mirror-specific coverage: Test cartridge ERR frame is received by host as error
+func TestCartridgeErrorResponse(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()
@@ -760,8 +760,8 @@ func Test288_CartridgeErrorResponse(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST289: Test LOG frames sent during a request are transparently skipped by host
-func Test289_LogFramesDuringRequest(t *testing.T) {
+// Mirror-specific coverage: Test LOG frames sent during a request are transparently skipped by host
+func TestLogFramesDuringRequest(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()
@@ -1048,8 +1048,8 @@ func Test293_CartridgeRuntimeHandlerRegistration(t *testing.T) {
 	assert.Nil(t, runtime.FindHandler(`cap:in="media:void";op=unknown;out="media:void"`))
 }
 
-// TEST294: Test cartridge-initiated heartbeat mid-stream is handled transparently by host
-func Test294_HeartbeatDuringStreaming(t *testing.T) {
+// Mirror-specific coverage: Test cartridge-initiated heartbeat mid-stream is handled transparently by host
+func TestHeartbeatDuringStreaming(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()
@@ -1148,8 +1148,8 @@ func Test294_HeartbeatDuringStreaming(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST296: Test host does not echo back cartridge's heartbeat response (no infinite ping-pong)
-func Test296_HostInitiatedHeartbeatNoPingPong(t *testing.T) {
+// Mirror-specific coverage: Test host does not echo back cartridge's heartbeat response (no infinite ping-pong)
+func TestHostInitiatedHeartbeatNoPingPong(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()
@@ -1228,8 +1228,8 @@ func Test296_HostInitiatedHeartbeatNoPingPong(t *testing.T) {
 	<-done
 }
 
-// TEST297: Test host call with unified CBOR arguments sends correct content_type and payload
-func Test297_ArgumentsRoundtrip(t *testing.T) {
+// Mirror-specific coverage: Test host call with unified CBOR arguments sends correct content_type and payload
+func TestArgumentsRoundtrip(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()
@@ -1305,8 +1305,8 @@ func Test297_ArgumentsRoundtrip(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST298: Test host receives error when cartridge closes connection unexpectedly
-func Test298_CartridgeSuddenDisconnect(t *testing.T) {
+// Mirror-specific coverage: Test host receives error when cartridge closes connection unexpectedly
+func TestCartridgeSuddenDisconnect(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer hostRead.Close()
@@ -1413,8 +1413,8 @@ func Test299_EmptyPayloadRoundtrip(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST300: Test END frame without payload is handled as complete response with empty data
-func Test300_EndFrameNoPayload(t *testing.T) {
+// Mirror-specific coverage: Test END frame without payload is handled as complete response with empty data
+func TestEndFrameNoPayload(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()
@@ -1469,8 +1469,8 @@ func Test300_EndFrameNoPayload(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST301: Test streaming response sequence numbers are contiguous and start from 0
-func Test301_StreamingSequenceNumbers(t *testing.T) {
+// Mirror-specific coverage: Test streaming response sequence numbers are contiguous and start from 0
+func TestStreamingSequenceNumbers(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()
@@ -1545,8 +1545,8 @@ func Test301_StreamingSequenceNumbers(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST302: Test host request on a closed host returns error
-func Test302_RequestAfterShutdown(t *testing.T) {
+// Mirror-specific coverage: Test host request on a closed host returns error
+func TestRequestAfterShutdown(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 
 	var wg sync.WaitGroup
@@ -1588,8 +1588,8 @@ func Test302_RequestAfterShutdown(t *testing.T) {
 	assert.Error(t, err, "must fail on closed connection")
 }
 
-// TEST303: Test multiple arguments are correctly serialized in CBOR payload
-func Test303_ArgumentsMultiple(t *testing.T) {
+// Mirror-specific coverage: Test multiple arguments are correctly serialized in CBOR payload
+func TestArgumentsMultiple(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()
@@ -1660,9 +1660,9 @@ func Test303_ArgumentsMultiple(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST313: Test auto-chunking splits payload larger than max_chunk into CHUNK frames + END frame,
+// Mirror-specific coverage: Test auto-chunking splits payload larger than max_chunk into CHUNK frames + END frame,
 // and host concatenated() reassembles the full original data
-func Test313_AutoChunkingReassembly(t *testing.T) {
+func TestAutoChunkingReassembly(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()
@@ -1747,8 +1747,8 @@ func Test313_AutoChunkingReassembly(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST314: Test payload exactly equal to max_chunk produces single END frame (no CHUNK frames)
-func Test314_ExactMaxChunkSingleEnd(t *testing.T) {
+// Mirror-specific coverage: Test payload exactly equal to max_chunk produces single END frame (no CHUNK frames)
+func TestExactMaxChunkSingleEnd(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()
@@ -1812,8 +1812,8 @@ func Test314_ExactMaxChunkSingleEnd(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST315: Test payload of max_chunk + 1 produces exactly one CHUNK frame + one END frame
-func Test315_MaxChunkPlusOneSplitsIntoTwo(t *testing.T) {
+// Mirror-specific coverage: Test payload of max_chunk + 1 produces exactly one CHUNK frame + one END frame
+func TestMaxChunkPlusOneSplitsIntoTwo(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()
@@ -1891,8 +1891,8 @@ func Test315_MaxChunkPlusOneSplitsIntoTwo(t *testing.T) {
 	wg.Wait()
 }
 
-// TEST316: Test that concatenated() returns full payload while final_payload() returns only last chunk
-func Test316_ConcatenatedVsFinalPayloadDivergence(t *testing.T) {
+// Mirror-specific coverage: Test that concatenated() returns full payload while final_payload() returns only last chunk
+func TestConcatenatedVsFinalPayloadDivergence(t *testing.T) {
 	chunks := []*ResponseChunk{
 		{Payload: []byte("AAAA"), Seq: 0, IsEof: false},
 		{Payload: []byte("BBBB"), Seq: 1, IsEof: false},
@@ -1915,8 +1915,8 @@ func Test316_ConcatenatedVsFinalPayloadDivergence(t *testing.T) {
 		"concatenated and final_payload must diverge for multi-chunk responses")
 }
 
-// TEST317: Test auto-chunking preserves data integrity across chunk boundaries for 3x max_chunk payload
-func Test317_ChunkingDataIntegrity3x(t *testing.T) {
+// Mirror-specific coverage: Test auto-chunking preserves data integrity across chunk boundaries for 3x max_chunk payload
+func TestChunkingDataIntegrity3x(t *testing.T) {
 	hostWrite, cartridgeRead, cartridgeWrite, hostRead := createPipePair(t)
 	defer hostWrite.Close()
 	defer cartridgeRead.Close()

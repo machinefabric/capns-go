@@ -87,6 +87,19 @@ func NewMessageIdFromUuid(uuidBytes []byte) (MessageId, error) {
 	return MessageId{uuidBytes: uuidBytes}, nil
 }
 
+// NewMessageIdFromUuidString creates a MessageId from a UUID string.
+func NewMessageIdFromUuidString(value string) (MessageId, error) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return MessageId{}, err
+	}
+	bytes, err := id.MarshalBinary()
+	if err != nil {
+		return MessageId{}, err
+	}
+	return MessageId{uuidBytes: bytes}, nil
+}
+
 // NewMessageIdFromUint creates a MessageId from a uint64
 func NewMessageIdFromUint(value uint64) MessageId {
 	return MessageId{uintValue: &value}
@@ -99,10 +112,10 @@ func NewMessageIdRandom() MessageId {
 	return MessageId{uuidBytes: bytes}
 }
 
-// NewMessageIdDefault creates a default MessageId (uint 0)
+// NewMessageIdDefault creates a default MessageId.
+// Default MessageIds are UUID-based, matching the reference implementation.
 func NewMessageIdDefault() MessageId {
-	zero := uint64(0)
-	return MessageId{uintValue: &zero}
+	return NewMessageIdRandom()
 }
 
 // IsUuid returns true if this is a UUID-based ID
@@ -222,6 +235,32 @@ func NewChunk(reqId MessageId, streamId string, seq uint64, payload []byte, chun
 	return frame
 }
 
+// NewChunkWithOffset creates a CHUNK frame with byte offset metadata.
+// Offset is set on all chunks. Len is set only on the first chunk (chunkIndex == 0).
+// Eof is set only when isLast is true.
+func NewChunkWithOffset(
+	reqId MessageId,
+	streamId string,
+	seq uint64,
+	payload []byte,
+	offset uint64,
+	totalLen *uint64,
+	isLast bool,
+	chunkIndex uint64,
+	checksum uint64,
+) *Frame {
+	frame := NewChunk(reqId, streamId, seq, payload, chunkIndex, checksum)
+	frame.Offset = &offset
+	if chunkIndex == 0 {
+		frame.Len = totalLen
+	}
+	if isLast {
+		eof := true
+		frame.Eof = &eof
+	}
+	return frame
+}
+
 // NewStreamStart creates a STREAM_START frame to announce a new stream.
 //
 // Arguments:
@@ -269,6 +308,11 @@ func NewEnd(id MessageId, payload []byte) *Frame {
 // NewFrame creates a new frame with required fields (exported version).
 func NewFrame(frameType FrameType, id MessageId) *Frame {
 	return newFrame(frameType, id)
+}
+
+// DefaultFrame creates the documented default frame shape: a REQ frame with a default MessageId.
+func DefaultFrame() *Frame {
+	return newFrame(FrameTypeReq, NewMessageIdDefault())
 }
 
 // EndOk creates an END frame with exit_code=0 (success).
@@ -657,8 +701,8 @@ type flowState struct {
 //
 // (matches Rust ReorderBuffer)
 type ReorderBuffer struct {
-	flows             map[FlowKey]*flowState
-	MaxBufferPerFlow  int
+	flows            map[FlowKey]*flowState
+	MaxBufferPerFlow int
 }
 
 // NewReorderBuffer creates a new ReorderBuffer with the given per-flow capacity.

@@ -31,7 +31,7 @@ func Test088_resolve_from_registry_str(t *testing.T) {
 	assert.Equal(t, "https://capdag.com/schema/string", resolved.ProfileURI)
 }
 
-// TEST089: Test resolving object media URN from registry returns JSON media type
+// TEST089: Test resolving JSON media URN from registry returns JSON media type
 func Test089_resolve_from_registry_obj(t *testing.T) {
 	registry := testRegistry(t)
 	resolved, err := ResolveMediaUrn("media:record;textable", nil, registry)
@@ -39,7 +39,7 @@ func Test089_resolve_from_registry_obj(t *testing.T) {
 	assert.Equal(t, "application/json", resolved.MediaType)
 }
 
-// TEST090: Test resolving binary media URN from registry returns octet-stream and IsBinary true
+// TEST090: Test resolving binary media URN returns octet-stream and is_binary true
 func Test090_resolve_from_registry_binary(t *testing.T) {
 	registry := testRegistry(t)
 	resolved, err := ResolveMediaUrn("media:", nil, registry)
@@ -74,7 +74,7 @@ func Test091_resolve_custom_media_spec(t *testing.T) {
 	assert.Nil(t, resolved.Schema)
 }
 
-// TEST092: Test resolving custom object form media spec with schema from local media_specs
+// TEST092: Test resolving custom record media spec with schema from local media_specs
 func Test092_resolve_custom_with_schema(t *testing.T) {
 	registry := testRegistry(t)
 	schema := map[string]any{
@@ -213,7 +213,7 @@ func Test098_validate_no_duplicate_urns_passes_for_unique(t *testing.T) {
 // ResolvedMediaSpec tests
 // -------------------------------------------------------------------------
 
-// TEST099: Test ResolvedMediaSpec IsBinary returns true when textable tag is absent
+// TEST099: Test ResolvedMediaSpec is_binary returns true when textable tag is absent
 func Test099_resolved_is_binary(t *testing.T) {
 	resolved := &ResolvedMediaSpec{
 		SpecID:      "media:",
@@ -231,7 +231,7 @@ func Test099_resolved_is_binary(t *testing.T) {
 	assert.False(t, resolved.IsJSON())
 }
 
-// TEST100: Test ResolvedMediaSpec IsMap/IsRecord returns true for record media URN
+// TEST100: Test ResolvedMediaSpec is_record returns true when record marker is present
 func Test100_resolved_is_map(t *testing.T) {
 	resolved := &ResolvedMediaSpec{
 		SpecID:      standard.MediaJSON, // "media:json;record;textable"
@@ -251,7 +251,7 @@ func Test100_resolved_is_map(t *testing.T) {
 	assert.False(t, resolved.IsList())
 }
 
-// TEST101: Test ResolvedMediaSpec IsScalar returns true for form=scalar media URN
+// TEST101: Test ResolvedMediaSpec is_scalar returns true when list marker is absent
 func Test101_resolved_is_scalar(t *testing.T) {
 	resolved := &ResolvedMediaSpec{
 		SpecID:      "media:textable",
@@ -269,7 +269,7 @@ func Test101_resolved_is_scalar(t *testing.T) {
 	assert.False(t, resolved.IsList())
 }
 
-// TEST102: Test ResolvedMediaSpec IsList returns true for list media URN
+// TEST102: Test ResolvedMediaSpec is_list returns true when list marker is present
 func Test102_resolved_is_list(t *testing.T) {
 	resolved := &ResolvedMediaSpec{
 		SpecID:      "media:textable;list",
@@ -287,7 +287,7 @@ func Test102_resolved_is_list(t *testing.T) {
 	assert.False(t, resolved.IsScalar())
 }
 
-// TEST103: Test ResolvedMediaSpec IsJSON returns true when json tag is present
+// TEST103: Test ResolvedMediaSpec is_json returns true when json tag is present
 func Test103_resolved_is_json(t *testing.T) {
 	resolved := &ResolvedMediaSpec{
 		SpecID:      "media:json;textable;record",
@@ -305,7 +305,7 @@ func Test103_resolved_is_json(t *testing.T) {
 	assert.False(t, resolved.IsBinary())
 }
 
-// TEST104: Test ResolvedMediaSpec IsText returns true when textable tag is present
+// TEST104: Test ResolvedMediaSpec is_text returns true when textable tag is present
 func Test104_resolved_is_text(t *testing.T) {
 	resolved := &ResolvedMediaSpec{
 		SpecID:      "media:textable",
