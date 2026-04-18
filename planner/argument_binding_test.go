@@ -17,7 +17,7 @@ func emptyContext(opts ...func(*ArgumentResolutionContext)) *ArgumentResolutionC
 }
 
 // TEST668: Resolve slot with populated byte slot_values using step-index key
-func TestTest668ResolveSlotWithPopulatedByteSlotValues(t *testing.T) {
+func Test668_ResolveSlotWithPopulatedByteSlotValues(t *testing.T) {
 	ctx := emptyContext(func(c *ArgumentResolutionContext) {
 		c.SlotValues = map[string][]byte{
 			"step_0:media:width;textable;numeric": []byte("800"),
@@ -45,7 +45,7 @@ func TestTest668ResolveSlotWithPopulatedByteSlotValues(t *testing.T) {
 }
 
 // TEST669: Resolve slot falls back to default when no slot_value or cap_setting
-func TestTest669ResolveSlotFallsBackToDefault(t *testing.T) {
+func Test669_ResolveSlotFallsBackToDefault(t *testing.T) {
 	ctx := emptyContext()
 	binding := NewSlotBinding("media:quality;textable;numeric", nil)
 	defaultVal := json.RawMessage(`85`)
@@ -66,7 +66,7 @@ func TestTest669ResolveSlotFallsBackToDefault(t *testing.T) {
 }
 
 // TEST670: Required slot with no value returns error
-func TestTest670ResolveRequiredSlotNoValueReturnsErr(t *testing.T) {
+func Test670_ResolveRequiredSlotNoValueReturnsErr(t *testing.T) {
 	ctx := emptyContext()
 	binding := NewSlotBinding("media:question;textable", nil)
 	_, err := ResolveBinding(binding, ctx, "cap:op=generate", "step_0", nil, true)
@@ -80,7 +80,7 @@ func TestTest670ResolveRequiredSlotNoValueReturnsErr(t *testing.T) {
 }
 
 // TEST671: Optional slot with no value returns nil
-func TestTest671ResolveOptionalSlotNoValueReturnsNone(t *testing.T) {
+func Test671_ResolveOptionalSlotNoValueReturnsNone(t *testing.T) {
 	ctx := emptyContext()
 	binding := NewSlotBinding("media:suffix;textable", nil)
 	result, err := ResolveBinding(binding, ctx, "cap:op=rename", "step_0", nil, false)
@@ -94,7 +94,7 @@ func TestTest671ResolveOptionalSlotNoValueReturnsNone(t *testing.T) {
 
 // TEST1105: Two steps with the same cap_urn get distinct slot values via different node_ids.
 // This is the core disambiguation scenario that step-index keying was designed to solve.
-func TestTest1105TwoStepsSameCapUrnDifferentSlotValues(t *testing.T) {
+func Test1105_TwoStepsSameCapUrnDifferentSlotValues(t *testing.T) {
 	capUrn := `cap:in="media:pdf";op=make_decision;out="media:bool;textable"`
 	slotName := "media:list;question;textable"
 	ctx := emptyContext(func(c *ArgumentResolutionContext) {
@@ -137,7 +137,7 @@ func TestTest1105TwoStepsSameCapUrnDifferentSlotValues(t *testing.T) {
 
 // TEST1106: Slot resolution falls through to cap_settings when no slot_value exists.
 // cap_settings are keyed by cap_urn (shared across steps), so both steps get the same value.
-func TestTest1106SlotFallsThroughToCapSettingsShared(t *testing.T) {
+func Test1106_SlotFallsThroughToCapSettingsShared(t *testing.T) {
 	capUrn := `cap:in="media:pdf";op=make_decision;out="media:bool;textable"`
 	slotName := "media:language;textable"
 	ctx := emptyContext(func(c *ArgumentResolutionContext) {
@@ -174,7 +174,7 @@ func TestTest1106SlotFallsThroughToCapSettingsShared(t *testing.T) {
 
 // TEST1107: step_0 has a slot_value override, step_1 falls through to cap_settings.
 // Proves per-step override works while shared settings remain as fallback.
-func TestTest1107SlotValueOverridesCapSettingsPerStep(t *testing.T) {
+func Test1107_SlotValueOverridesCapSettingsPerStep(t *testing.T) {
 	capUrn := `cap:in="media:pdf";op=make_decision;out="media:bool;textable"`
 	slotName := "media:language;textable"
 	ctx := emptyContext(func(c *ArgumentResolutionContext) {
@@ -216,7 +216,7 @@ func TestTest1107SlotValueOverridesCapSettingsPerStep(t *testing.T) {
 }
 
 // TEST1108: ResolveAll with node_id threads correctly through to each binding.
-func TestTest1108ResolveAllPassesNodeID(t *testing.T) {
+func Test1108_ResolveAllPassesNodeID(t *testing.T) {
 	ctx := emptyContext(func(c *ArgumentResolutionContext) {
 		c.SlotValues = map[string][]byte{
 			"step_3:media:width;textable;numeric":   []byte("1024"),
@@ -267,7 +267,7 @@ func TestTest1108ResolveAllPassesNodeID(t *testing.T) {
 }
 
 // TEST1109: Slot key uses node_id, NOT cap_urn — a slot_value keyed by cap_urn must not match.
-func TestTest1109SlotKeyUsesNodeIDNotCapUrn(t *testing.T) {
+func Test1109_SlotKeyUsesNodeIDNotCapUrn(t *testing.T) {
 	capUrn := `cap:in="media:pdf";op=resize;out="media:pdf"`
 	slotName := "media:width;textable;numeric"
 	// Deliberately key by cap_urn (the OLD format) — should NOT match

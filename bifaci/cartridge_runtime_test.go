@@ -519,7 +519,7 @@ func Test272_extract_effective_payload_multiple_args(t *testing.T) {
 }
 
 // TEST273: Test extract_effective_payload with binary data in CBOR value (not just text)
-func TestExtractEffectivePayloadBinaryValue(t *testing.T) {
+func Test273_ExtractEffectivePayloadBinaryValue(t *testing.T) {
 	// Will be meaningful when CBOR binary handling is implemented
 	binaryData := make([]byte, 256)
 	for i := 0; i < 256; i++ {
@@ -596,7 +596,7 @@ func createTestManifest(name, version, description string, caps []*cap.Cap) *Cap
 }
 
 // TEST336: Single file-path arg with stdin source reads file and passes bytes to handler
-func Test336FilePathReadsFilePassesBytes(t *testing.T) {
+func Test336_FilePathReadsFilePassesBytes(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test336_input.pdf")
 	if err := os.WriteFile(tempFile, []byte("PDF binary content 336"), 0644); err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -671,7 +671,7 @@ func Test336FilePathReadsFilePassesBytes(t *testing.T) {
 }
 
 // TEST337: file-path arg without stdin source passes path as string (no conversion)
-func Test337FilePathWithoutStdinPassesString(t *testing.T) {
+func Test337_FilePathWithoutStdinPassesString(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test337_input.txt")
 	if err := os.WriteFile(tempFile, []byte("content"), 0644); err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -712,7 +712,7 @@ func Test337FilePathWithoutStdinPassesString(t *testing.T) {
 }
 
 // TEST338: file-path arg reads file via --file CLI flag
-func Test338FilePathViaCliFlag(t *testing.T) {
+func Test338_FilePathViaCliFlag(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test338.pdf")
 	if err := os.WriteFile(tempFile, []byte("PDF via flag 338"), 0644); err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -752,7 +752,7 @@ func Test338FilePathViaCliFlag(t *testing.T) {
 }
 
 // TEST339: file-path-array reads multiple files with glob pattern
-func Test339FilePathArrayGlobExpansion(t *testing.T) {
+func Test339_FilePathArrayGlobExpansion(t *testing.T) {
 	tempDir := filepath.Join(t.TempDir(), "test339")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -820,7 +820,7 @@ func Test339FilePathArrayGlobExpansion(t *testing.T) {
 }
 
 // TEST340: File not found error provides clear message
-func Test340FileNotFoundClearError(t *testing.T) {
+func Test340_FileNotFoundClearError(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:pdf";op=test;out="media:void"`,
 		"Test",
@@ -859,7 +859,7 @@ func Test340FileNotFoundClearError(t *testing.T) {
 }
 
 // TEST341: stdin takes precedence over file-path in source order
-func Test341StdinPrecedenceOverFilePath(t *testing.T) {
+func Test341_StdinPrecedenceOverFilePath(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test341_input.txt")
 	if err := os.WriteFile(tempFile, []byte("file content"), 0644); err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -902,7 +902,7 @@ func Test341StdinPrecedenceOverFilePath(t *testing.T) {
 }
 
 // TEST342: file-path with position 0 reads first positional arg as file
-func Test342FilePathPositionZeroReadsFirstArg(t *testing.T) {
+func Test342_FilePathPositionZeroReadsFirstArg(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test342.dat")
 	if err := os.WriteFile(tempFile, []byte("binary data 342"), 0644); err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -942,7 +942,7 @@ func Test342FilePathPositionZeroReadsFirstArg(t *testing.T) {
 }
 
 // TEST343: Non-file-path args are not affected by file reading
-func Test343NonFilePathArgsUnaffected(t *testing.T) {
+func Test343_NonFilePathArgsUnaffected(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:void";op=test;out="media:void"`,
 		"Test",
@@ -978,7 +978,7 @@ func Test343NonFilePathArgsUnaffected(t *testing.T) {
 }
 
 // TEST344: file-path-array with invalid JSON fails clearly
-func Test344FilePathArrayInvalidJSONFails(t *testing.T) {
+func Test344_FilePathArrayInvalidJSONFails(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
 		"Test",
@@ -1017,7 +1017,7 @@ func Test344FilePathArrayInvalidJSONFails(t *testing.T) {
 }
 
 // TEST345: file-path-array with one file failing stops and reports error
-func Test345FilePathArrayOneFileMissingFailsHard(t *testing.T) {
+func Test345_FilePathArrayOneFileMissingFailsHard(t *testing.T) {
 	tempDir := t.TempDir()
 	file1 := filepath.Join(tempDir, "test345_exists.txt")
 	if err := os.WriteFile(file1, []byte("exists"), 0644); err != nil {
@@ -1065,7 +1065,7 @@ func Test345FilePathArrayOneFileMissingFailsHard(t *testing.T) {
 }
 
 // TEST346: Large file (1MB) reads successfully
-func Test346LargeFileReadsSuccessfully(t *testing.T) {
+func Test346_LargeFileReadsSuccessfully(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test346_large.bin")
 	largeData := make([]byte, 1_000_000)
 	for i := range largeData {
@@ -1109,7 +1109,7 @@ func Test346LargeFileReadsSuccessfully(t *testing.T) {
 }
 
 // TEST347: Empty file reads as empty bytes
-func Test347EmptyFileReadsAsEmptyBytes(t *testing.T) {
+func Test347_EmptyFileReadsAsEmptyBytes(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test347_empty.txt")
 	if err := os.WriteFile(tempFile, []byte{}, 0644); err != nil {
 		t.Fatalf("Failed to create empty file: %v", err)
@@ -1149,7 +1149,7 @@ func Test347EmptyFileReadsAsEmptyBytes(t *testing.T) {
 }
 
 // TEST348: file-path conversion respects source order
-func Test348FilePathConversionRespectsSourceOrder(t *testing.T) {
+func Test348_FilePathConversionRespectsSourceOrder(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test348.txt")
 	if err := os.WriteFile(tempFile, []byte("file content 348"), 0644); err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -1192,7 +1192,7 @@ func Test348FilePathConversionRespectsSourceOrder(t *testing.T) {
 }
 
 // TEST349: file-path arg with multiple sources tries all in order
-func Test349FilePathMultipleSourcesFallback(t *testing.T) {
+func Test349_FilePathMultipleSourcesFallback(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test349.txt")
 	if err := os.WriteFile(tempFile, []byte("content 349"), 0644); err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -1234,7 +1234,7 @@ func Test349FilePathMultipleSourcesFallback(t *testing.T) {
 }
 
 // TEST350: Integration test - full CLI mode invocation with file-path
-func Test350FullCLIModeWithFilePathIntegration(t *testing.T) {
+func Test350_FullCLIModeWithFilePathIntegration(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test350_input.pdf")
 	testContent := []byte("PDF file content for integration test")
 	if err := os.WriteFile(tempFile, testContent, 0644); err != nil {
@@ -1310,7 +1310,7 @@ func Test350FullCLIModeWithFilePathIntegration(t *testing.T) {
 }
 
 // TEST351: file-path-array with empty array succeeds
-func Test351FilePathArrayEmptyArray(t *testing.T) {
+func Test351_FilePathArrayEmptyArray(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
 		"Test",
@@ -1351,7 +1351,7 @@ func Test351FilePathArrayEmptyArray(t *testing.T) {
 }
 
 // TEST352: file permission denied error is clear (Unix-specific, skip on Windows)
-func Test352FilePermissionDeniedClearError(t *testing.T) {
+func Test352_FilePermissionDeniedClearError(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping permission test on Windows")
 	}
@@ -1401,7 +1401,7 @@ func Test352FilePermissionDeniedClearError(t *testing.T) {
 }
 
 // TEST353: CBOR payload format matches between CLI and CBOR mode
-func Test353CBORPayloadFormatConsistency(t *testing.T) {
+func Test353_CBORPayloadFormatConsistency(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:text;textable";op=test;out="media:void"`,
 		"Test",
@@ -1459,7 +1459,7 @@ func Test353CBORPayloadFormatConsistency(t *testing.T) {
 }
 
 // TEST354: Glob pattern with no matches produces empty array
-func Test354GlobPatternNoMatchesEmptyArray(t *testing.T) {
+func Test354_GlobPatternNoMatchesEmptyArray(t *testing.T) {
 	tempDir := t.TempDir()
 
 	capDef := createTestCap(
@@ -1506,7 +1506,7 @@ func Test354GlobPatternNoMatchesEmptyArray(t *testing.T) {
 }
 
 // TEST355: Glob pattern skips directories
-func Test355GlobPatternSkipsDirectories(t *testing.T) {
+func Test355_GlobPatternSkipsDirectories(t *testing.T) {
 	tempDir := filepath.Join(t.TempDir(), "test355")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -1571,7 +1571,7 @@ func Test355GlobPatternSkipsDirectories(t *testing.T) {
 }
 
 // TEST356: Multiple glob patterns combined
-func Test356MultipleGlobPatternsCombined(t *testing.T) {
+func Test356_MultipleGlobPatternsCombined(t *testing.T) {
 	tempDir := filepath.Join(t.TempDir(), "test356")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -1641,7 +1641,7 @@ func Test356MultipleGlobPatternsCombined(t *testing.T) {
 }
 
 // TEST357: Symlinks are followed when reading files (Unix-specific, skip on Windows)
-func Test357SymlinksFollowed(t *testing.T) {
+func Test357_SymlinksFollowed(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping symlink test on Windows")
 	}
@@ -1694,7 +1694,7 @@ func Test357SymlinksFollowed(t *testing.T) {
 }
 
 // TEST358: Binary file with non-UTF8 data reads correctly
-func Test358BinaryFileNonUTF8(t *testing.T) {
+func Test358_BinaryFileNonUTF8(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test358.bin")
 	binaryData := []byte{0xFF, 0xFE, 0x00, 0x01, 0x80, 0x7F, 0xAB, 0xCD}
 	if err := os.WriteFile(tempFile, binaryData, 0644); err != nil {
@@ -1740,7 +1740,7 @@ func Test358BinaryFileNonUTF8(t *testing.T) {
 }
 
 // TEST359: Invalid glob pattern fails with clear error
-func Test359InvalidGlobPatternFails(t *testing.T) {
+func Test359_InvalidGlobPatternFails(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
 		"Test",
@@ -1778,7 +1778,7 @@ func Test359InvalidGlobPatternFails(t *testing.T) {
 }
 
 // TEST360: Extract effective payload handles file-path data correctly
-func Test360ExtractEffectivePayloadWithFileData(t *testing.T) {
+func Test360_ExtractEffectivePayloadWithFileData(t *testing.T) {
 	tempFile := filepath.Join(t.TempDir(), "test360.pdf")
 	pdfContent := []byte("PDF content for extraction test")
 	if err := os.WriteFile(tempFile, pdfContent, 0644); err != nil {
@@ -1828,7 +1828,7 @@ func Test360ExtractEffectivePayloadWithFileData(t *testing.T) {
 }
 
 // TEST361: CLI mode with file path - pass file path as command-line argument
-func Test361CLIModeFilePath(t *testing.T) {
+func Test361_CLIModeFilePath(t *testing.T) {
 	tempFile := filepath.Join(os.TempDir(), "test361.pdf")
 	pdfContent := []byte("PDF content for CLI file path test")
 	if err := os.WriteFile(tempFile, pdfContent, 0644); err != nil {
@@ -1884,7 +1884,7 @@ func Test361CLIModeFilePath(t *testing.T) {
 // - cap.Cap accepts stdin source
 // - Binary is chunked on-the-fly and accumulated
 // - Handler receives complete CBOR payload
-func Test362CLIModePipedBinary(t *testing.T) {
+func Test362_CLIModePipedBinary(t *testing.T) {
 	// Simulate large binary being piped (1MB PDF)
 	pdfContent := make([]byte, 1_000_000)
 	for i := range pdfContent {
@@ -1971,7 +1971,7 @@ func Test362CLIModePipedBinary(t *testing.T) {
 }
 
 // TEST363: CBOR mode with chunked content - send file content streaming as chunks
-func Test363CBORModeChunkedContent(t *testing.T) {
+func Test363_CBORModeChunkedContent(t *testing.T) {
 	pdfContent := make([]byte, 10000) // 10KB of data
 	for i := range pdfContent {
 		pdfContent[i] = 0xAA
@@ -2114,7 +2114,7 @@ func Test363CBORModeChunkedContent(t *testing.T) {
 }
 
 // TEST364: CBOR mode with file path - send file path in CBOR arguments (auto-conversion)
-func Test364CBORModeFilePath(t *testing.T) {
+func Test364_CBORModeFilePath(t *testing.T) {
 	tempFile := filepath.Join(os.TempDir(), "test364.pdf")
 	pdfContent := []byte("PDF content for CBOR file path test")
 	if err := os.WriteFile(tempFile, pdfContent, 0644); err != nil {
@@ -2169,7 +2169,7 @@ func Test364CBORModeFilePath(t *testing.T) {
 }
 
 // TEST395: Small payload (< max_chunk) produces correct CBOR arguments
-func Test395BuildPayloadSmall(t *testing.T) {
+func Test395_BuildPayloadSmall(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:";op=process;out="media:void"`,
 		"Process",
@@ -2218,7 +2218,7 @@ func Test395BuildPayloadSmall(t *testing.T) {
 }
 
 // TEST396: Large payload (> max_chunk) accumulates across chunks correctly
-func Test396BuildPayloadLarge(t *testing.T) {
+func Test396_BuildPayloadLarge(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:";op=process;out="media:void"`,
 		"Process",
@@ -2262,7 +2262,7 @@ func Test396BuildPayloadLarge(t *testing.T) {
 }
 
 // TEST397: Empty reader produces valid empty CBOR arguments
-func Test397BuildPayloadEmpty(t *testing.T) {
+func Test397_BuildPayloadEmpty(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:";op=process;out="media:void"`,
 		"Process",
@@ -2305,7 +2305,7 @@ func (e *errorReader) Read(p []byte) (n int, err error) {
 }
 
 // TEST398: IO error from reader propagates as error
-func Test398BuildPayloadIOError(t *testing.T) {
+func Test398_BuildPayloadIOError(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:";op=process;out="media:void"`,
 		"Process",

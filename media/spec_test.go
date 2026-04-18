@@ -418,8 +418,8 @@ func Test107_extensions_propagation(t *testing.T) {
 	assert.Equal(t, []string{"pdf"}, resolved.Extensions)
 }
 
-// TEST108: Test extensions serializes/deserializes correctly in MediaSpecDef
-func Test108_extensions_serialization(t *testing.T) {
+// TEST892: Test extensions serializes/deserializes correctly in MediaSpecDef
+func Test892_extensions_serialization(t *testing.T) {
 	def := MediaSpecDef{
 		Urn:         "media:json-data",
 		MediaType:   "application/json",
@@ -443,8 +443,8 @@ func Test108_extensions_serialization(t *testing.T) {
 	assert.Equal(t, []string{"json"}, parsed.Extensions)
 }
 
-// TEST109: Test extensions can coexist with metadata and validation
-func Test109_extensions_with_metadata_and_validation(t *testing.T) {
+// TEST893: Test extensions can coexist with metadata and validation
+func Test893_extensions_with_metadata_and_validation(t *testing.T) {
 	minLen := 1
 	maxLen := 1000
 	mediaSpecs := []MediaSpecDef{
@@ -476,8 +476,8 @@ func Test109_extensions_with_metadata_and_validation(t *testing.T) {
 	assert.Equal(t, []string{"json"}, resolved.Extensions)
 }
 
-// TEST110: Test multiple extensions in a media spec
-func Test110_multiple_extensions(t *testing.T) {
+// TEST894: Test multiple extensions in a media spec
+func Test894_multiple_extensions(t *testing.T) {
 	mediaSpecs := []MediaSpecDef{
 		{
 			Urn:         "media:image;jpeg",
@@ -497,41 +497,6 @@ func Test110_multiple_extensions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"jpg", "jpeg"}, resolved.Extensions)
 	assert.Len(t, resolved.Extensions, 2)
-}
-
-// -------------------------------------------------------------------------
-// Standard caps tests (from other test file - included for completeness)
-// -------------------------------------------------------------------------
-
-// TEST304: Test MediaAvailabilityOutput constant parses as valid media URN with correct tags
-func Test304_media_availability_output_constant(t *testing.T) {
-	assert.True(t, HasMediaUrnTag(MediaAvailabilityOutput, "textable"),
-		"model-availability must be textable")
-	assert.True(t, HasMediaUrnMarkerTag(MediaAvailabilityOutput, "record"),
-		"model-availability must be record")
-	assert.True(t, HasMediaUrnTag(MediaAvailabilityOutput, "textable"),
-		"model-availability must be textable (not binary)")
-}
-
-// TEST305: Test MediaPathOutput constant parses as valid media URN with correct tags
-func Test305_media_path_output_constant(t *testing.T) {
-	assert.True(t, HasMediaUrnTag(MediaPathOutput, "textable"),
-		"model-path must be textable")
-	assert.True(t, HasMediaUrnMarkerTag(MediaPathOutput, "record"),
-		"model-path must be record")
-	assert.True(t, HasMediaUrnTag(MediaPathOutput, "textable"),
-		"model-path must be textable (not binary)")
-}
-
-// TEST306: Test MediaAvailabilityOutput and MediaPathOutput are distinct URNs
-func Test306_availability_and_path_output_distinct(t *testing.T) {
-	assert.NotEqual(t, MediaAvailabilityOutput, MediaPathOutput,
-		"availability and path output must be distinct media URNs")
-	// They must NOT be the same type (different model-availability vs model-path marker tags)
-	assert.True(t, HasMediaUrnTag(MediaAvailabilityOutput, "model-availability"),
-		"availability must have model-availability tag")
-	assert.True(t, HasMediaUrnTag(MediaPathOutput, "model-path"),
-		"path must have model-path tag")
 }
 
 // -------------------------------------------------------------------------

@@ -148,7 +148,8 @@ func txtToVecStrand() *planner.Strand {
 
 // TestFromStrandProducesSingleStrandMachine verifies that a single-step
 // planner strand yields a Machine with exactly one MachineStrand and one edge.
-func TestFromStrandProducesSingleStrandMachine(t *testing.T) {
+// TEST1155: Building a machine from one strand produces one strand with one resolved edge.
+func Test1155_FromStrandProducesSingleStrandMachine(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef()})
 	m, err := FromStrand(pdfToTxtStrand(), registry)
 	if err != nil {
@@ -164,7 +165,8 @@ func TestFromStrandProducesSingleStrandMachine(t *testing.T) {
 
 // TestFromStrandsKeepStrandsDisjoint verifies that FromStrands does NOT join
 // two strands even when their URNs are type-compatible at runtime.
-func TestFromStrandsKeepStrandsDisjoint(t *testing.T) {
+// TEST1156: Building from multiple strands keeps them disjoint and preserves input/output anchors.
+func Test1156_FromStrandsKeepStrandsDisjoint(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef(), embedCapDef()})
 	m, err := FromStrands([]*planner.Strand{pdfToTxtStrand(), txtToVecStrand()}, registry)
 	if err != nil {
@@ -190,7 +192,8 @@ func TestFromStrandsKeepStrandsDisjoint(t *testing.T) {
 
 // TestFromStrandsEmptyInputFailsHard verifies that passing an empty slice to
 // FromStrands returns a NoCapabilitySteps error.
-func TestFromStrandsEmptyInputFailsHard(t *testing.T) {
+// TEST1157: Building from zero strands fails with NoCapabilitySteps.
+func Test1157_FromStrandsEmptyInputFailsHard(t *testing.T) {
 	registry := registryWith([]*cap.Cap{})
 	_, err := FromStrands([]*planner.Strand{}, registry)
 	if err == nil {
@@ -203,7 +206,8 @@ func TestFromStrandsEmptyInputFailsHard(t *testing.T) {
 
 // TestMachineIsEquivalentIsStrictPositional verifies that swapping strand
 // order breaks IsEquivalent — strand declaration order is part of identity.
-func TestMachineIsEquivalentIsStrictPositional(t *testing.T) {
+// TEST1158: Machine equivalence is strict about strand order and rejects reordered strands.
+func Test1158_MachineIsEquivalentIsStrictPositional(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef(), embedCapDef()})
 	forward, err := FromStrands([]*planner.Strand{pdfToTxtStrand(), txtToVecStrand()}, registry)
 	if err != nil {
@@ -226,7 +230,8 @@ func TestMachineIsEquivalentIsStrictPositional(t *testing.T) {
 
 // TestMachineStrandIsEquivalentWalksNodeBijection verifies that two
 // MachineStrands built from the same planner strand are equivalent.
-func TestMachineStrandIsEquivalentWalksNodeBijection(t *testing.T) {
+// TEST1159: MachineStrand equivalence accepts two separately built but structurally identical strands.
+func Test1159_MachineStrandIsEquivalentWalksNodeBijection(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef()})
 	m1, err1 := FromStrand(pdfToTxtStrand(), registry)
 	m2, err2 := FromStrand(pdfToTxtStrand(), registry)
@@ -244,7 +249,8 @@ func TestMachineStrandIsEquivalentWalksNodeBijection(t *testing.T) {
 
 // TestInputOutputAnchors verifies that the resolver correctly identifies
 // root (input) and leaf (output) nodes for a simple linear strand.
-func TestInputOutputAnchors(t *testing.T) {
+// TEST1160: Creating a MachineRun stores the canonical notation and starts in the Pending state.
+func Test1160_InputOutputAnchors(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef()})
 	m, err := FromStrand(pdfToTxtStrand(), registry)
 	if err != nil {
@@ -278,7 +284,8 @@ func TestInputOutputAnchors(t *testing.T) {
 
 // TestForEachSetsIsLoop verifies that a ForEach step preceding a Cap step
 // sets IsLoop=true on the resulting MachineEdge.
-func TestForEachSetsIsLoop(t *testing.T) {
+// TEST1169: Loop markers in notation set the resolved edge loop flag on the following cap.
+func Test1169_ForEachSetsIsLoop(t *testing.T) {
 	loopCap := buildCap(
 		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
 		"extract",
@@ -314,7 +321,8 @@ func TestForEachSetsIsLoop(t *testing.T) {
 
 // TestCollectIsElided verifies that a Collect step produces no MachineEdge —
 // the resolved strand has only one edge (from the Cap step).
-func TestCollectIsElided(t *testing.T) {
+// TEST1170: Parsing and then serializing machine notation round-trips to the canonical form.
+func Test1170_CollectIsElided(t *testing.T) {
 	loopCap := buildCap(
 		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
 		"extract",
@@ -353,7 +361,8 @@ func TestCollectIsElided(t *testing.T) {
 
 // TestParseSingleStrandTwoCapsConnectedViaSharedNode verifies that two wirings
 // sharing the node name `txt` become a single connected component (one strand).
-func TestParseSingleStrandTwoCapsConnectedViaSharedNode(t *testing.T) {
+// TEST1163: Parsing one connected strand yields a single machine strand with both caps resolved.
+func Test1163_ParseSingleStrandTwoCapsConnectedViaSharedNode(t *testing.T) {
 	registry := pdfExtractEmbedRegistry()
 	notation := `[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
 		`[embed cap:in=media:textable;op=embed;out="media:vec;record"]` +
@@ -382,7 +391,8 @@ func TestParseSingleStrandTwoCapsConnectedViaSharedNode(t *testing.T) {
 
 // TestParseTwoDisconnectedStrandsYieldsTwoMachineStrands verifies that wirings
 // with no shared node names are partitioned into two separate strands.
-func TestParseTwoDisconnectedStrandsYieldsTwoMachineStrands(t *testing.T) {
+// TEST1164: Parsing two disconnected strand definitions yields two separate machine strands.
+func Test1164_ParseTwoDisconnectedStrandsYieldsTwoMachineStrands(t *testing.T) {
 	convertA := buildCap(
 		"cap:in=media:json;op=convert_a;out=media:csv",
 		"convert_a",
@@ -427,7 +437,8 @@ func TestParseTwoDisconnectedStrandsYieldsTwoMachineStrands(t *testing.T) {
 
 // TestParseEmptyInputReturnsError verifies that empty/whitespace input fails
 // with an ErrEmpty error.
-func TestParseEmptyInputReturnsError(t *testing.T) {
+// TEST1171: Empty machine notation is rejected as a syntax error.
+func Test1171_ParseEmptyInputReturnsError(t *testing.T) {
 	registry := registryWith([]*cap.Cap{})
 	_, err := ParseMachine("   ", registry)
 	if err == nil {
@@ -453,7 +464,8 @@ func TestParseHeadersWithNoWiringsReturnsNoEdgesError(t *testing.T) {
 
 // TestParseDuplicateAliasReturnsError verifies that two headers with the same
 // alias name return ErrDuplicateAlias.
-func TestParseDuplicateAliasReturnsError(t *testing.T) {
+// TEST1166: Duplicate header aliases are reported as syntax errors.
+func Test1166_ParseDuplicateAliasReturnsError(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef()})
 	notation := `[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
 		`[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
@@ -469,7 +481,8 @@ func TestParseDuplicateAliasReturnsError(t *testing.T) {
 
 // TestParseUndefinedAliasReturnsError verifies that a wiring referencing an
 // undefined cap alias returns ErrUndefinedAlias.
-func TestParseUndefinedAliasReturnsError(t *testing.T) {
+// TEST1167: Wiring that references an undefined alias is reported as a syntax error.
+func Test1167_ParseUndefinedAliasReturnsError(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef()})
 	notation := `[doc -> no_such_cap -> txt]`
 	_, err := ParseMachine(notation, registry)
@@ -481,9 +494,8 @@ func TestParseUndefinedAliasReturnsError(t *testing.T) {
 	}
 }
 
-// TestParseUnknownCapInRegistryReturnsAbstractionError verifies that when the
-// registry doesn't contain the referenced cap, an abstraction error is returned.
-func TestParseUnknownCapInRegistryReturnsAbstractionError(t *testing.T) {
+// TEST1165: Parsing fails hard when a referenced cap is missing from the registry cache.
+func Test1165_ParseUnknownCapInRegistryReturnsAbstractionError(t *testing.T) {
 	// Empty registry — cap won't be found during resolution.
 	registry := registryWith([]*cap.Cap{})
 	notation := `[ex cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
@@ -499,7 +511,8 @@ func TestParseUnknownCapInRegistryReturnsAbstractionError(t *testing.T) {
 
 // TestParseNodeNameCollidesWithCapAlias verifies that a node name matching a
 // cap alias returns ErrNodeAliasCollision.
-func TestParseNodeNameCollidesWithCapAlias(t *testing.T) {
+// TEST1168: Parsing rejects node names that collide with declared cap aliases.
+func Test1168_ParseNodeNameCollidesWithCapAlias(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef()})
 	// Node name 'extract' collides with cap alias 'extract'.
 	notation := `[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
@@ -519,7 +532,8 @@ func TestParseNodeNameCollidesWithCapAlias(t *testing.T) {
 
 // TestToMachineNotationRoundTrips verifies that a machine parsed from
 // notation and re-serialized produces a machine equivalent to the original.
-func TestToMachineNotationRoundTrips(t *testing.T) {
+// TEST1173: Serializing and reparsing a machine preserves strict machine equivalence.
+func Test1173_ToMachineNotationRoundTrips(t *testing.T) {
 	registry := pdfExtractEmbedRegistry()
 	notation := `[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
 		`[embed cap:in=media:textable;op=embed;out="media:vec;record"]` +
@@ -549,7 +563,8 @@ func TestToMachineNotationRoundTrips(t *testing.T) {
 
 // TestEmptyMachineSerializesToEmpty verifies that an empty machine produces
 // an empty string from ToMachineNotation.
-func TestEmptyMachineSerializesToEmpty(t *testing.T) {
+// TEST1175: Serializing an empty machine produces an empty string.
+func Test1175_EmptyMachineSerializesToEmpty(t *testing.T) {
 	m := fromResolvedStrands(nil)
 	if m.ToMachineNotation() != "" {
 		t.Errorf("empty machine must serialize to empty string, got %q", m.ToMachineNotation())
@@ -557,7 +572,8 @@ func TestEmptyMachineSerializesToEmpty(t *testing.T) {
 }
 
 // TestMachineStringRepr verifies the String() representation of a machine.
-func TestMachineStringRepr(t *testing.T) {
+// TEST1172: Serializing a two-step strand emits the expected aliases and node names.
+func Test1172_MachineStringRepr(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef()})
 	m, err := FromStrand(pdfToTxtStrand(), registry)
 	if err != nil {
@@ -576,7 +592,8 @@ func TestMachineStringRepr(t *testing.T) {
 // TestStrandEquivalenceWithDifferentNodeAllocationOrders verifies that two
 // equivalent strands remain equivalent even when their NodeIds were allocated
 // in different positions (bijection check).
-func TestStrandEquivalenceWithDifferentNodeAllocationOrders(t *testing.T) {
+// TEST1189: Strand resolution keeps canonical anchor ordering stable across equivalent builds.
+func Test1189_StrandEquivalenceWithDifferentNodeAllocationOrders(t *testing.T) {
 	// Build two machines from identical strands — node allocation order is
 	// deterministic but this confirms the bijection handles it correctly.
 	registry := registryWith([]*cap.Cap{extractCapDef()})
@@ -624,7 +641,8 @@ func TestStrandEquivalenceWithDifferentNodeAllocationOrders(t *testing.T) {
 
 // TestStrandNonEquivalenceDifferentCap verifies that strands with different
 // cap URNs are not equivalent.
-func TestStrandNonEquivalenceDifferentCap(t *testing.T) {
+// TEST1187: Strand resolution fails when a referenced cap is not found in the registry.
+func Test1187_StrandNonEquivalenceDifferentCap(t *testing.T) {
 	cap1 := buildCap("cap:in=media:pdf;op=extract;out=media:txt", "extract", []string{"media:pdf"}, "media:txt")
 	cap2 := buildCap("cap:in=media:pdf;op=convert;out=media:txt", "convert", []string{"media:pdf"}, "media:txt")
 	reg1 := registryWith([]*cap.Cap{cap1})
