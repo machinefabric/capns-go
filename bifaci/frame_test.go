@@ -1355,6 +1355,622 @@ func Test1162_heartbeat_frame_with_memory_meta(t *testing.T) {
 	assert.Equal(t, int64(5120), rss, "Expected rss_mb=5120")
 }
 
+// makeFlowFrame creates a test flow frame with the given seq and optional routing_id (XID).
+// Used for reorder buffer tests — mirrors Rust's make_flow_frame helper.
+func makeFlowFrame(rid MessageId, xid *MessageId, seq uint64) *Frame {
+	f := NewReq(rid, "cap:op=test", nil, "")
+	f.Seq = seq
+	if xid != nil {
+		f.RoutingId = xid
+	}
+	return f
+}
+
+// TEST491: Frame::chunk constructor requires and sets chunk_index and checksum
+func Test491_chunk_requires_chunk_index_and_checksum(t *testing.T) {
+	id := NewMessageIdRandom()
+	payload := []byte("test data")
+	checksum := ComputeChecksum(payload)
+
+	frame := NewChunk(id, "stream-1", 0, payload, 5, checksum)
+
+	assert.Equal(t, FrameTypeChunk, frame.FrameType)
+	require.NotNil(t, frame.ChunkIndex, "chunk_index must be set")
+	assert.Equal(t, uint64(5), *frame.ChunkIndex, "chunk_index must be 5")
+	require.NotNil(t, frame.Checksum, "checksum must be set")
+	assert.Equal(t, checksum, *frame.Checksum, "checksum must match computed value")
+	assert.Equal(t, payload, frame.Payload)
+}
+
+// TEST492: Frame::stream_end constructor requires and sets chunk_count
+func Test492_stream_end_requires_chunk_count(t *testing.T) {
+	id := NewMessageIdRandom()
+
+	frame := NewStreamEnd(id, "stream-1", 42)
+
+	assert.Equal(t, FrameTypeStreamEnd, frame.FrameType)
+	require.NotNil(t, frame.ChunkCount, "chunk_count must be set")
+	assert.Equal(t, uint64(42), *frame.ChunkCount, "chunk_count must be 42")
+	require.NotNil(t, frame.StreamId)
+	assert.Equal(t, "stream-1", *frame.StreamId)
+}
+
+// TEST493: compute_checksum produces correct FNV-1a hash for known test vectors
+func Test493_compute_checksum_fnv1a_test_vectors(t *testing.T) {
+	assert.Equal(t, uint64(0xcbf29ce484222325), ComputeChecksum([]byte{}), "empty string hash")
+	assert.Equal(t, uint64(0xaf63dc4c8601ec8c), ComputeChecksum([]byte("a")), "single byte 'a'")
+	assert.Equal(t, uint64(0x85944171f73967e8), ComputeChecksum([]byte("foobar")), "foobar string")
+}
+
+// TEST494: compute_checksum is deterministic
+func Test494_compute_checksum_deterministic(t *testing.T) {
+	data := []byte("test data for hashing")
+	hash1 := ComputeChecksum(data)
+	hash2 := ComputeChecksum(data)
+	hash3 := ComputeChecksum(data)
+
+	assert.Equal(t, hash1, hash2)
+	assert.Equal(t, hash2, hash3)
+}
+
+// TEST495: CBOR decode REJECTS CHUNK frame missing chunk_index field
+func Test495_cbor_rejects_chunk_without_chunk_index(t *testing.T) {
+	id := NewMessageIdRandom()
+	payload := []byte("data")
+	checksum := ComputeChecksum(payload)
+
+	// Build a CHUNK frame without chunk_index
+	frame := &Frame{
+		FrameType: FrameTypeChunk,
+		Id:        id,
+		Payload:   payload,
+		Checksum:  &checksum,
+		// ChunkIndex deliberately nil
+	}
+	streamId := "s1"
+	frame.StreamId = &streamId
+
+	encoded, err := EncodeFrame(frame)
+	require.NoError(t, err, "encoding should succeed even without chunk_index")
+
+	_, decErr := DecodeFrame(encoded)
+	require.Error(t, decErr, "decode must reject CHUNK without chunk_index")
+	assert.True(t,
+		strings.Contains(decErr.Error(), "chunk_index") || strings.Contains(decErr.Error(), "CHUNK"),
+		"error must mention missing chunk_index: %s", decErr.Error(),
+	)
+}
+
+// TEST496: CBOR decode REJECTS CHUNK frame missing checksum field
+func Test496_cbor_rejects_chunk_without_checksum(t *testing.T) {
+	id := NewMessageIdRandom()
+	payload := []byte("data")
+	chunkIndex := uint64(0)
+
+	// Build a CHUNK frame without checksum
+	frame := &Frame{
+		FrameType:  FrameTypeChunk,
+		Id:         id,
+		Payload:    payload,
+		ChunkIndex: &chunkIndex,
+		// Checksum deliberately nil
+	}
+	streamId := "s1"
+	frame.StreamId = &streamId
+
+	encoded, err := EncodeFrame(frame)
+	require.NoError(t, err, "encoding should succeed even without checksum")
+
+	_, decErr := DecodeFrame(encoded)
+	require.Error(t, decErr, "decode must reject CHUNK without checksum")
+	assert.True(t,
+		strings.Contains(decErr.Error(), "checksum") || strings.Contains(decErr.Error(), "CHUNK"),
+		"error must mention missing checksum: %s", decErr.Error(),
+	)
+}
+
+// TEST498: routing_id field roundtrips through CBOR encoding
+func Test498_routing_id_cbor_roundtrip(t *testing.T) {
+	reqId := NewMessageIdRandom()
+	routingId := NewMessageIdRandom()
+
+	frame := NewReq(reqId, `cap:in="media:void";op=test;out="media:void"`, nil, "text/plain")
+	frame.RoutingId = &routingId
+
+	encoded, err := EncodeFrame(frame)
+	require.NoError(t, err)
+	decoded, err := DecodeFrame(encoded)
+	require.NoError(t, err)
+
+	require.NotNil(t, decoded.RoutingId, "routing_id must roundtrip")
+	assert.Equal(t, routingId, *decoded.RoutingId)
+	assert.Equal(t, reqId, decoded.Id)
+}
+
+// TEST499: chunk_index and checksum roundtrip through CBOR encoding
+func Test499_chunk_index_checksum_cbor_roundtrip(t *testing.T) {
+	reqId := NewMessageIdRandom()
+	payload := []byte("test payload")
+	checksum := ComputeChecksum(payload)
+
+	frame := NewChunk(reqId, "s1", 0, payload, 7, checksum)
+
+	encoded, err := EncodeFrame(frame)
+	require.NoError(t, err)
+	decoded, err := DecodeFrame(encoded)
+	require.NoError(t, err)
+
+	require.NotNil(t, decoded.ChunkIndex, "chunk_index must roundtrip")
+	assert.Equal(t, uint64(7), *decoded.ChunkIndex)
+	require.NotNil(t, decoded.Checksum, "checksum must roundtrip")
+	assert.Equal(t, checksum, *decoded.Checksum)
+	assert.Equal(t, payload, decoded.Payload)
+}
+
+// TEST500: chunk_count roundtrips through CBOR encoding
+func Test500_chunk_count_cbor_roundtrip(t *testing.T) {
+	reqId := NewMessageIdRandom()
+
+	frame := NewStreamEnd(reqId, "s1", 42)
+
+	encoded, err := EncodeFrame(frame)
+	require.NoError(t, err)
+	decoded, err := DecodeFrame(encoded)
+	require.NoError(t, err)
+
+	require.NotNil(t, decoded.ChunkCount, "chunk_count must roundtrip")
+	assert.Equal(t, uint64(42), *decoded.ChunkCount)
+	require.NotNil(t, decoded.StreamId)
+	assert.Equal(t, "s1", *decoded.StreamId)
+}
+
+// TEST501: Frame creation initializes optional fields to nil
+func Test501_frame_new_initializes_optional_fields_none(t *testing.T) {
+	frame := NewReq(NewMessageIdRandom(), "cap:op=test", nil, "")
+
+	assert.Nil(t, frame.RoutingId)
+	assert.Nil(t, frame.ChunkIndex)
+	assert.Nil(t, frame.ChunkCount)
+	assert.Nil(t, frame.Checksum)
+}
+
+// TEST502: Codec key constants match protocol spec values
+func Test502_codec_key_constants(t *testing.T) {
+	assert.Equal(t, 13, keyRoutingId)
+	assert.Equal(t, 14, keyChunkIndex)
+	assert.Equal(t, 15, keyChunkCount)
+	assert.Equal(t, 16, keyChecksum)
+}
+
+// TEST503: compute_checksum handles empty data correctly (FNV-1a offset basis)
+func Test503_compute_checksum_empty_data(t *testing.T) {
+	hash := ComputeChecksum([]byte{})
+	assert.Equal(t, uint64(0xcbf29ce484222325), hash, "empty data should produce FNV offset basis")
+}
+
+// TEST504: compute_checksum handles large payloads without overflow
+func Test504_compute_checksum_large_payload(t *testing.T) {
+	largeData := make([]byte, 1_000_000)
+	for i := range largeData {
+		largeData[i] = 0xAA
+	}
+	hash := ComputeChecksum(largeData)
+	assert.NotEqual(t, uint64(0), hash, "large payload should produce non-zero hash")
+
+	hash2 := ComputeChecksum(largeData)
+	assert.Equal(t, hash, hash2, "large payload hash must be deterministic")
+}
+
+// TEST505: chunk_with_offset sets chunk_index correctly
+func Test505_chunk_with_offset_sets_chunk_index(t *testing.T) {
+	reqId := NewMessageIdRandom()
+	payload := []byte("data")
+	checksum := ComputeChecksum(payload)
+	totalLen := uint64(10000)
+
+	frame := NewChunkWithOffset(reqId, "s1", 0, payload, 1024, &totalLen, false, 5, checksum)
+
+	require.NotNil(t, frame.ChunkIndex, "chunk_index must be set")
+	assert.Equal(t, uint64(5), *frame.ChunkIndex)
+	require.NotNil(t, frame.Checksum, "checksum must be set")
+	assert.Equal(t, checksum, *frame.Checksum)
+	require.NotNil(t, frame.Offset)
+	assert.Equal(t, uint64(1024), *frame.Offset)
+}
+
+// TEST506: Different data produces different checksums
+func Test506_compute_checksum_different_data_different_hash(t *testing.T) {
+	hash1 := ComputeChecksum([]byte("hello"))
+	hash2 := ComputeChecksum([]byte("world"))
+	assert.NotEqual(t, hash1, hash2, "different data must produce different hashes")
+}
+
+// TEST507: ReorderBuffer isolates flows by XID — same RID different XIDs are independent
+func Test507_reorder_buffer_xid_isolation(t *testing.T) {
+	rb := NewReorderBuffer(64)
+	rid := NewMessageIdRandom()
+	xidA := NewMessageIdRandom()
+	xidB := NewMessageIdRandom()
+
+	// Flow A (rid, xidA): receive seq 1 first
+	readyA1, err := rb.Accept(makeFlowFrame(rid, &xidA, 1))
+	require.NoError(t, err)
+	assert.Empty(t, readyA1, "xidA seq 1 buffered")
+
+	// Flow B (rid, xidB): receive seq 0 (different flow, should deliver immediately)
+	readyB0, err := rb.Accept(makeFlowFrame(rid, &xidB, 0))
+	require.NoError(t, err)
+	assert.Len(t, readyB0, 1, "xidB seq 0 delivers immediately")
+	assert.Equal(t, uint64(0), readyB0[0].Seq)
+
+	// Flow A: receive seq 0, should deliver 0+1
+	readyA0, err := rb.Accept(makeFlowFrame(rid, &xidA, 0))
+	require.NoError(t, err)
+	assert.Len(t, readyA0, 2, "xidA delivers 0 and buffered 1")
+	assert.Equal(t, uint64(0), readyA0[0].Seq)
+	assert.Equal(t, uint64(1), readyA0[1].Seq)
+
+	// Verify both flows are independent
+	readyB1, err := rb.Accept(makeFlowFrame(rid, &xidB, 1))
+	require.NoError(t, err)
+	assert.Len(t, readyB1, 1)
+}
+
+// TEST508: ReorderBuffer rejects duplicate seq already in buffer
+func Test508_reorder_buffer_duplicate_buffered_seq(t *testing.T) {
+	rb := NewReorderBuffer(64)
+	rid := NewMessageIdRandom()
+
+	rb.Accept(makeFlowFrame(rid, nil, 1))
+
+	result, err := rb.Accept(makeFlowFrame(rid, nil, 1))
+	assert.Error(t, err, "duplicate buffered seq must fail")
+	assert.Nil(t, result)
+	assert.True(t,
+		strings.Contains(err.Error(), "stale") || strings.Contains(err.Error(), "duplicate"),
+		"error must mention stale/duplicate: %s", err.Error(),
+	)
+}
+
+// TEST509: ReorderBuffer handles large seq gaps without DOS — overflow fails
+func Test509_reorder_buffer_large_gap_rejected(t *testing.T) {
+	rb := NewReorderBuffer(64)
+	rid := NewMessageIdRandom()
+
+	rb.Accept(makeFlowFrame(rid, nil, 0))
+
+	// Buffer up to 64 frames (leaving 1 slot — seq 1 through seq 65)
+	for seq := uint64(2); seq <= 65; seq++ {
+		rb.Accept(makeFlowFrame(rid, nil, seq))
+	}
+
+	// This should overflow the buffer
+	result, err := rb.Accept(makeFlowFrame(rid, nil, 66))
+	assert.Error(t, err, "large gap causing buffer overflow must fail")
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "overflow", "error must mention overflow")
+}
+
+// TEST510: ReorderBuffer with multiple interleaved gaps fills correctly
+func Test510_reorder_buffer_multiple_gaps(t *testing.T) {
+	rb := NewReorderBuffer(64)
+	rid := NewMessageIdRandom()
+
+	ready0, err := rb.Accept(makeFlowFrame(rid, nil, 0))
+	require.NoError(t, err)
+	assert.Len(t, ready0, 1)
+
+	ready3, err := rb.Accept(makeFlowFrame(rid, nil, 3))
+	require.NoError(t, err)
+	assert.Empty(t, ready3, "seq 3 buffered")
+
+	ready5, err := rb.Accept(makeFlowFrame(rid, nil, 5))
+	require.NoError(t, err)
+	assert.Empty(t, ready5, "seq 5 buffered")
+
+	ready1, err := rb.Accept(makeFlowFrame(rid, nil, 1))
+	require.NoError(t, err)
+	assert.Len(t, ready1, 1, "only seq 1 delivered, still missing 2")
+
+	ready2, err := rb.Accept(makeFlowFrame(rid, nil, 2))
+	require.NoError(t, err)
+	assert.Len(t, ready2, 2, "delivers 2 and 3")
+	assert.Equal(t, uint64(2), ready2[0].Seq)
+	assert.Equal(t, uint64(3), ready2[1].Seq)
+
+	ready4, err := rb.Accept(makeFlowFrame(rid, nil, 4))
+	require.NoError(t, err)
+	assert.Len(t, ready4, 2, "delivers 4 and 5")
+	assert.Equal(t, uint64(4), ready4[0].Seq)
+	assert.Equal(t, uint64(5), ready4[1].Seq)
+}
+
+// TEST511: ReorderBuffer cleanup with buffered frames discards them
+func Test511_reorder_buffer_cleanup_with_buffered_frames(t *testing.T) {
+	rb := NewReorderBuffer(64)
+	rid := NewMessageIdRandom()
+
+	rb.Accept(makeFlowFrame(rid, nil, 0))
+	rb.Accept(makeFlowFrame(rid, nil, 2)) // buffered
+	rb.Accept(makeFlowFrame(rid, nil, 3)) // buffered
+
+	key := FlowKey{rid: rid.ToString(), xid: ""}
+	rb.CleanupFlow(key)
+
+	// After cleanup, seq 0 should work again (flow reset)
+	ready, err := rb.Accept(makeFlowFrame(rid, nil, 0))
+	require.NoError(t, err)
+	assert.Len(t, ready, 1)
+	assert.Equal(t, uint64(0), ready[0].Seq)
+
+	// Buffered frames 2,3 were discarded; seq 1 is now expected
+	ready1, err := rb.Accept(makeFlowFrame(rid, nil, 1))
+	require.NoError(t, err)
+	assert.Len(t, ready1, 1)
+}
+
+// TEST512: ReorderBuffer delivers burst of consecutive buffered frames
+func Test512_reorder_buffer_burst_delivery(t *testing.T) {
+	rb := NewReorderBuffer(64)
+	rid := NewMessageIdRandom()
+
+	// Buffer seq 1-10 (all waiting for seq 0)
+	for seq := uint64(1); seq <= 10; seq++ {
+		ready, err := rb.Accept(makeFlowFrame(rid, nil, seq))
+		require.NoError(t, err)
+		assert.Empty(t, ready, "seq %d buffered", seq)
+	}
+
+	// Now send seq 0 — should deliver all 11 frames at once
+	ready, err := rb.Accept(makeFlowFrame(rid, nil, 0))
+	require.NoError(t, err)
+	assert.Len(t, ready, 11, "delivers seq 0 plus 10 buffered frames")
+	for i, frame := range ready {
+		assert.Equal(t, uint64(i), frame.Seq, "frame %d has correct seq", i)
+	}
+}
+
+// TEST513: ReorderBuffer different frame types in same flow maintain order
+func Test513_reorder_buffer_mixed_types_same_flow(t *testing.T) {
+	rb := NewReorderBuffer(64)
+	rid := NewMessageIdRandom()
+
+	req := NewReq(rid, "cap:op=test", nil, "")
+	req.Seq = 1
+	log := NewLog(rid, "info", "test log")
+	log.Seq = 2
+	chunk := &Frame{FrameType: FrameTypeChunk, Id: rid}
+	chunk.Seq = 0
+
+	rb.Accept(req)  // buffered
+	rb.Accept(log)  // buffered
+
+	ready, err := rb.Accept(chunk)
+	require.NoError(t, err)
+	assert.Len(t, ready, 3, "all three frames delivered in order")
+	assert.Equal(t, FrameTypeChunk, ready[0].FrameType)
+	assert.Equal(t, FrameTypeReq, ready[1].FrameType)
+	assert.Equal(t, FrameTypeLog, ready[2].FrameType)
+}
+
+// TEST514: ReorderBuffer XID cleanup doesn't affect different XID flows
+func Test514_reorder_buffer_xid_cleanup_isolation(t *testing.T) {
+	rb := NewReorderBuffer(64)
+	rid := NewMessageIdRandom()
+	xidA := NewMessageIdRandom()
+	xidB := NewMessageIdRandom()
+
+	rb.Accept(makeFlowFrame(rid, &xidA, 0))
+	rb.Accept(makeFlowFrame(rid, &xidB, 0))
+
+	// Cleanup flow A
+	keyA := FlowKey{rid: rid.ToString(), xid: xidA.ToString()}
+	rb.CleanupFlow(keyA)
+
+	// Flow B should still expect seq 1
+	ready, err := rb.Accept(makeFlowFrame(rid, &xidB, 1))
+	require.NoError(t, err)
+	assert.Len(t, ready, 1)
+	assert.Equal(t, uint64(1), ready[0].Seq)
+
+	// Flow A was reset, seq 0 works again
+	readyA, err := rb.Accept(makeFlowFrame(rid, &xidA, 0))
+	require.NoError(t, err)
+	assert.Len(t, readyA, 1)
+}
+
+// TEST515: ReorderBuffer overflow error includes diagnostic information
+func Test515_reorder_buffer_overflow_error_details(t *testing.T) {
+	maxBuffer := 3
+	rb := NewReorderBuffer(maxBuffer)
+	rid := NewMessageIdRandom()
+
+	// Fill buffer to capacity
+	for seq := uint64(1); seq <= 3; seq++ {
+		rb.Accept(makeFlowFrame(rid, nil, seq))
+	}
+
+	_, err := rb.Accept(makeFlowFrame(rid, nil, 4))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "overflow", "must mention overflow")
+}
+
+// TEST516: ReorderBuffer stale error includes diagnostic information
+func Test516_reorder_buffer_stale_error_details(t *testing.T) {
+	rb := NewReorderBuffer(64)
+	rid := NewMessageIdRandom()
+
+	rb.Accept(makeFlowFrame(rid, nil, 0))
+	rb.Accept(makeFlowFrame(rid, nil, 1))
+	rb.Accept(makeFlowFrame(rid, nil, 2))
+
+	// Send stale seq 1
+	_, err := rb.Accept(makeFlowFrame(rid, nil, 1))
+	require.Error(t, err)
+	assert.True(t,
+		strings.Contains(err.Error(), "stale") || strings.Contains(err.Error(), "duplicate"),
+		"must mention stale/duplicate: %s", err.Error(),
+	)
+}
+
+// TEST517: FlowKey with empty XID differs from non-empty XID (mirrors Rust None vs Some)
+func Test517_flow_key_none_vs_some_xid(t *testing.T) {
+	rid := NewMessageIdRandom()
+	xid := NewMessageIdRandom()
+
+	keyNone := FlowKey{rid: rid.ToString(), xid: ""}
+	keySome := FlowKey{rid: rid.ToString(), xid: xid.ToString()}
+
+	assert.NotEqual(t, keyNone, keySome, "empty XID must differ from non-empty XID")
+
+	// HashMap check
+	m := map[FlowKey]bool{keyNone: true}
+	assert.False(t, m[keySome], "keySome must not match keyNone in map")
+}
+
+// TEST518: ReorderBuffer handles zero-length ready vec correctly
+func Test518_reorder_buffer_empty_ready_vec(t *testing.T) {
+	rb := NewReorderBuffer(64)
+	rid := NewMessageIdRandom()
+
+	// Send seq 1 first — should return empty slice (buffered)
+	ready, err := rb.Accept(makeFlowFrame(rid, nil, 1))
+	require.NoError(t, err)
+	assert.Empty(t, ready, "buffered frame returns empty slice")
+	assert.Equal(t, 0, len(ready))
+}
+
+// TEST519: ReorderBuffer state persists across accept calls
+func Test519_reorder_buffer_state_persistence(t *testing.T) {
+	rb := NewReorderBuffer(64)
+	rid := NewMessageIdRandom()
+
+	// First call: buffer seq 2
+	rb.Accept(makeFlowFrame(rid, nil, 2))
+
+	// Second call: send seq 1, still buffered (missing 0)
+	ready, err := rb.Accept(makeFlowFrame(rid, nil, 1))
+	require.NoError(t, err)
+	assert.Empty(t, ready, "seq 1 buffered, still waiting for seq 0")
+
+	// Third call: send seq 0, should deliver 0, 1, 2
+	ready, err = rb.Accept(makeFlowFrame(rid, nil, 0))
+	require.NoError(t, err)
+	assert.Len(t, ready, 3, "state persisted correctly")
+}
+
+// TEST520: ReorderBuffer max_buffer_per_flow is per-flow not global
+func Test520_reorder_buffer_per_flow_limit(t *testing.T) {
+	rb := NewReorderBuffer(2) // max 2 buffered per flow
+	ridA := NewMessageIdRandom()
+	ridB := NewMessageIdRandom()
+
+	// Flow A: buffer 2 frames (at limit)
+	rb.Accept(makeFlowFrame(ridA, nil, 1))
+	rb.Accept(makeFlowFrame(ridA, nil, 2))
+
+	// Flow B: can still buffer 2 frames (separate limit)
+	rb.Accept(makeFlowFrame(ridB, nil, 1))
+	rb.Accept(makeFlowFrame(ridB, nil, 2))
+
+	// Flow A: overflow
+	_, errA := rb.Accept(makeFlowFrame(ridA, nil, 3))
+	assert.Error(t, errA, "flow A overflows")
+
+	// Flow B: also overflow
+	_, errB := rb.Accept(makeFlowFrame(ridB, nil, 3))
+	assert.Error(t, errB, "flow B also overflows")
+}
+
+// TEST521: RelayNotify CBOR roundtrip preserves manifest and limits
+func Test521_relay_notify_cbor_roundtrip(t *testing.T) {
+	manifest := []byte(`{"name":"Test","version":"1.0","description":"Test","cap_groups":[{"name":"default","caps":[{"urn":"cap:in=\"media:void\";op=convert;out=\"media:image\"","title":"Convert","command":"convert"}]}]}`)
+
+	frame := NewRelayNotify(manifest, 3_000_000, 256_000, 128)
+	encoded, err := EncodeFrame(frame)
+	require.NoError(t, err)
+	decoded, err := DecodeFrame(encoded)
+	require.NoError(t, err)
+
+	assert.Equal(t, FrameTypeRelayNotify, decoded.FrameType)
+	assert.Equal(t, manifest, decoded.RelayNotifyManifest(), "manifest must roundtrip")
+
+	limits := decoded.RelayNotifyLimits()
+	require.NotNil(t, limits)
+	assert.Equal(t, 3_000_000, limits.MaxFrame)
+	assert.Equal(t, 256_000, limits.MaxChunk)
+	assert.Equal(t, 128, limits.MaxReorderBuffer)
+}
+
+// TEST522: RelayState CBOR roundtrip preserves payload
+func Test522_relay_state_cbor_roundtrip(t *testing.T) {
+	stateData := []byte(`{"memory_mb":8192,"cpu_cores":16,"active_flows":42}`)
+
+	frame := NewRelayState(stateData)
+	encoded, err := EncodeFrame(frame)
+	require.NoError(t, err)
+	decoded, err := DecodeFrame(encoded)
+	require.NoError(t, err)
+
+	assert.Equal(t, FrameTypeRelayState, decoded.FrameType)
+	assert.Equal(t, stateData, decoded.Payload, "state payload must roundtrip exactly")
+	// RelayState uses Uint(0) ID
+	assert.False(t, decoded.Id.IsUuid(), "RelayState must use uint ID, not UUID")
+}
+
+// TEST523: IsFlowFrame returns false for RelayNotify
+func Test523_relay_notify_not_flow_frame(t *testing.T) {
+	frame := NewRelayNotify([]byte("test"), DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer)
+	assert.False(t, frame.IsFlowFrame(), "RelayNotify must not be a flow frame")
+}
+
+// TEST524: IsFlowFrame returns false for RelayState
+func Test524_relay_state_not_flow_frame(t *testing.T) {
+	frame := NewRelayState([]byte("test"))
+	assert.False(t, frame.IsFlowFrame(), "RelayState must not be a flow frame")
+}
+
+// TEST525: RelayNotify with empty manifest is valid
+func Test525_relay_notify_empty_manifest(t *testing.T) {
+	frame := NewRelayNotify([]byte{}, DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer)
+	assert.Equal(t, FrameTypeRelayNotify, frame.FrameType)
+	assert.Equal(t, []byte{}, frame.RelayNotifyManifest())
+}
+
+// TEST526: RelayState with empty payload is valid
+func Test526_relay_state_empty_payload(t *testing.T) {
+	frame := NewRelayState([]byte{})
+	assert.Equal(t, FrameTypeRelayState, frame.FrameType)
+	assert.Equal(t, []byte{}, frame.Payload)
+}
+
+// TEST527: RelayNotify with large manifest roundtrips correctly
+func Test527_relay_notify_large_manifest(t *testing.T) {
+	largeManifest := `{"name":"Large","version":"1.0","description":"Large test","cap_groups":[{"name":"default","caps":[{"urn":"cap:in=media:;out=media:","title":"Identity","command":"identity"}`
+	for i := 0; i < 99; i++ {
+		largeManifest += fmt.Sprintf(`,{"urn":"cap:in=\"media:void\";op=op%d;out=\"media:void\"","title":"Op%d","command":"op%d"}`, i, i, i)
+	}
+	largeManifest += "]}]}"
+
+	frame := NewRelayNotify([]byte(largeManifest), DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer)
+	encoded, err := EncodeFrame(frame)
+	require.NoError(t, err)
+	decoded, err := DecodeFrame(encoded)
+	require.NoError(t, err)
+
+	assert.Equal(t, []byte(largeManifest), decoded.RelayNotifyManifest())
+}
+
+// TEST528: RelayNotify and RelayState use uint 0 as sentinel ID (not UUID)
+func Test528_relay_frames_use_uint_zero_id(t *testing.T) {
+	notify := NewRelayNotify([]byte("test"), DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer)
+	state := NewRelayState([]byte("test"))
+
+	assert.False(t, notify.Id.IsUuid(), "RelayNotify must use uint ID, not UUID")
+	assert.False(t, state.Id.IsUuid(), "RelayState must use uint ID, not UUID")
+	assert.Equal(t, notify.Id.ToString(), state.Id.ToString(), "both must use same sentinel ID")
+}
+
 // TEST460: Terminal ERR frame flows through correctly
 func Test460_reorder_buffer_err_frame(t *testing.T) {
 	rb := NewReorderBuffer(10)

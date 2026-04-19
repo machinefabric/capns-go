@@ -1,0 +1,63 @@
+package planner
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+// TEST716: Tests CapInputCollection empty collection has zero files and folders
+// Verifies is_empty() returns true and counts are zero for new collection
+func Test716_empty_collection(t *testing.T) {
+	collection := NewCapInputCollection("folder-123", "Test Folder")
+	assert.True(t, collection.IsEmpty())
+	assert.Equal(t, 0, collection.TotalFileCount())
+	assert.Equal(t, 0, collection.TotalFolderCount())
+}
+
+// TEST717: Tests CapInputCollection correctly counts files in flat collection
+// Verifies total_file_count() returns 2 for collection with 2 files, no folders
+func Test717_collection_with_files(t *testing.T) {
+	collection := NewCapInputCollection("folder-123", "Test Folder")
+	collection.Files = append(collection.Files, NewCollectionFile("listing-1", "/path/to/file1.pdf", "media:pdf"))
+	collection.Files = append(collection.Files, NewCollectionFile("listing-2", "/path/to/file2.md", "media:md;textable"))
+
+	assert.False(t, collection.IsEmpty())
+	assert.Equal(t, 2, collection.TotalFileCount())
+	assert.Equal(t, 0, collection.TotalFolderCount())
+}
+
+// TEST718: Tests CapInputCollection correctly counts files and folders in nested structure
+// Verifies total_file_count() includes subfolder files and total_folder_count() counts subfolders
+func Test718_nested_collection(t *testing.T) {
+	root := NewCapInputCollection("folder-root", "Root")
+	root.Files = append(root.Files, NewCollectionFile("listing-1", "/path/file1.pdf", "media:pdf"))
+
+	subfolder := NewCapInputCollection("folder-sub", "Subfolder")
+	subfolder.Files = append(subfolder.Files, NewCollectionFile("listing-2", "/path/sub/file2.pdf", "media:pdf"))
+	subfolder.Files = append(subfolder.Files, NewCollectionFile("listing-3", "/path/sub/file3.pdf", "media:pdf"))
+
+	root.Folders["Subfolder"] = subfolder
+
+	assert.Equal(t, 3, root.TotalFileCount())
+	assert.Equal(t, 1, root.TotalFolderCount())
+}
+
+// TEST719: Tests CapInputCollection flatten_to_files recursively collects all files
+// Verifies flatten() extracts files from root and all subfolders into flat list
+func Test719_flatten_to_files(t *testing.T) {
+	root := NewCapInputCollection("folder-root", "Root")
+	root.Files = append(root.Files, NewCollectionFile("listing-1", "/path/file1.pdf", "media:pdf"))
+
+	subfolder := NewCapInputCollection("folder-sub", "Subfolder")
+	subfolder.Files = append(subfolder.Files, NewCollectionFile("listing-2", "/path/sub/file2.pdf", "media:pdf"))
+
+	root.Folders["Subfolder"] = subfolder
+
+	flattened := root.FlattenToFiles()
+	assert.Equal(t, 2, len(flattened))
+	// Root file comes first
+	assert.Equal(t, "/path/file1.pdf", flattened[0].FilePath)
+	// Subfolder file comes second
+	assert.Equal(t, "/path/sub/file2.pdf", flattened[1].FilePath)
+}
