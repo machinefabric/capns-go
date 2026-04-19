@@ -540,33 +540,40 @@ func (g *LiveCapGraph) iddfsFind(
 	visited[vk] = true
 	defer func() { delete(visited, vk) }()
 
-	if current.IsEquivalent(target) {
-		// Build steps from edge path
-		var steps []*StrandStep
-		capCount := 0
-		for _, edge := range path {
-			step := edgeToStep(edge)
-			steps = append(steps, step)
-			if step.IsCap() {
-				capCount++
-			}
-		}
-		if capCount > 0 {
-			var titles []string
-			for _, s := range steps {
-				if s.IsCap() {
-					titles = append(titles, s.Title())
+	if current.IsEquivalent(target) && len(path) > 0 {
+		// Only record the path when it exactly fills the depth budget for this IDDFS
+		// iteration (depthLimit == 0). This mirrors Rust's `current_path.len() == depth_limit`
+		// check and ensures each path is found exactly once — at the shallowest depth that
+		// reaches it — preventing duplicates across outer loop iterations.
+		if depthLimit == 0 {
+			var steps []*StrandStep
+			capCount := 0
+			for _, edge := range path {
+				step := edgeToStep(edge)
+				steps = append(steps, step)
+				if step.IsCap() {
+					capCount++
 				}
 			}
-			*results = append(*results, &Strand{
-				Steps:        steps,
-				SourceSpec:   originalSource,
-				TargetSpec:   target,
-				TotalSteps:   len(steps),
-				CapStepCount: capCount,
-				Description:  strings.Join(titles, " → "),
-			})
+			if capCount > 0 {
+				var titles []string
+				for _, s := range steps {
+					if s.IsCap() {
+						titles = append(titles, s.Title())
+					}
+				}
+				*results = append(*results, &Strand{
+					Steps:        steps,
+					SourceSpec:   originalSource,
+					TargetSpec:   target,
+					TotalSteps:   len(steps),
+					CapStepCount: capCount,
+					Description:  strings.Join(titles, " → "),
+				})
+			}
 		}
+		// Do not continue exploring beyond the target (non-round-trip paths).
+		// Round-trip detection (source==target) is handled by the visited map.
 		return
 	}
 

@@ -120,3 +120,67 @@ func Test1161_simple_linear_chain_conversion(t *testing.T) {
 		t.Fatalf("unexpected second edge: %+v", graph.Edges[1])
 	}
 }
+
+// TEST770: PlanToResolvedGraph rejects plans containing ForEach nodes
+// Verifies that plans requiring decomposition (ForEach) are rejected before conversion
+func Test770_rejects_foreach(t *testing.T) {
+	registry := buildTestRegistry(t, []string{
+		"cap:in=media:pdf;op=disbind;out=media:pdf-page",
+		"cap:in=media:pdf-page;op=process;out=media:text",
+	})
+
+	plan := planner.NewMachinePlan("foreach_plan")
+	plan.AddNode(planner.NewInputSlotNode("input", "input", "media:pdf", planner.CardinalitySingle))
+	plan.AddNode(planner.NewMachineNode("cap_0", "cap:in=media:pdf;op=disbind;out=media:pdf-page"))
+	plan.AddNode(planner.NewForEachNode("foreach_0", "cap_0", "cap_1", "cap_1"))
+	plan.AddNode(planner.NewMachineNode("cap_1", "cap:in=media:pdf-page;op=process;out=media:text"))
+	plan.AddNode(planner.NewOutputNode("output", "result", "cap_1"))
+
+	plan.AddEdge(planner.NewDirectEdge("input", "cap_0"))
+	plan.AddEdge(planner.NewDirectEdge("cap_0", "foreach_0"))
+	plan.AddEdge(planner.NewIterationEdge("foreach_0", "cap_1"))
+	plan.AddEdge(planner.NewDirectEdge("cap_1", "output"))
+
+	_, err := PlanToResolvedGraph(plan, registry)
+	if err == nil {
+		t.Fatal("Expected error for plan with ForEach node, got nil")
+	}
+	if !strings.Contains(err.Error(), "ForEach node") {
+		t.Fatalf("Expected ForEach rejection, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "Decompose") {
+		t.Fatalf("Expected mention of decomposition, got: %v", err)
+	}
+}
+
+// TEST771: PlanToResolvedGraph rejects plans containing ForEach-paired Collect nodes
+// Verifies that Collect nodes without OutputMediaUrn (ForEach-paired) are rejected
+func Test771_rejects_foreach_paired_collect(t *testing.T) {
+	registry := buildTestRegistry(t, []string{
+		"cap:in=media:pdf;op=disbind;out=media:pdf-page",
+		"cap:in=media:pdf-page;op=process;out=media:text",
+	})
+
+	plan := planner.NewMachinePlan("collect_plan")
+	plan.AddNode(planner.NewInputSlotNode("input", "input", "media:pdf", planner.CardinalitySingle))
+	plan.AddNode(planner.NewMachineNode("cap_0", "cap:in=media:pdf;op=disbind;out=media:pdf-page"))
+	plan.AddNode(planner.NewForEachNode("foreach_0", "cap_0", "cap_1", "cap_1"))
+	plan.AddNode(planner.NewMachineNode("cap_1", "cap:in=media:pdf-page;op=process;out=media:text"))
+	plan.AddNode(planner.NewCollectNode("collect_0", []string{"cap_1"}))
+	plan.AddNode(planner.NewOutputNode("output", "result", "collect_0"))
+
+	plan.AddEdge(planner.NewDirectEdge("input", "cap_0"))
+	plan.AddEdge(planner.NewDirectEdge("cap_0", "foreach_0"))
+	plan.AddEdge(planner.NewIterationEdge("foreach_0", "cap_1"))
+	plan.AddEdge(planner.NewCollectionEdge("cap_1", "collect_0"))
+	plan.AddEdge(planner.NewDirectEdge("collect_0", "output"))
+
+	_, err := PlanToResolvedGraph(plan, registry)
+	if err == nil {
+		t.Fatal("Expected error for plan with ForEach+Collect nodes, got nil")
+	}
+	// ForEach node is encountered first in typical iteration — but either rejection is valid
+	if !strings.Contains(err.Error(), "ForEach node") && !strings.Contains(err.Error(), "Collect node") {
+		t.Fatalf("Expected ForEach or Collect rejection, got: %v", err)
+	}
+}

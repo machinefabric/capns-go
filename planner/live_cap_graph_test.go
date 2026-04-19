@@ -33,7 +33,7 @@ func Test772_find_paths_finds_multi_step_paths(t *testing.T) {
 
 	paths := graph.FindPathsToExactTarget(source, target, false, 5, 10)
 
-	assert.Equal(t, 1, len(paths), "Should find one path through intermediate node")
+	assert.Equal(t, 1, len(paths), "Should find exactly one path through intermediate node")
 	assert.Equal(t, 2, len(paths[0].Steps), "Path should have 2 steps (A->B, B->C)")
 	assert.Equal(t, "A to B", paths[0].Steps[0].Title())
 	assert.Equal(t, "B to C", paths[0].Steps[1].Title())
