@@ -323,3 +323,48 @@ func Test1019_validation_to_json_nil(t *testing.T) {
 	result := ValidationToJSON(nil)
 	assert.Nil(t, result, "nil validation should return nil")
 }
+
+// TEST1100: Tests that CapUrn normalizes media URN tags to canonical order
+// Two CapUrns with different tag ordering in out spec must produce the same canonical string.
+func Test1100_cap_urn_normalizes_media_urn_tag_order(t *testing.T) {
+	urn1, err := urn.NewCapUrnFromString(`cap:in=media:pdf;op=extract_metadata;out="media:file-metadata;record;textable"`)
+	require.NoError(t, err)
+	urn2, err := urn.NewCapUrnFromString(`cap:in=media:pdf;op=extract_metadata;out="media:file-metadata;textable;record"`)
+	require.NoError(t, err)
+
+	assert.Equal(t, urn1.String(), urn2.String(),
+		"URNs with different tag ordering should normalize to the same canonical form")
+
+	// Both URNs should parse without error and produce the same canonical form
+	assert.NotEmpty(t, urn1.OutSpec(), "out spec should not be empty")
+	assert.Equal(t, urn1.OutSpec(), urn2.OutSpec(),
+		"out specs with different tag ordering should normalize identically")
+}
+
+// TEST1103: Tests that IsDispatchable has correct directionality
+// A specific provider is dispatchable for a general request; the reverse is false.
+func Test1103_is_dispatchable_uses_correct_directionality(t *testing.T) {
+	generalRequest, err := urn.NewCapUrnFromString("cap:in=media:pdf;op=extract;out=media:text")
+	require.NoError(t, err)
+
+	specificProvider, err := urn.NewCapUrnFromString("cap:in=media:pdf;op=extract;out=media:text;version=2")
+	require.NoError(t, err)
+
+	assert.True(t, specificProvider.IsDispatchable(generalRequest),
+		"Specific provider should be dispatchable for general request")
+	assert.False(t, generalRequest.IsDispatchable(specificProvider),
+		"General request should NOT be dispatchable for specific provider (missing version tag)")
+}
+
+// TEST1104: Tests that IsDispatchable rejects when provider is missing a required cap tag
+// Provider without required=yes cannot handle a request that demands required=yes.
+func Test1104_is_dispatchable_rejects_non_dispatchable(t *testing.T) {
+	request, err := urn.NewCapUrnFromString("cap:in=media:pdf;op=extract;out=media:text;required=yes")
+	require.NoError(t, err)
+
+	provider, err := urn.NewCapUrnFromString("cap:in=media:pdf;op=extract;out=media:text")
+	require.NoError(t, err)
+
+	assert.False(t, provider.IsDispatchable(request),
+		"Provider missing required tag should not be dispatchable for request")
+}

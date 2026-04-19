@@ -608,3 +608,147 @@ func Test435_relay_switch_urn_matching(t *testing.T) {
 		t.Errorf("Payload mismatch for req2: %v", resp2.Payload)
 	}
 }
+
+// TEST437: find_master_for_cap with preferred_cap routes to generic handler.
+// Generic provider (in=media:) CAN dispatch specific request (in="media:pdf").
+// Preference routes to preferred among dispatchable candidates.
+func Test437_preferred_cap_routes_to_generic(t *testing.T) {
+	// Master 0: generic thumbnail handler
+	engineRead0, slaveWrite0 := net.Pipe()
+	slaveRead0, engineWrite0 := net.Pipe()
+
+	// Master 1: specific PDF thumbnail handler
+	engineRead1, slaveWrite1 := net.Pipe()
+	slaveRead1, engineWrite1 := net.Pipe()
+
+	genericCap := `cap:in=media:;op=generate_thumbnail;out="media:image;png;thumbnail"`
+	specificCap := `cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`
+
+	spawnSlave := func(r, w net.Conn, caps []string) {
+		go func() {
+			reader := NewFrameReader(r)
+			writer := NewFrameWriter(w)
+			manifest := map[string]interface{}{"capabilities": caps}
+			manifestJSON, _ := json.Marshal(manifest)
+			SendNotify(writer, manifestJSON, DefaultLimits())
+			for {
+				if _, err := reader.ReadFrame(); err != nil {
+					return
+				}
+			}
+		}()
+	}
+	// Master 0 has identity + generic cap
+	spawnSlave(slaveRead0, slaveWrite0, []string{`cap:in=media:;out=media:`, genericCap})
+	// Master 1 has identity + specific cap
+	spawnSlave(slaveRead1, slaveWrite1, []string{`cap:in=media:;out=media:`, specificCap})
+
+	sw, err := NewRelaySwitch([]SocketPair{
+		{Read: engineRead0, Write: engineWrite0},
+		{Read: engineRead1, Write: engineWrite1},
+	})
+	if err != nil {
+		t.Fatalf("Failed to create RelaySwitch: %v", err)
+	}
+
+	request := `cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`
+
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+
+	// Without preference: routes to master 1 (specific, closest-specificity)
+	idx, err := sw.findMasterForCap(request, nil)
+	if err != nil || idx != 1 {
+		t.Errorf("Without preference: expected master 1 (specific), got %d (err=%v)", idx, err)
+	}
+
+	// With preference for generic cap: routes to master 0 (via IsEquivalent)
+	idx, err = sw.findMasterForCap(request, &genericCap)
+	if err != nil || idx != 0 {
+		t.Errorf("With generic preference: expected master 0, got %d (err=%v)", idx, err)
+	}
+
+	// With preference for specific cap: routes to master 1
+	idx, err = sw.findMasterForCap(request, &specificCap)
+	if err != nil || idx != 1 {
+		t.Errorf("With specific preference: expected master 1, got %d (err=%v)", idx, err)
+	}
+}
+
+// TEST438: find_master_for_cap with preference falls back to closest-specificity
+// when preferred cap is not in the comparable set.
+func Test438_preferred_cap_falls_back_when_not_comparable(t *testing.T) {
+	engineRead, slaveWrite := net.Pipe()
+	slaveRead, engineWrite := net.Pipe()
+
+	registered := `cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`
+
+	go func() {
+		reader := NewFrameReader(slaveRead)
+		writer := NewFrameWriter(slaveWrite)
+		manifest := map[string]interface{}{"capabilities": []string{`cap:in=media:;out=media:`, registered}}
+		manifestJSON, _ := json.Marshal(manifest)
+		SendNotify(writer, manifestJSON, DefaultLimits())
+		for {
+			if _, err := reader.ReadFrame(); err != nil {
+				return
+			}
+		}
+	}()
+
+	sw, err := NewRelaySwitch([]SocketPair{{Read: engineRead, Write: engineWrite}})
+	if err != nil {
+		t.Fatalf("Failed to create RelaySwitch: %v", err)
+	}
+
+	request := `cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`
+	// Preference for an unrelated cap — no equivalent match, falls back to closest-specificity
+	unrelated := `cap:in="media:txt;textable";op=generate_thumbnail;out="media:image;png;thumbnail"`
+
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+
+	idx, err := sw.findMasterForCap(request, &unrelated)
+	if err != nil || idx != 0 {
+		t.Errorf("Expected fallback to master 0 for unrelated preference, got %d (err=%v)", idx, err)
+	}
+}
+
+// TEST439: Generic provider CAN dispatch specific request.
+// With is_dispatchable: generic provider (in=media:) can handle specific
+// request (in="media:pdf") because media: accepts any input type.
+func Test439_generic_provider_can_dispatch_specific_request(t *testing.T) {
+	engineRead, slaveWrite := net.Pipe()
+	slaveRead, engineWrite := net.Pipe()
+
+	genericCap := `cap:in=media:;op=generate_thumbnail;out="media:image;png;thumbnail"`
+
+	go func() {
+		reader := NewFrameReader(slaveRead)
+		writer := NewFrameWriter(slaveWrite)
+		manifest := map[string]interface{}{"capabilities": []string{`cap:in=media:;out=media:`, genericCap}}
+		manifestJSON, _ := json.Marshal(manifest)
+		SendNotify(writer, manifestJSON, DefaultLimits())
+		for {
+			if _, err := reader.ReadFrame(); err != nil {
+				return
+			}
+		}
+	}()
+
+	sw, err := NewRelaySwitch([]SocketPair{{Read: engineRead, Write: engineWrite}})
+	if err != nil {
+		t.Fatalf("Failed to create RelaySwitch: %v", err)
+	}
+
+	// Specific PDF request — generic handler CAN dispatch it
+	request := `cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`
+
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+
+	idx, err := sw.findMasterForCap(request, nil)
+	if err != nil || idx != 0 {
+		t.Errorf("Generic provider should dispatch specific request: got %d (err=%v)", idx, err)
+	}
+}

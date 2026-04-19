@@ -2,6 +2,7 @@ package bifaci
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"testing"
 
@@ -1145,5 +1146,113 @@ func Test847_progress_double_roundtrip(t *testing.T) {
 		if diff > 0.001 {
 			t.Fatalf("progress=%f: expected %f, got %f", progress, progress, p)
 		}
+	}
+}
+
+// TEST461: WriteResponseWithChunking splits payload into exactly N chunks per max_chunk,
+// and chunk_index tracks ordering within the stream (0, 1, 2, ...).
+// Note: Go assigns seq at write time (Rust assigns seq=0 and uses SeqAssigner at output stage;
+// Go inlines the seq assignment into the write path instead).
+func Test461_write_chunked_chunk_index_ordering(t *testing.T) {
+	var buf bytes.Buffer
+	writer := NewFrameWriter(&buf)
+	writer.SetLimits(Limits{MaxFrame: DefaultMaxFrame, MaxChunk: 5})
+
+	id := NewMessageIdRandom()
+	// 10 bytes / 5 max_chunk = 2 chunks
+	err := writer.WriteResponseWithChunking(id, "s", "application/octet-stream", []byte("abcdefghij"))
+	if err != nil {
+		t.Fatalf("WriteResponseWithChunking failed: %v", err)
+	}
+
+	reader := NewFrameReader(&buf)
+
+	// First: STREAM_START
+	frame, err := reader.ReadFrame()
+	if err != nil {
+		t.Fatalf("ReadFrame (STREAM_START) failed: %v", err)
+	}
+	if frame.FrameType != FrameTypeStreamStart {
+		t.Fatalf("Expected STREAM_START, got %v", frame.FrameType)
+	}
+
+	// Collect CHUNK frames and verify chunk_index increments correctly
+	var chunks []*Frame
+	for {
+		f, err := reader.ReadFrame()
+		if err != nil {
+			t.Fatalf("ReadFrame failed: %v", err)
+		}
+		if f.FrameType == FrameTypeChunk {
+			chunks = append(chunks, f)
+		} else if f.FrameType == FrameTypeStreamEnd {
+			break
+		} else {
+			t.Fatalf("Unexpected frame type: %v", f.FrameType)
+		}
+	}
+
+	if len(chunks) != 2 {
+		t.Fatalf("Expected 2 chunks for 10-byte payload with max_chunk=5, got %d", len(chunks))
+	}
+
+	for i, chunk := range chunks {
+		if chunk.ChunkIndex == nil || *chunk.ChunkIndex != uint64(i) {
+			got := "<nil>"
+			if chunk.ChunkIndex != nil {
+				got = fmt.Sprintf("%d", *chunk.ChunkIndex)
+			}
+			t.Errorf("chunk %d: expected chunk_index=%d, got %s", i, i, got)
+		}
+	}
+}
+
+// TEST472: Handshake negotiates max_reorder_buffer as minimum of both sides.
+func Test472_handshake_negotiates_reorder_buffer(t *testing.T) {
+	// Build a HELLO frame with max_reorder_buffer=32 (cartridge side)
+	cartridgeHello := NewHello(DefaultMaxFrame, DefaultMaxChunk, 32)
+
+	var cartridgeBuf bytes.Buffer
+	cWriter := NewFrameWriter(&cartridgeBuf)
+	if err := cWriter.WriteFrame(cartridgeHello); err != nil {
+		t.Fatalf("WriteFrame (cartridge HELLO) failed: %v", err)
+	}
+
+	cReader := NewFrameReader(&cartridgeBuf)
+	theirFrame, err := cReader.ReadFrame()
+	if err != nil {
+		t.Fatalf("ReadFrame (cartridge HELLO) failed: %v", err)
+	}
+
+	// Extract max_reorder_buffer from the frame's meta
+	theirReorder := extractIntFromMeta(theirFrame.Meta, "max_reorder_buffer")
+	if theirReorder != 32 {
+		t.Errorf("Expected cartridge max_reorder_buffer=32, got %d", theirReorder)
+	}
+
+	// Negotiate: pick minimum of 32 (cartridge) and DefaultMaxReorderBuffer (host=64)
+	negotiated := DefaultMaxReorderBuffer
+	if theirReorder < negotiated {
+		negotiated = theirReorder
+	}
+	if negotiated != 32 {
+		t.Errorf("Negotiated max_reorder_buffer must be 32 (min(32,64)), got %d", negotiated)
+	}
+
+	// Verify host side sends DefaultMaxReorderBuffer
+	hostHello := NewHello(DefaultMaxFrame, DefaultMaxChunk, DefaultMaxReorderBuffer)
+	var hostBuf bytes.Buffer
+	hWriter := NewFrameWriter(&hostBuf)
+	if err := hWriter.WriteFrame(hostHello); err != nil {
+		t.Fatalf("WriteFrame (host HELLO) failed: %v", err)
+	}
+	hReader := NewFrameReader(&hostBuf)
+	hostFrame, err := hReader.ReadFrame()
+	if err != nil {
+		t.Fatalf("ReadFrame (host HELLO) failed: %v", err)
+	}
+	hostReorder := extractIntFromMeta(hostFrame.Meta, "max_reorder_buffer")
+	if hostReorder != DefaultMaxReorderBuffer {
+		t.Errorf("Host HELLO max_reorder_buffer: expected %d, got %d", DefaultMaxReorderBuffer, hostReorder)
 	}
 }

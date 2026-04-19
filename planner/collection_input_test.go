@@ -1,9 +1,11 @@
 package planner
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TEST716: Tests CapInputCollection empty collection has zero files and folders
@@ -60,4 +62,25 @@ func Test719_flatten_to_files(t *testing.T) {
 	assert.Equal(t, "/path/file1.pdf", flattened[0].FilePath)
 	// Subfolder file comes second
 	assert.Equal(t, "/path/sub/file2.pdf", flattened[1].FilePath)
+}
+
+// TEST933: CapInputCollection serializes to JSON and deserializes back preserving all fields
+// Verifies JSON round-trip preserves folder_id, folder_name, files and file metadata.
+func Test933_serialization_roundtrip(t *testing.T) {
+	collection := NewCapInputCollection("folder-123", "Test Folder")
+	file := NewCollectionFile("listing-1", "/path/to/file.pdf", "media:pdf")
+	file.Title = "My Document"
+	collection.Files = append(collection.Files, file)
+
+	jsonBytes := collection.ToJSON()
+	require.NotNil(t, jsonBytes)
+
+	var roundtrip CapInputCollection
+	err := json.Unmarshal(jsonBytes, &roundtrip)
+	require.NoError(t, err)
+
+	assert.Equal(t, collection.FolderID, roundtrip.FolderID)
+	assert.Equal(t, collection.FolderName, roundtrip.FolderName)
+	require.Len(t, roundtrip.Files, 1)
+	assert.Equal(t, "My Document", roundtrip.Files[0].Title)
 }

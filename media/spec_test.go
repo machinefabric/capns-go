@@ -723,3 +723,114 @@ func Test629_profile_constants_format(t *testing.T) {
 	assert.True(t, len(ProfileObj) > len(prefix) && ProfileObj[:len(prefix)] == prefix,
 		"PROFILE_OBJ must start with %s", prefix)
 }
+
+// -------------------------------------------------------------------------
+// Cap I/O media spec regression tests
+// -------------------------------------------------------------------------
+
+// TEST895: All cap output media specs must have file extensions defined.
+// This is a regression guard: every cap output URN must produce user-facing files
+// with a known extension. If a spec lacks extensions, save_cap_output will fail.
+func Test895_cap_output_media_specs_have_extensions(t *testing.T) {
+	registry, err := NewMediaUrnRegistry()
+	require.NoError(t, err)
+
+	capOutputUrns := []string{
+		"media:textable",
+		"media:embedding-vector;textable;record",
+		"media:image-description;textable",
+		"media:transcription;textable;record",
+		"media:decision;json;record;textable",
+		"media:llm-text-stream;ndjson",
+		"media:generated-text;textable;record",
+		"media:llm-vocab-response;json;record",
+		"media:llm-model-info;json;record",
+		"media:model-dim;integer;textable;numeric",
+		"media:model-availability;textable;record",
+		"media:model-contents;textable;record",
+		"media:model-list;textable;record",
+		"media:model-path;textable;record",
+		"media:model-status;textable;record",
+		"media:download-result;textable;record",
+		"media:json;textable;record",
+	}
+
+	var missing []string
+	for _, u := range capOutputUrns {
+		spec := registry.GetCachedSpec(u)
+		if spec == nil {
+			missing = append(missing, u+" (spec not found in registry)")
+		} else if len(spec.Extensions) == 0 {
+			missing = append(missing, u+" (found spec but extensions is empty)")
+		}
+	}
+	assert.Empty(t, missing,
+		"Cap output media specs missing file extensions:\n  %s",
+		strings.Join(missing, "\n  "))
+}
+
+// TEST896: All cap input media specs that represent user files must have extensions.
+// These are the entry points — the file types users can right-click on.
+func Test896_cap_input_media_specs_have_extensions(t *testing.T) {
+	registry, err := NewMediaUrnRegistry()
+	require.NoError(t, err)
+
+	capInputUrns := []string{
+		"media:textable",
+		"media:txt;textable",
+		"media:md;textable",
+		"media:rst;textable",
+		"media:pdf",
+		"media:image;png",
+		"media:audio;wav;speech",
+		"media:log;textable",
+		"media:json;json-schema;textable;record",
+		"media:llm-generation-request;json;record",
+		"media:model-repo;textable;record",
+		"media:model-spec;textable",
+	}
+
+	var missing []string
+	for _, u := range capInputUrns {
+		spec := registry.GetCachedSpec(u)
+		if spec == nil {
+			missing = append(missing, u+" (spec not found in registry)")
+		} else if len(spec.Extensions) == 0 {
+			missing = append(missing, u+" (found spec but extensions is empty)")
+		}
+	}
+	assert.Empty(t, missing,
+		"Cap input media specs missing file extensions:\n  %s",
+		strings.Join(missing, "\n  "))
+}
+
+// TEST897: Verify that specific cap output URNs resolve to the correct extension.
+// This catches misconfigurations where a spec exists but has the wrong extension.
+func Test897_cap_output_extension_values_correct(t *testing.T) {
+	registry, err := NewMediaUrnRegistry()
+	require.NoError(t, err)
+
+	expected := []struct {
+		urn string
+		ext string
+	}{
+		{"media:textable", "txt"},
+		{"media:embedding-vector;textable;record", "json"},
+		{"media:image-description;textable", "txt"},
+		{"media:transcription;textable;record", "json"},
+		{"media:decision;json;record;textable", "json"},
+		{"media:llm-text-stream;ndjson", "ndjson"},
+		{"media:generated-text;textable;record", "json"},
+		{"media:llm-model-info;json;record", "json"},
+		{"media:download-result;textable;record", "json"},
+		{"media:model-dim;integer;textable;numeric", "txt"},
+	}
+
+	for _, e := range expected {
+		spec := registry.GetCachedSpec(e.urn)
+		require.NotNil(t, spec, "Spec not found for %s", e.urn)
+		require.NotEmpty(t, spec.Extensions, "No extensions for %s", e.urn)
+		assert.Equal(t, e.ext, spec.Extensions[0],
+			"Wrong extension for %s: got %s, want %s", e.urn, spec.Extensions[0], e.ext)
+	}
+}
