@@ -713,11 +713,9 @@ func (sw *RelaySwitch) rebuildLimits() {
 }
 
 // parseRelayNotifyPayload parses caps and installed_cartridges from a RelayNotify manifest payload.
-// The payload JSON may contain:
+// The payload JSON must contain:
 //   - "caps": []string  (the capability URN list)
 //   - "installed_cartridges": []InstalledCartridgeIdentity (optional)
-//
-// For backward compatibility, if "caps" is absent but "capabilities" is present, it is used.
 func parseRelayNotifyPayload(manifest []byte) (*relayNotifyCapabilitiesPayload, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(manifest, &raw); err != nil {
@@ -727,27 +725,19 @@ func parseRelayNotifyPayload(manifest []byte) (*relayNotifyCapabilitiesPayload, 
 		}
 	}
 
-	var caps []string
-
-	// Try "caps" first (new format), fall back to "capabilities" (old format)
-	if capsRaw, ok := raw["caps"]; ok {
-		if err := json.Unmarshal(capsRaw, &caps); err != nil {
-			return nil, &RelaySwitchError{
-				Type:    RelaySwitchErrorTypeProtocol,
-				Message: fmt.Sprintf("invalid caps field: %v", err),
-			}
-		}
-	} else if capsRaw, ok := raw["capabilities"]; ok {
-		if err := json.Unmarshal(capsRaw, &caps); err != nil {
-			return nil, &RelaySwitchError{
-				Type:    RelaySwitchErrorTypeProtocol,
-				Message: fmt.Sprintf("invalid capabilities field: %v", err),
-			}
-		}
-	} else {
+	capsRaw, ok := raw["caps"]
+	if !ok {
 		return nil, &RelaySwitchError{
 			Type:    RelaySwitchErrorTypeProtocol,
-			Message: "manifest missing caps/capabilities array",
+			Message: "manifest missing required caps array",
+		}
+	}
+
+	var caps []string
+	if err := json.Unmarshal(capsRaw, &caps); err != nil {
+		return nil, &RelaySwitchError{
+			Type:    RelaySwitchErrorTypeProtocol,
+			Message: fmt.Sprintf("invalid caps field: %v", err),
 		}
 	}
 
