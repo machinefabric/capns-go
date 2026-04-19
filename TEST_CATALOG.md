@@ -1,8 +1,8 @@
 # CapDag-Go Test Catalog
 
-**Total Tests:** 868
+**Total Tests:** 880
 
-**Numbered Tests:** 800
+**Numbered Tests:** 812
 
 **Unnumbered Tests:** 68
 
@@ -762,8 +762,8 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test1116 | `Test1116_collect_never_synthesized` | TEST1116: Collect is never synthesized during path finding. getOutgoingEdges for both scalar and sequence returns no Collect edges. | planner/live_cap_graph_test.go:391 |
 | test1117 | `Test1117_no_foreach_when_not_sequence` | TEST1117: ForEach is NOT synthesized when is_sequence=false. Even with caps that could consume, ForEach requires is_sequence=true. | planner/live_cap_graph_test.go:411 |
 | test1118 | `Test1118_no_foreach_without_cap_consumers` | TEST1118: ForEach not synthesized without cap consumers even with is_sequence=true. | planner/live_cap_graph_test.go:432 |
-| test1119 | `Test1119_FromStrand_returns_single_strand_machine` | TEST1119: FromStrand builds a single-strand Machine from a planner.Strand. Smoke test the registry-threaded API end-to-end. | machine/machine_test.go:671 |
-| test1120 | `Test1120_FromStrand_unknown_cap_fails_hard` | TEST1120: FromStrand fails hard when the cap is not in the registry. The planner produces strands referencing caps that must be present in the cap registry cache for resolution to succeed. | machine/machine_test.go:699 |
+| test1119 | `Test1119_FromStrand_returns_single_strand_machine` | TEST1119: FromStrand builds a single-strand Machine from a planner.Strand. Smoke test the registry-threaded API end-to-end. | machine/machine_test.go:695 |
+| test1120 | `Test1120_FromStrand_unknown_cap_fails_hard` | TEST1120: FromStrand fails hard when the cap is not in the registry. The planner produces strands referencing caps that must be present in the cap registry cache for resolution to succeed. | machine/machine_test.go:723 |
 | test1127 | `Test1127_cap_documentation_round_trip_with_markdown_body` | TEST1127: Documentation field round-trips through JSON serialize/deserialize. The body must survive multi-line markdown with CRLF, backticks, double quotes, and Unicode characters — every character must be preserved. | cap/definition_test.go:516 |
 | test1128 | `Test1128_cap_documentation_omitted_when_none` | TEST1128: When Documentation is nil, the serializer must omit the field entirely. There must be no "documentation":null — only absence. | cap/definition_test.go:538 |
 | test1129 | `Test1129_cap_documentation_parses_from_capgraph_json` | TEST1129: A capgraph-shaped JSON document with a documentation field must deserialize into a Cap with the body intact. | cap/definition_test.go:556 |
@@ -776,34 +776,46 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test1144 | `Test1144_ContentStructureHelpersAndDisplay` | TEST1144: ContentStructure is_list/is_record helpers and Display implementation are correct | input_resolver/types_test.go:43 |
 | test1145 | `Test1145_ResolvedInputSetUsesEquivalentMediaAndFileCountCardinality` | TEST1145: ResolvedInputSet uses URN equivalence for common_media and file count for is_sequence | input_resolver/types_test.go:80 |
 | test1146 | `Test1146_InputResolverErrorDisplayAndSource` | TEST1146: InputResolverError Display and source() implementations produce correct messages | input_resolver/types_test.go:127 |
-| test1147 | `Test1147_machine_syntax_error_display_is_specific` | TEST1147: MachineSyntaxError.Error() includes position and detail. invalidWiringError(7) must produce a message containing "statement 7" and "invalid wiring". | machine/machine_test.go:717 |
-| test1148 | `Test1148_machine_parse_error_from_syntax_preserves_variant` | TEST1148: MachineParseError with Syntax field preserves the syntax error kind. | machine/machine_test.go:729 |
-| test1149 | `Test1149_machine_parse_error_from_resolution_preserves_variant` | TEST1149: MachineParseError with Abstraction field preserves the resolution error kind. | machine/machine_test.go:745 |
-| test1155 | `Test1155_FromStrandProducesSingleStrandMachine` | TEST1155: Building a machine from one strand produces one strand with one resolved edge. | machine/machine_test.go:152 |
-| test1156 | `Test1156_FromStrandsKeepStrandsDisjoint` | TEST1156: Building from multiple strands keeps them disjoint and preserves input strand order. | machine/machine_test.go:169 |
-| test1157 | `Test1157_FromStrandsEmptyInputFailsHard` | TEST1157: Building from zero strands fails with NoCapabilitySteps. | machine/machine_test.go:196 |
-| test1158 | `Test1158_MachineIsEquivalentIsStrictPositional` | TEST1158: Machine equivalence is strict about strand order and rejects reordered strands. | machine/machine_test.go:210 |
-| test1159 | `Test1159_MachineStrandIsEquivalentWalksNodeBijection` | TEST1159: MachineStrand equivalence accepts two separately built but structurally identical strands. | machine/machine_test.go:234 |
-| test1160 | `Test1160_InputOutputAnchors` | TEST1160: Creating a MachineRun stores the canonical notation and starts in the pending state. | machine/machine_test.go:253 |
+| test1147 | `Test1147_machine_syntax_error_display_is_specific` | TEST1147: MachineSyntaxError.Error() includes position and detail. invalidWiringError(7) must produce a message containing "statement 7" and "invalid wiring". | machine/machine_test.go:741 |
+| test1148 | `Test1148_machine_parse_error_from_syntax_preserves_variant` | TEST1148: MachineParseError with Syntax field preserves the syntax error kind. | machine/machine_test.go:753 |
+| test1149 | `Test1149_machine_parse_error_from_resolution_preserves_variant` | TEST1149: MachineParseError with Abstraction field preserves the resolution error kind. | machine/machine_test.go:769 |
+| test1155 | `Test1155_FromStrandProducesSingleStrandMachine` | TEST1155: Building a machine from one strand produces one strand with one resolved edge. | machine/machine_test.go:176 |
+| test1156 | `Test1156_FromStrandsKeepStrandsDisjoint` | TEST1156: Building from multiple strands keeps them disjoint and preserves input strand order. | machine/machine_test.go:193 |
+| test1157 | `Test1157_FromStrandsEmptyInputFailsHard` | TEST1157: Building from zero strands fails with NoCapabilitySteps. | machine/machine_test.go:220 |
+| test1158 | `Test1158_MachineIsEquivalentIsStrictPositional` | TEST1158: Machine equivalence is strict about strand order and rejects reordered strands. | machine/machine_test.go:234 |
+| test1159 | `Test1159_MachineStrandIsEquivalentWalksNodeBijection` | TEST1159: MachineStrand equivalence accepts two separately built but structurally identical strands. | machine/machine_test.go:258 |
+| test1160 | `Test1160_InputOutputAnchors` | TEST1160: Creating a MachineRun stores the canonical notation and starts in the pending state. | machine/machine_test.go:277 |
 | test1161 | `Test1161_simple_linear_chain_conversion` | TEST1161: Converting a simple linear plan produces resolved edges for the cap-to-cap chain. | orchestrator/orchestrator_test.go:88 |
 | test1162 | `Test1162_heartbeat_frame_with_memory_meta` | TEST1162: Heartbeat frames preserve self-reported memory values stored in metadata. | bifaci/frame_test.go:1335 |
-| test1163 | `Test1163_ParseSingleStrandTwoCapsConnectedViaSharedNode` | TEST1163: Parsing one connected strand yields a single machine strand with both caps connected by the shared node. | machine/machine_test.go:365 |
-| test1164 | `Test1164_ParseTwoDisconnectedStrandsYieldsTwoMachineStrands` | TEST1164: Parsing two disconnected strand definitions yields two separate machine strands. | machine/machine_test.go:395 |
-| test1165 | `Test1165_ParseUnknownCapInRegistryReturnsAbstractionError` | TEST1165: Parsing fails hard when a referenced cap is missing from the registry cache. | machine/machine_test.go:498 |
-| test1166 | `Test1166_ParseDuplicateAliasReturnsError` | TEST1166: Duplicate header aliases are reported as syntax errors. | machine/machine_test.go:468 |
-| test1167 | `Test1167_ParseUndefinedAliasReturnsError` | TEST1167: Wiring that references an undefined alias is reported as a syntax error. | machine/machine_test.go:485 |
-| test1168 | `Test1168_ParseNodeNameCollidesWithCapAlias` | TEST1168: Parsing rejects node names that collide with declared cap aliases. | machine/machine_test.go:515 |
-| test1169 | `Test1169_ForEachSetsIsLoop` | TEST1169: Loop markers in notation set the resolved edge loop flag on the following cap step. | machine/machine_test.go:288 |
-| test1170 | `Test1170_CollectIsElided` | TEST1170: Parsing and then serializing machine notation round-trips to the canonical form. | machine/machine_test.go:325 |
-| test1171 | `Test1171_ParseEmptyInputReturnsError` | TEST1171: Empty machine notation is rejected as a syntax error. | machine/machine_test.go:441 |
-| test1172 | `Test1172_MachineStringRepr` | TEST1172: Serializing a two-step strand emits the expected aliases and node names. | machine/machine_test.go:576 |
-| test1173 | `Test1173_ToMachineNotationRoundTrips` | TEST1173: Serializing and reparsing a machine preserves strict machine equivalence. | machine/machine_test.go:536 |
-| test1174 | `Test1174_line_based_format_round_trips` | TEST1174: Line-based notation format round-trips back to the same machine. ToMachineNotationFormatted(NotationFormatLineBased) must not contain '[', and re-parsing must yield an equivalent machine. | machine/machine_test.go:763 |
-| test1175 | `Test1175_EmptyMachineSerializesToEmpty` | TEST1175: Serializing an empty machine produces an empty string. | machine/machine_test.go:567 |
-| test1176 | `Test1176_render_payload_json_includes_strand_with_anchors` | TEST1176: ToRenderPayloadJSON for a populated machine includes strand with nodes, edges, input_anchor_nodes, and output_anchor_nodes. | machine/machine_test.go:792 |
-| test1177 | `Test1177_render_payload_for_empty_machine_has_empty_strands_array` | TEST1177: ToRenderPayloadJSON for an empty machine emits an empty strands array. | machine/machine_test.go:831 |
-| test1187 | `Test1187_StrandNonEquivalenceDifferentCap` | TEST1187: Strand resolution fails when a referenced cap is not found in the registry. | machine/machine_test.go:645 |
-| test1189 | `Test1189_StrandEquivalenceWithDifferentNodeAllocationOrders` | TEST1189: Strand resolution keeps canonical anchor ordering stable across equivalent inputs. | machine/machine_test.go:596 |
+| test1163 | `Test1163_ParseSingleStrandTwoCapsConnectedViaSharedNode` | TEST1163: Parsing one connected strand yields a single machine strand with both caps connected by the shared node. | machine/machine_test.go:389 |
+| test1164 | `Test1164_ParseTwoDisconnectedStrandsYieldsTwoMachineStrands` | TEST1164: Parsing two disconnected strand definitions yields two separate machine strands. | machine/machine_test.go:419 |
+| test1165 | `Test1165_ParseUnknownCapInRegistryReturnsAbstractionError` | TEST1165: Parsing fails hard when a referenced cap is missing from the registry cache. | machine/machine_test.go:522 |
+| test1166 | `Test1166_ParseDuplicateAliasReturnsError` | TEST1166: Duplicate header aliases are reported as syntax errors. | machine/machine_test.go:492 |
+| test1167 | `Test1167_ParseUndefinedAliasReturnsError` | TEST1167: Wiring that references an undefined alias is reported as a syntax error. | machine/machine_test.go:509 |
+| test1168 | `Test1168_ParseNodeNameCollidesWithCapAlias` | TEST1168: Parsing rejects node names that collide with declared cap aliases. | machine/machine_test.go:539 |
+| test1169 | `Test1169_ForEachSetsIsLoop` | TEST1169: Loop markers in notation set the resolved edge loop flag on the following cap step. | machine/machine_test.go:312 |
+| test1170 | `Test1170_CollectIsElided` | TEST1170: Parsing and then serializing machine notation round-trips to the canonical form. | machine/machine_test.go:349 |
+| test1171 | `Test1171_ParseEmptyInputReturnsError` | TEST1171: Empty machine notation is rejected as a syntax error. | machine/machine_test.go:465 |
+| test1172 | `Test1172_MachineStringRepr` | TEST1172: Serializing a two-step strand emits the expected aliases and node names. | machine/machine_test.go:600 |
+| test1173 | `Test1173_ToMachineNotationRoundTrips` | TEST1173: Serializing and reparsing a machine preserves strict machine equivalence. | machine/machine_test.go:560 |
+| test1174 | `Test1174_line_based_format_round_trips` | TEST1174: Line-based notation format round-trips back to the same machine. ToMachineNotationFormatted(NotationFormatLineBased) must not contain '[', and re-parsing must yield an equivalent machine. | machine/machine_test.go:787 |
+| test1175 | `Test1175_EmptyMachineSerializesToEmpty` | TEST1175: Serializing an empty machine produces an empty string. | machine/machine_test.go:591 |
+| test1176 | `Test1176_render_payload_json_includes_strand_with_anchors` | TEST1176: ToRenderPayloadJSON for a populated machine includes strand with nodes, edges, input_anchor_nodes, and output_anchor_nodes. | machine/machine_test.go:1094 |
+| test1177 | `Test1177_render_payload_for_empty_machine_has_empty_strands_array` | TEST1177: ToRenderPayloadJSON for an empty machine emits an empty strands array. | machine/machine_test.go:1133 |
+| test1178 | `Test1178_match_single_source_picks_unique_arg` | TEST1178: matchSourcesToArgs assigns a single source to the single compatible cap arg. | machine/machine_test.go:815 |
+| test1179 | `Test1179_match_more_specific_source_assigned_to_general_arg` | TEST1179: matchSourcesToArgs assigns a more specific source to a compatible general arg. | machine/machine_test.go:828 |
+| test1180 | `Test1180_match_unmatched_source_fails_hard` | TEST1180: matchSourcesToArgs fails when source does not conform to any cap arg. | machine/machine_test.go:841 |
+| test1181 | `Test1181_match_two_sources_disambiguated_by_specificity` | TEST1181: matchSourcesToArgs disambiguates two sources by specificity. | machine/machine_test.go:852 |
+| test1182 | `Test1182_match_ambiguous_when_two_sources_could_swap` | TEST1182: matchSourcesToArgs fails ambiguous when two identical sources can be swapped. | machine/machine_test.go:876 |
+| test1183 | `Test1183_match_more_sources_than_args_fails_hard` | TEST1183: matchSourcesToArgs fails when more sources are provided than cap args. | machine/machine_test.go:887 |
+| test1184 | `Test1184_resolve_strand_single_cap_produces_one_edge` | TEST1184: resolveStrand with one cap produces one edge with correct input/output anchors. | machine/machine_test.go:898 |
+| test1185 | `Test1185_resolve_strand_chained_caps_share_intermediate_node` | TEST1185: resolveStrand chained caps share the intermediate node (positional interning). 3 distinct nodes, not 4. | machine/machine_test.go:930 |
+| test1186 | `Test1186_resolve_strand_foreach_marks_following_cap_as_loop` | TEST1186: resolveStrand with ForEach marks the following cap edge as IsLoop=true. | machine/machine_test.go:958 |
+| test1187 | `Test1187_StrandNonEquivalenceDifferentCap` | TEST1187: Strand resolution fails when a referenced cap is not found in the registry. | machine/machine_test.go:669 |
+| test1188 | `Test1188_resolve_strand_no_cap_steps_fails_hard` | TEST1188: resolveStrand fails when the strand contains no capability steps. | machine/machine_test.go:1008 |
+| test1189 | `Test1189_StrandEquivalenceWithDifferentNodeAllocationOrders` | TEST1189: Strand resolution keeps canonical anchor ordering stable across equivalent inputs. | machine/machine_test.go:620 |
+| test1190 | `Test1190_resolve_strand_inverse_format_converters_no_cycle` | TEST1190: resolveStrand with inverse format converters produces 3 distinct nodes, no cycle. | machine/machine_test.go:1021 |
+| test1191 | `Test1191_resolve_strand_disbind_pdf_with_file_path_slot_identity` | TEST1191: resolveStrand with a disbind cap that uses file-path slot identity (distinct from stdin URN) preserves the slot identity in the binding. | machine/machine_test.go:1055 |
 | test1271 | `Test1271_media_adapter_selection_constant` | TEST1271: MEDIA_ADAPTER_SELECTION constant parses and has expected tags | standard/caps_test.go:134 |
 | test1272 | `Test1272_adapter_cap_constant_parses` | TEST1272: CAP_ADAPTER_SELECTION constant parses as a valid CapUrn | standard/caps_test.go:146 |
 | test1273 | `Test1273_adapter_selection_urn_builder` | TEST1273: CapAdapterSelection has correct in/out specs (in=media: out=media:adapter-selection;json;record) | standard/caps_test.go:156 |
@@ -864,7 +876,7 @@ This catalog lists all tests in the CapDag-Go codebase.
 | unnumbered | `TestMaxChunkPlusOneSplitsIntoTwo` | Mirror-specific coverage: Test payload of max_chunk + 1 produces exactly one CHUNK frame + one END frame | bifaci/integration_test.go:1816 |
 | unnumbered | `TestMediaUrnResolutionWithMediaSpecs` |  | cap/schema_validation_test.go:627 |
 | unnumbered | `TestOutputValidator_WithSchemaValidation` |  | cap/schema_validation_test.go:367 |
-| unnumbered | `TestParseHeadersWithNoWiringsReturnsNoEdgesError` | TestParseHeadersWithNoWiringsReturnsNoEdgesError verifies the ErrNoEdges case. | machine/machine_test.go:453 |
+| unnumbered | `TestParseHeadersWithNoWiringsReturnsNoEdgesError` | TestParseHeadersWithNoWiringsReturnsNoEdgesError verifies the ErrNoEdges case. | machine/machine_test.go:477 |
 | unnumbered | `TestParseSimple` | Mirror-specific coverage: Test parsing simple media URN verifies correct structure with no version, subtype, or profile | urn/media_urn_test.go:14 |
 | unnumbered | `TestParseWithProfile` | Mirror-specific coverage: Test parsing media URN with profile extracts profile URL correctly | urn/media_urn_test.go:32 |
 | unnumbered | `TestParseWithSubtype` | Mirror-specific coverage: Test parsing media URN with marker tags works correctly | urn/media_urn_test.go:22 |
@@ -938,7 +950,7 @@ The following tests are cataloged but do not currently participate in numeric te
 - `TestMaxChunkPlusOneSplitsIntoTwo` — bifaci/integration_test.go:1816
 - `TestMediaUrnResolutionWithMediaSpecs` — cap/schema_validation_test.go:627
 - `TestOutputValidator_WithSchemaValidation` — cap/schema_validation_test.go:367
-- `TestParseHeadersWithNoWiringsReturnsNoEdgesError` — machine/machine_test.go:453
+- `TestParseHeadersWithNoWiringsReturnsNoEdgesError` — machine/machine_test.go:477
 - `TestParseSimple` — urn/media_urn_test.go:14
 - `TestParseWithProfile` — urn/media_urn_test.go:32
 - `TestParseWithSubtype` — urn/media_urn_test.go:22
@@ -963,8 +975,8 @@ The following tests are cataloged but do not currently participate in numeric te
 ---
 
 *Generated from CapDag-Go source tree*
-*Total tests: 868*
-*Total numbered tests: 800*
+*Total tests: 880*
+*Total numbered tests: 812*
 *Total unnumbered tests: 68*
 *Total numbered tests missing descriptions: 0*
 *Total numbering mismatches: 0*

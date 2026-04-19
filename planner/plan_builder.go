@@ -1,9 +1,11 @@
 package planner
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/machinefabric/capdag-go/cap"
+	"github.com/machinefabric/capdag-go/media"
 	"github.com/machinefabric/capdag-go/urn"
 )
 
@@ -446,6 +448,23 @@ func determineResolutionWithIOCheck(
 		return ResolutionHasDefault
 	}
 	return ResolutionRequiresUserInput
+}
+
+// ValidationToJSON converts a MediaValidation to a JSON object, or nil if the
+// validation has no constraints. Mirrors Rust's MachinePlanBuilder::validation_to_json.
+func ValidationToJSON(v *media.MediaValidation) json.RawMessage {
+	if v == nil {
+		return nil
+	}
+	if v.Min == nil && v.Max == nil && v.MinLength == nil && v.MaxLength == nil &&
+		v.Pattern == nil && len(v.AllowedValues) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		panic("ValidationToJSON: failed to marshal MediaValidation: " + err.Error())
+	}
+	return data
 }
 
 // findCapInList finds a cap in a list by URN string.

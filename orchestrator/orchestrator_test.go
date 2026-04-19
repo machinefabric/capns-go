@@ -153,6 +153,77 @@ func Test770_rejects_foreach(t *testing.T) {
 	}
 }
 
+// TEST953: Linear plans (no ForEach/Collect) still convert successfully
+func Test953_linear_plan_still_works(t *testing.T) {
+	registry := buildTestRegistry(t, []string{"cap:in=media:pdf;op=extract;out=media:text"})
+
+	plan := planner.NewMachinePlan("linear_plan")
+	plan.AddNode(planner.NewInputSlotNode("input", "input", "media:pdf", planner.CardinalitySingle))
+	plan.AddNode(planner.NewMachineNode("cap_0", "cap:in=media:pdf;op=extract;out=media:text"))
+	plan.AddNode(planner.NewOutputNode("output", "result", "cap_0"))
+	plan.AddEdge(planner.NewDirectEdge("input", "cap_0"))
+	plan.AddEdge(planner.NewDirectEdge("cap_0", "output"))
+
+	graph, err := PlanToResolvedGraph(plan, registry)
+	if err != nil {
+		t.Fatalf("Linear plan should still convert: %v", err)
+	}
+	if len(graph.Edges) != 1 {
+		t.Fatalf("Expected 1 edge, got %d", len(graph.Edges))
+	}
+}
+
+// TEST954: Standalone Collect nodes are handled as pass-through
+// Plan: input → cap_0 → Collect → cap_1 → output
+// The standalone Collect is transparent — the resolved edge from Collect to cap_1
+// should be rewritten to go from cap_0 to cap_1 directly.
+func Test954_standalone_collect_passthrough(t *testing.T) {
+	registry := buildTestRegistry(t, []string{
+		`cap:in=media:pdf;op=extract;out="media:text;textable"`,
+		`cap:in="media:list;text;textable";op=embed;out="media:embedding-vector;record;textable"`,
+	})
+
+	plan := planner.NewMachinePlan("collect_plan")
+	plan.AddNode(planner.NewInputSlotNode("input", "input", "media:pdf", planner.CardinalitySingle))
+	plan.AddNode(planner.NewMachineNode("cap_0", `cap:in=media:pdf;op=extract;out="media:text;textable"`))
+
+	// Standalone Collect: scalar→list with OutputMediaUrn set
+	collectNode := planner.NewCollectNode("collect_0", []string{"cap_0"})
+	outUrn := "media:list;text;textable"
+	collectNode.NodeType.OutputMediaUrn = &outUrn
+	plan.AddNode(collectNode)
+
+	plan.AddNode(planner.NewMachineNode("cap_1", `cap:in="media:list;text;textable";op=embed;out="media:embedding-vector;record;textable"`))
+	plan.AddNode(planner.NewOutputNode("output", "result", "cap_1"))
+
+	plan.AddEdge(planner.NewDirectEdge("input", "cap_0"))
+	plan.AddEdge(planner.NewDirectEdge("cap_0", "collect_0"))
+	plan.AddEdge(planner.NewDirectEdge("collect_0", "cap_1"))
+	plan.AddEdge(planner.NewDirectEdge("cap_1", "output"))
+
+	graph, err := PlanToResolvedGraph(plan, registry)
+	if err != nil {
+		t.Fatalf("Plan with standalone Collect should convert: %v", err)
+	}
+
+	// Two resolved edges: input→cap_0 and cap_0→cap_1 (Collect is transparent)
+	if len(graph.Edges) != 2 {
+		pairs := make([]string, len(graph.Edges))
+		for i, e := range graph.Edges {
+			pairs[i] = e.From + "→" + e.To
+		}
+		t.Fatalf("Expected 2 edges, got %d: %v", len(graph.Edges), pairs)
+	}
+
+	found := make(map[string]bool)
+	for _, e := range graph.Edges {
+		found[e.From+"→"+e.To] = true
+	}
+	if !found["input→cap_0"] {
+		t.Errorf("Expected input→cap_0 edge, got: %v", found)
+	}
+}
+
 // TEST771: PlanToResolvedGraph rejects plans containing ForEach-paired Collect nodes
 // Verifies that Collect nodes without OutputMediaUrn (ForEach-paired) are rejected
 func Test771_rejects_foreach_paired_collect(t *testing.T) {

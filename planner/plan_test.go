@@ -564,6 +564,196 @@ func Test923_plan_with_metadata(t *testing.T) {
 	assert.Equal(t, 1, plan.Metadata["version"])
 }
 
+// TEST924: Tests plan validation detects edges pointing to non-existent nodes
+// Verifies that Validate() returns an error when an edge references a missing to_node
+func Test924_validate_invalid_edge(t *testing.T) {
+	plan := NewMachinePlan("invalid")
+	plan.Nodes["node_0"] = NewMachineNode("node_0", "cap:test")
+	plan.Edges = append(plan.Edges, NewDirectEdge("node_0", "nonexistent"))
+
+	err := plan.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nonexistent")
+}
+
+// TEST925: Tests topological sort correctly orders a diamond-shaped DAG (A->B,C->D)
+// Verifies that nodes with multiple paths respect dependency constraints (A first, D last)
+func Test925_topological_order_diamond(t *testing.T) {
+	plan := NewMachinePlan("diamond")
+	plan.Nodes["A"] = NewMachineNode("A", "cap:a")
+	plan.Nodes["B"] = NewMachineNode("B", "cap:b")
+	plan.Nodes["C"] = NewMachineNode("C", "cap:c")
+	plan.Nodes["D"] = NewMachineNode("D", "cap:d")
+
+	plan.Edges = append(plan.Edges,
+		NewDirectEdge("A", "B"),
+		NewDirectEdge("A", "C"),
+		NewDirectEdge("B", "D"),
+		NewDirectEdge("C", "D"),
+	)
+
+	order, err := plan.TopologicalOrder()
+	require.NoError(t, err)
+	assert.Equal(t, 4, len(order))
+	assert.Equal(t, "A", order[0].ID)
+	assert.Equal(t, "D", order[3].ID)
+}
+
+// TEST926: Tests topological sort detects and rejects cyclic dependencies (A->B->C->A)
+// Verifies that circular references produce a "Cycle detected" error
+func Test926_topological_order_detects_cycle(t *testing.T) {
+	plan := NewMachinePlan("cyclic")
+	plan.Nodes["A"] = NewMachineNode("A", "cap:a")
+	plan.Nodes["B"] = NewMachineNode("B", "cap:b")
+	plan.Nodes["C"] = NewMachineNode("C", "cap:c")
+
+	plan.Edges = append(plan.Edges,
+		NewDirectEdge("A", "B"),
+		NewDirectEdge("B", "C"),
+		NewDirectEdge("C", "A"),
+	)
+
+	_, err := plan.TopologicalOrder()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Cycle detected")
+}
+
+// TEST927: Tests MachineResult structure for successful execution outcomes
+// Verifies that success status, outputs, and PrimaryOutput() accessor work correctly
+func Test927_execution_result(t *testing.T) {
+	result := &MachineResult{
+		Success: true,
+		NodeResults: map[string]*NodeExecutionResult{},
+		Outputs: map[string]any{
+			"output": map[string]any{"result": "success"},
+		},
+		TotalDurationMs: 100,
+	}
+
+	assert.True(t, result.Success)
+	assert.NotNil(t, result.PrimaryOutput())
+}
+
+// TEST928: Tests plan validation detects edges originating from non-existent nodes
+// Verifies that Validate() returns an error when an edge references a missing from_node
+func Test928_validate_invalid_from_node(t *testing.T) {
+	plan := NewMachinePlan("invalid")
+	plan.Nodes["node_0"] = NewMachineNode("node_0", "cap:test")
+	plan.Edges = append(plan.Edges, NewDirectEdge("nonexistent", "node_0"))
+
+	err := plan.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nonexistent")
+}
+
+// TEST929: Tests plan validation detects invalid entry node references
+// Verifies that Validate() returns an error when EntryNodes contains a non-existent node ID
+func Test929_validate_invalid_entry_node(t *testing.T) {
+	plan := NewMachinePlan("invalid_entry")
+	plan.Nodes["cap_0"] = NewMachineNode("cap_0", "cap:test")
+	plan.EntryNodes = append(plan.EntryNodes, "nonexistent_entry")
+
+	err := plan.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nonexistent_entry")
+}
+
+// TEST930: Tests plan validation detects invalid output node references
+// Verifies that Validate() returns an error when OutputNodes contains a non-existent node ID
+func Test930_validate_invalid_output_node(t *testing.T) {
+	plan := NewMachinePlan("invalid_output")
+	plan.Nodes["cap_0"] = NewMachineNode("cap_0", "cap:test")
+	plan.OutputNodes = append(plan.OutputNodes, "nonexistent_output")
+
+	err := plan.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nonexistent_output")
+}
+
+// TEST931: Tests NodeExecutionResult structure for failed node execution
+// Verifies that failure status, error message, and absence of outputs are correctly represented
+func Test931_node_execution_result_failure(t *testing.T) {
+	result := &NodeExecutionResult{
+		NodeID:       "node_0",
+		Success:      false,
+		BinaryOutput: nil,
+		Error:        "Cap execution failed",
+		DurationMs:   10,
+	}
+
+	assert.False(t, result.Success)
+	assert.Nil(t, result.BinaryOutput)
+	assert.Equal(t, "Cap execution failed", result.Error)
+}
+
+// TEST932: Tests MachineResult structure for failed chain execution
+// Verifies that failure status, error message, and absence of outputs are correctly represented
+func Test932_execution_result_failure(t *testing.T) {
+	result := &MachineResult{
+		Success:         false,
+		NodeResults:     map[string]*NodeExecutionResult{},
+		Outputs:         map[string]any{},
+		Error:           "Chain failed",
+		TotalDurationMs: 100,
+	}
+
+	assert.False(t, result.Success)
+	assert.Equal(t, "Chain failed", result.Error)
+	assert.Nil(t, result.PrimaryOutput())
+}
+
+// TEST934: FindFirstForEach detects ForEach in a plan
+func Test934_find_first_foreach(t *testing.T) {
+	plan := buildForeachPlanWithCollect()
+	foreachID := plan.FindFirstForEach()
+	require.NotNil(t, foreachID)
+	assert.Equal(t, "foreach_0", *foreachID)
+}
+
+// TEST935: FindFirstForEach returns nil for linear plans
+func Test935_find_first_foreach_linear(t *testing.T) {
+	plan := LinearChain([]string{"cap:a", "cap:b"}, "media:pdf", "media:png", []string{"input_a", "input_b"})
+	assert.Nil(t, plan.FindFirstForEach())
+}
+
+// TEST936: HasForeach detects ForEach nodes
+func Test936_has_foreach(t *testing.T) {
+	foreachPlan := buildForeachPlanWithCollect()
+	assert.True(t, foreachPlan.HasForeach(), "Plan with ForEach+Collect should detect ForEach")
+
+	linearPlan := LinearChain([]string{"cap:a"}, "media:pdf", "media:png", []string{"input_a"})
+	assert.False(t, linearPlan.HasForeach(), "Linear plan should not detect ForEach")
+
+	// Standalone Collect (no ForEach) should NOT trigger HasForeach
+	standalonePlan := NewMachinePlan("collect_only")
+	standalonePlan.AddNode(NewInputSlotNode("input", "input", "media:textable", CardinalitySingle))
+	standalonePlan.AddNode(NewMachineNode("cap_0", "cap:in=media:textable;op=summarize;out=media:summary"))
+	standalonePlan.AddNode(NewCollectNode("collect_0", []string{"cap_0"}))
+	standalonePlan.AddNode(NewOutputNode("output", "result", "collect_0"))
+	assert.False(t, standalonePlan.HasForeach(), "Plan with standalone Collect (no ForEach) should NOT trigger HasForeach")
+}
+
+// TEST937: ExtractPrefixTo extracts input_slot -> cap_0 as a standalone plan
+func Test937_extract_prefix_to(t *testing.T) {
+	plan := buildForeachPlanWithCollect()
+
+	prefix, err := plan.ExtractPrefixTo("cap_0")
+	require.NoError(t, err)
+
+	// Should have: input_slot, cap_0, and a synthetic output
+	assert.Equal(t, 3, len(prefix.Nodes))
+	assert.NotNil(t, prefix.GetNode("input_slot"))
+	assert.NotNil(t, prefix.GetNode("cap_0"))
+	assert.NotNil(t, prefix.GetNode("cap_0_prefix_output"))
+	assert.Equal(t, 1, len(prefix.EntryNodes))
+	assert.Equal(t, 1, len(prefix.OutputNodes))
+	assert.NoError(t, prefix.Validate())
+
+	order, err := prefix.TopologicalOrder()
+	require.NoError(t, err)
+	assert.Equal(t, 3, len(order))
+}
+
 // TEST764: extract_prefix_to with InputSlot as target (trivial prefix)
 func Test764_extract_prefix_to_input_slot(t *testing.T) {
 	plan := buildForeachPlanWithCollect()

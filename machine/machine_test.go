@@ -6,6 +6,8 @@ import (
 	"github.com/machinefabric/capdag-go/cap"
 	"github.com/machinefabric/capdag-go/planner"
 	"github.com/machinefabric/capdag-go/urn"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ===================================================================
@@ -58,6 +60,28 @@ func capUrnVal(s string) *urn.CapUrn {
 		panic("test fixture: invalid cap URN " + s + ": " + err.Error())
 	}
 	return c
+}
+
+// foreachStep builds a StepTypeForEach StrandStep.
+func foreachStep(mediaUrnStr string) *planner.StrandStep {
+	u := mediaUrn(mediaUrnStr)
+	return &planner.StrandStep{
+		StepType:  planner.StepTypeForEach,
+		FromSpec:  u,
+		ToSpec:    u,
+		MediaSpec: u,
+	}
+}
+
+// collectStep builds a StepTypeCollect StrandStep.
+func collectStep(mediaUrnStr string) *planner.StrandStep {
+	u := mediaUrn(mediaUrnStr)
+	return &planner.StrandStep{
+		StepType:  planner.StepTypeCollect,
+		FromSpec:  u,
+		ToSpec:    u,
+		MediaSpec: u,
+	}
 }
 
 // capStep builds a StepTypeCap StrandStep.
@@ -785,6 +809,284 @@ func Test1174_line_based_format_round_trips(t *testing.T) {
 	if !m1.IsEquivalent(m2) {
 		t.Error("line-based round-trip must yield equivalent machine")
 	}
+}
+
+// TEST1178: matchSourcesToArgs assigns a single source to the single compatible cap arg.
+func Test1178_match_single_source_picks_unique_arg(t *testing.T) {
+	sources := []*urn.MediaUrn{mediaUrn("media:pdf")}
+	args := []*urn.MediaUrn{mediaUrn("media:pdf")}
+	capUrnStr := `cap:in=media:pdf;op=extract;out="media:txt;textable"`
+
+	pairs, err := matchSourcesToArgs(sources, args, capUrnStr, 0)
+	require.Nil(t, err, "trivial single-source match must succeed")
+	require.Equal(t, 1, len(pairs))
+	assert.True(t, pairs[0][0].IsEquivalent(mediaUrn("media:pdf")), "arg must be media:pdf")
+	assert.True(t, pairs[0][1].IsEquivalent(mediaUrn("media:pdf")), "source must be media:pdf")
+}
+
+// TEST1179: matchSourcesToArgs assigns a more specific source to a compatible general arg.
+func Test1179_match_more_specific_source_assigned_to_general_arg(t *testing.T) {
+	sources := []*urn.MediaUrn{mediaUrn("media:page;textable")}
+	args := []*urn.MediaUrn{mediaUrn("media:textable")}
+	capUrnStr := `cap:in=media:textable;op=make_decision;out="media:decision;textable"`
+
+	pairs, err := matchSourcesToArgs(sources, args, capUrnStr, 0)
+	require.Nil(t, err, "more-specific source must be matched to its arg")
+	require.Equal(t, 1, len(pairs))
+	assert.True(t, pairs[0][0].IsEquivalent(mediaUrn("media:textable")), "arg must be media:textable")
+	assert.True(t, pairs[0][1].IsEquivalent(mediaUrn("media:page;textable")), "source must be media:page;textable")
+}
+
+// TEST1180: matchSourcesToArgs fails when source does not conform to any cap arg.
+func Test1180_match_unmatched_source_fails_hard(t *testing.T) {
+	sources := []*urn.MediaUrn{mediaUrn("media:numeric")}
+	args := []*urn.MediaUrn{mediaUrn("media:textable")}
+	capUrnStr := "cap:in=media:textable;op=t;out=media:textable"
+
+	_, err := matchSourcesToArgs(sources, args, capUrnStr, 7)
+	require.NotNil(t, err, "unmatched source must fail hard")
+	assert.Equal(t, ErrAbstractionUnmatchedSourceInCapArgs, err.Kind)
+}
+
+// TEST1181: matchSourcesToArgs disambiguates two sources by specificity.
+func Test1181_match_two_sources_disambiguated_by_specificity(t *testing.T) {
+	sources := []*urn.MediaUrn{mediaUrn("media:image;png"), mediaUrn("media:model-spec;textable")}
+	args := []*urn.MediaUrn{mediaUrn("media:image;png"), mediaUrn("media:textable")}
+	capUrnStr := `cap:in="media:image;png";op=describe;out="media:image-description;textable"`
+
+	pairs, err := matchSourcesToArgs(sources, args, capUrnStr, 0)
+	require.Nil(t, err, "two sources disambiguated by specificity must succeed")
+	require.Equal(t, 2, len(pairs))
+
+	foundImage, foundText := false, false
+	for _, pair := range pairs {
+		arg, src := pair[0], pair[1]
+		if arg.IsEquivalent(mediaUrn("media:image;png")) {
+			assert.True(t, src.IsEquivalent(mediaUrn("media:image;png")))
+			foundImage = true
+		} else if arg.IsEquivalent(mediaUrn("media:textable")) {
+			assert.True(t, src.IsEquivalent(mediaUrn("media:model-spec;textable")))
+			foundText = true
+		}
+	}
+	assert.True(t, foundImage && foundText, "both arg slots must be assigned")
+}
+
+// TEST1182: matchSourcesToArgs fails ambiguous when two identical sources can be swapped.
+func Test1182_match_ambiguous_when_two_sources_could_swap(t *testing.T) {
+	sources := []*urn.MediaUrn{mediaUrn("media:textable"), mediaUrn("media:textable")}
+	args := []*urn.MediaUrn{mediaUrn("media:textable"), mediaUrn("media:textable")}
+	capUrnStr := "cap:in=media:textable;op=t;out=media:textable"
+
+	_, err := matchSourcesToArgs(sources, args, capUrnStr, 0)
+	require.NotNil(t, err, "ambiguous matching must fail hard")
+	assert.Equal(t, ErrAbstractionAmbiguousMachineNotation, err.Kind)
+}
+
+// TEST1183: matchSourcesToArgs fails when more sources are provided than cap args.
+func Test1183_match_more_sources_than_args_fails_hard(t *testing.T) {
+	sources := []*urn.MediaUrn{mediaUrn("media:pdf"), mediaUrn("media:pdf"), mediaUrn("media:pdf")}
+	args := []*urn.MediaUrn{mediaUrn("media:pdf"), mediaUrn("media:pdf")}
+	capUrnStr := "cap:in=media:pdf;op=t;out=media:pdf"
+
+	_, err := matchSourcesToArgs(sources, args, capUrnStr, 0)
+	require.NotNil(t, err, "more sources than args must fail hard")
+	assert.Equal(t, ErrAbstractionUnmatchedSourceInCapArgs, err.Kind)
+}
+
+// TEST1184: resolveStrand with one cap produces one edge with correct input/output anchors.
+func Test1184_resolve_strand_single_cap_produces_one_edge(t *testing.T) {
+	c := buildCap(
+		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+		"extract",
+		[]string{"media:pdf"},
+		`media:txt;textable`,
+	)
+	registry := registryWith([]*cap.Cap{c})
+	strand := strandFromSteps([]*planner.StrandStep{
+		capStep(`cap:in=media:pdf;op=extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
+	}, "pdf to txt")
+
+	resolved, err := resolveStrand(strand, registry, 0)
+	require.Nil(t, err, "must resolve")
+	require.Equal(t, 1, len(resolved.Edges()))
+	require.Equal(t, 1, len(resolved.Edges()[0].Assignment))
+
+	binding := resolved.Edges()[0].Assignment[0]
+	assert.True(t, binding.CapArgMediaUrn.IsEquivalent(mediaUrn("media:pdf")))
+	srcUrn := resolved.NodeUrn(binding.Source)
+	assert.True(t, srcUrn.IsEquivalent(mediaUrn("media:pdf")))
+
+	inputs := resolved.InputAnchors()
+	outputs := resolved.OutputAnchors()
+	require.Equal(t, 1, len(inputs))
+	require.Equal(t, 1, len(outputs))
+	assert.True(t, inputs[0].IsEquivalent(mediaUrn("media:pdf")))
+	assert.True(t, outputs[0].IsEquivalent(mediaUrn(`media:txt;textable`)))
+}
+
+// TEST1185: resolveStrand chained caps share the intermediate node (positional interning).
+// 3 distinct nodes, not 4.
+func Test1185_resolve_strand_chained_caps_share_intermediate_node(t *testing.T) {
+	registry := pdfExtractEmbedRegistry()
+	strand := strandFromSteps([]*planner.StrandStep{
+		capStep(`cap:in=media:pdf;op=extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
+		capStep(`cap:in=media:textable;op=embed;out="media:vec;record"`, "embed", `media:txt;textable`, `media:vec;record`),
+	}, "pdf to vec")
+
+	resolved, err := resolveStrand(strand, registry, 0)
+	require.Nil(t, err)
+	require.Equal(t, 2, len(resolved.Edges()))
+	assert.Equal(t, 3, len(resolved.Nodes()),
+		"three distinct data positions: pdf, txt;textable, vec;record")
+
+	// Intermediate node must be shared between extract's target and embed's source.
+	extractTarget := resolved.Edges()[0].Target
+	embedSource := resolved.Edges()[1].Assignment[0].Source
+	assert.Equal(t, extractTarget, embedSource,
+		"intermediate data position must be one shared NodeId")
+
+	inputs := resolved.InputAnchors()
+	outputs := resolved.OutputAnchors()
+	require.Equal(t, 1, len(inputs))
+	require.Equal(t, 1, len(outputs))
+	assert.True(t, inputs[0].IsEquivalent(mediaUrn("media:pdf")))
+	assert.True(t, outputs[0].IsEquivalent(mediaUrn(`media:vec;record`)))
+}
+
+// TEST1186: resolveStrand with ForEach marks the following cap edge as IsLoop=true.
+func Test1186_resolve_strand_foreach_marks_following_cap_as_loop(t *testing.T) {
+	disbind := buildCap(
+		`cap:in=media:pdf;op=disbind;out="media:page;textable"`,
+		"disbind",
+		[]string{"media:pdf"},
+		`media:page;textable`,
+	)
+	makeDecision := buildCap(
+		`cap:in=media:textable;op=make_decision;out="media:decision;json;record;textable"`,
+		"make_decision",
+		[]string{"media:textable"},
+		`media:decision;json;record;textable`,
+	)
+	registry := registryWith([]*cap.Cap{disbind, makeDecision})
+
+	strand := strandFromSteps([]*planner.StrandStep{
+		capStep(`cap:in=media:pdf;op=disbind;out="media:page;textable"`, "disbind", "media:pdf", `media:page;textable`),
+		foreachStep(`media:page;textable`),
+		capStep(`cap:in=media:textable;op=make_decision;out="media:decision;json;record;textable"`, "make_decision", `media:textable`, `media:decision;json;record;textable`),
+		collectStep(`media:decision;json;record;textable`),
+	}, "disbind+foreach+make_decision")
+
+	resolved, err := resolveStrand(strand, registry, 0)
+	require.Nil(t, err)
+	require.Equal(t, 2, len(resolved.Edges()))
+
+	var disbindEdge, decisionEdge *MachineEdge
+	for _, e := range resolved.Edges() {
+		s := e.CapUrn.String()
+		if containsStr(s, "disbind") {
+			disbindEdge = e
+		} else if containsStr(s, "make_decision") {
+			decisionEdge = e
+		}
+	}
+	require.NotNil(t, disbindEdge, "disbind edge must be present")
+	require.NotNil(t, decisionEdge, "make_decision edge must be present")
+	assert.False(t, disbindEdge.IsLoop, "disbind is not in a loop")
+	assert.True(t, decisionEdge.IsLoop, "make_decision is inside ForEach")
+
+	// Intermediate node is shared (positional interning).
+	disbindTarget := disbindEdge.Target
+	decisionSource := decisionEdge.Assignment[0].Source
+	assert.Equal(t, disbindTarget, decisionSource,
+		"disbind target and make_decision source must share the same NodeId (positional interning)")
+	assert.True(t, resolved.NodeUrn(disbindTarget).IsEquivalent(mediaUrn(`media:page;textable`)),
+		"shared node URN must be the more-specific media:page;textable")
+}
+
+// TEST1188: resolveStrand fails when the strand contains no capability steps.
+func Test1188_resolve_strand_no_cap_steps_fails_hard(t *testing.T) {
+	registry := registryWith(nil)
+	strand := strandFromSteps([]*planner.StrandStep{
+		foreachStep("media:pdf"),
+		collectStep("media:pdf"),
+	}, "no caps at all")
+
+	_, err := resolveStrand(strand, registry, 0)
+	require.NotNil(t, err, "no cap steps must fail hard")
+	assert.Equal(t, ErrAbstractionNoCapabilitySteps, err.Kind)
+}
+
+// TEST1190: resolveStrand with inverse format converters produces 3 distinct nodes, no cycle.
+func Test1190_resolve_strand_inverse_format_converters_no_cycle(t *testing.T) {
+	toInt := buildCap(
+		`cap:in="media:numeric;textable";op=coerce_int;out="media:integer;numeric;textable"`,
+		"coerce_int",
+		[]string{`media:numeric;textable`},
+		`media:integer;numeric;textable`,
+	)
+	toNum := buildCap(
+		`cap:in="media:integer;numeric;textable";op=coerce_num;out="media:numeric;textable"`,
+		"coerce_num",
+		[]string{`media:integer;numeric;textable`},
+		`media:numeric;textable`,
+	)
+	registry := registryWith([]*cap.Cap{toInt, toNum})
+
+	strand := strandFromSteps([]*planner.StrandStep{
+		capStep(`cap:in="media:numeric;textable";op=coerce_int;out="media:integer;numeric;textable"`, "coerce_int", `media:numeric;textable`, `media:integer;numeric;textable`),
+		capStep(`cap:in="media:integer;numeric;textable";op=coerce_num;out="media:numeric;textable"`, "coerce_num", `media:integer;numeric;textable`, `media:numeric;textable`),
+	}, "round-trip numeric coercion")
+
+	resolved, err := resolveStrand(strand, registry, 0)
+	require.Nil(t, err,
+		"inverse format converters must resolve without cycle under positional interning")
+	assert.Equal(t, 3, len(resolved.Nodes()),
+		"three distinct data positions: input, intermediate, output")
+	assert.Equal(t, 2, len(resolved.Edges()))
+
+	intTarget := resolved.Edges()[0].Target
+	numSource := resolved.Edges()[1].Assignment[0].Source
+	assert.Equal(t, intTarget, numSource, "intermediate node must be shared")
+}
+
+// TEST1191: resolveStrand with a disbind cap that uses file-path slot identity
+// (distinct from stdin URN) preserves the slot identity in the binding.
+func Test1191_resolve_strand_disbind_pdf_with_file_path_slot_identity(t *testing.T) {
+	// The disbind cap declares `media:file-path;textable` as the slot identity
+	// (CapArg.MediaUrn) but its stdin source is `media:pdf`. The resolver must
+	// match the wiring's `media:pdf` source against the stdin URN, then record
+	// `media:file-path;textable` as the binding's CapArgMediaUrn.
+	filePathSlot := "media:file-path;textable"
+	stdinUrn := "media:pdf"
+	disbind := &cap.Cap{
+		Urn:     capUrnVal(`cap:in=media:pdf;op=disbind;out="media:textable;page"`),
+		Title:   "disbind",
+		Command: "disbind",
+		Args: []cap.CapArg{
+			cap.NewCapArg(filePathSlot, true, []cap.ArgSource{{Stdin: &stdinUrn}}),
+		},
+		Output: cap.NewCapOutput(`media:textable;page`, "pages"),
+	}
+	registry := registryWith([]*cap.Cap{disbind})
+
+	strand := strandFromSteps([]*planner.StrandStep{
+		capStep(`cap:in=media:pdf;op=disbind;out="media:textable;page"`, "disbind", "media:pdf", `media:textable;page`),
+	}, "pdf to pages")
+
+	resolved, err := resolveStrand(strand, registry, 0)
+	require.Nil(t, err,
+		"disbind strand must resolve via stdin URN matching, not slot identity")
+	require.Equal(t, 1, len(resolved.Edges()))
+
+	binding := resolved.Edges()[0].Assignment[0]
+	// Binding's CapArgMediaUrn must be the slot identity (media:file-path;textable).
+	assert.True(t, binding.CapArgMediaUrn.IsEquivalent(mediaUrn("media:file-path;textable")),
+		"binding cap_arg_media_urn must be the slot identity, got: %s", binding.CapArgMediaUrn)
+	// Source node must be media:pdf.
+	sourceUrn := resolved.NodeUrn(binding.Source)
+	assert.True(t, sourceUrn.IsEquivalent(mediaUrn("media:pdf")),
+		"source node URN must be media:pdf (the data-type URN), got: %s", sourceUrn)
 }
 
 // TEST1176: ToRenderPayloadJSON for a populated machine includes strand with
