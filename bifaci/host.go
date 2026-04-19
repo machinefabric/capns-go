@@ -686,26 +686,34 @@ func (h *CartridgeHost) killAllCartridges() {
 }
 
 // parseCapsFromManifest parses cap URNs from a JSON manifest.
-// Expected format: {"caps": [{"urn": "cap:op=test", ...}, ...]}
+// Expected format: {"cap_groups": [{"caps": [{"urn": "cap:op=test", ...}, ...]}]}
 func parseCapsFromManifest(manifest []byte) ([]string, error) {
 	if len(manifest) == 0 {
 		return nil, nil
 	}
 
 	var parsed struct {
-		Caps []struct {
-			Urn string `json:"urn"`
-		} `json:"caps"`
+		CapGroups []struct {
+			Caps []struct {
+				Urn string `json:"urn"`
+			} `json:"caps"`
+		} `json:"cap_groups"`
 	}
 
 	if err := json.Unmarshal(manifest, &parsed); err != nil {
 		return nil, fmt.Errorf("failed to parse manifest JSON: %w", err)
 	}
 
+	if len(parsed.CapGroups) == 0 {
+		return nil, fmt.Errorf("manifest missing required cap_groups array")
+	}
+
 	var caps []string
-	for _, cap := range parsed.Caps {
-		if cap.Urn != "" {
-			caps = append(caps, cap.Urn)
+	for _, group := range parsed.CapGroups {
+		for _, cap := range group.Caps {
+			if cap.Urn != "" {
+				caps = append(caps, cap.Urn)
+			}
 		}
 	}
 
