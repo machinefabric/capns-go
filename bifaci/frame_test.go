@@ -1331,6 +1331,30 @@ func Test459_reorder_buffer_end_frame(t *testing.T) {
 	assert.Equal(t, uint64(1), r[0].Seq)
 }
 
+// TEST1162: Heartbeat frames preserve self-reported memory values stored in metadata.
+func Test1162_heartbeat_frame_with_memory_meta(t *testing.T) {
+	id := NewMessageIdRandom()
+	frame := NewHeartbeat(id)
+
+	// Simulate cartridge attaching memory info to heartbeat response
+	frame.Meta = map[string]interface{}{
+		"footprint_mb": int64(4096),
+		"rss_mb":       int64(5120),
+	}
+
+	assert.Equal(t, FrameTypeHeartbeat, frame.FrameType)
+	assert.Equal(t, id, frame.Id)
+
+	// Verify memory values can be extracted
+	footprint, ok := frame.Meta["footprint_mb"].(int64)
+	assert.True(t, ok, "footprint_mb must be int64")
+	assert.Equal(t, int64(4096), footprint, "Expected footprint_mb=4096")
+
+	rss, ok := frame.Meta["rss_mb"].(int64)
+	assert.True(t, ok, "rss_mb must be int64")
+	assert.Equal(t, int64(5120), rss, "Expected rss_mb=5120")
+}
+
 // TEST460: Terminal ERR frame flows through correctly
 func Test460_reorder_buffer_err_frame(t *testing.T) {
 	rb := NewReorderBuffer(10)

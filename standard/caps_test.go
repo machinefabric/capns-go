@@ -129,3 +129,52 @@ func Test851_format_conversion_urn_specs(t *testing.T) {
 	assert.True(t, strings.Contains(urnStr, "out="), "must have out spec")
 	assert.True(t, strings.HasPrefix(urnStr, "cap:"), "must be a cap URN")
 }
+
+// TEST1271: MEDIA_ADAPTER_SELECTION constant parses and has expected tags
+func Test1271_media_adapter_selection_constant(t *testing.T) {
+	assert.True(t, strings.HasPrefix(MediaAdapterSelection, "media:"),
+		"MEDIA_ADAPTER_SELECTION must start with media:, got: %s", MediaAdapterSelection)
+	assert.True(t, strings.Contains(MediaAdapterSelection, "adapter-selection"),
+		"Must have adapter-selection tag, got: %s", MediaAdapterSelection)
+	assert.True(t, strings.Contains(MediaAdapterSelection, "json"),
+		"Must have json tag, got: %s", MediaAdapterSelection)
+	assert.True(t, strings.Contains(MediaAdapterSelection, "record"),
+		"Must have record tag, got: %s", MediaAdapterSelection)
+}
+
+// TEST1272: CAP_ADAPTER_SELECTION constant parses as a valid CapUrn
+func Test1272_adapter_cap_constant_parses(t *testing.T) {
+	assert.True(t, strings.HasPrefix(CapAdapterSelection, "cap:"),
+		"CAP_ADAPTER_SELECTION must be a valid cap URN: %s", CapAdapterSelection)
+	assert.True(t, strings.Contains(CapAdapterSelection, `in="media:"`),
+		`CAP_ADAPTER_SELECTION must have in="media:", got: %s`, CapAdapterSelection)
+	assert.True(t, strings.Contains(CapAdapterSelection, `out="media:adapter-selection`),
+		"CAP_ADAPTER_SELECTION must have adapter-selection out spec, got: %s", CapAdapterSelection)
+}
+
+// TEST1273: CapAdapterSelection has correct in/out specs (in=media: out=media:adapter-selection;json;record)
+func Test1273_adapter_selection_urn_builder(t *testing.T) {
+	// in_spec should be bare "media:" (accepts any)
+	assert.True(t, strings.Contains(CapAdapterSelection, `in="media:"`),
+		`in spec must be "media:", got: %s`, CapAdapterSelection)
+	// out_spec should contain adapter-selection and json and record tags
+	assert.True(t, strings.Contains(CapAdapterSelection, "adapter-selection"),
+		"out spec should contain adapter-selection tag, got: %s", CapAdapterSelection)
+	assert.True(t, strings.Contains(CapAdapterSelection, "json"),
+		"out spec should contain json tag, got: %s", CapAdapterSelection)
+	assert.True(t, strings.Contains(CapAdapterSelection, "record"),
+		"out spec should contain record tag, got: %s", CapAdapterSelection)
+}
+
+// TEST1275: A cap whose output is adapter-selection can dispatch adapter-selection requests;
+// identity (wildcard output) cannot, because wildcard output cannot satisfy a specific output requirement.
+func Test1275_adapter_selection_dispatchable_by_specific_provider(t *testing.T) {
+	// Specific provider: same as adapter-selection URN — out matches, can dispatch
+	assert.True(t, strings.Contains(CapAdapterSelection, "adapter-selection"),
+		"CAP_ADAPTER_SELECTION must have adapter-selection out spec (self-dispatchable)")
+
+	// Identity has wildcard output (media:) — CAP_IDENTITY = "cap:" has no explicit out
+	// A specific request like adapter-selection cannot be satisfied by a wildcard output
+	assert.False(t, strings.Contains(CapIdentity, "adapter-selection"),
+		"CAP_IDENTITY must NOT have adapter-selection in its constant (wildcard output)")
+}

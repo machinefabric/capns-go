@@ -293,6 +293,9 @@ func NewCartridgeRuntimeWithManifest(manifest *CapManifest) (*CartridgeRuntime, 
 	// Auto-register identity handler if not already registered
 	runtime.autoRegisterIdentity()
 
+	// Auto-register adapter selection handler if not already registered
+	runtime.autoRegisterAdapterSelection()
+
 	return runtime, nil
 }
 
@@ -355,6 +358,25 @@ func (pr *CartridgeRuntime) autoRegisterIdentity() {
 					return output.EmitCbor(chunks)
 				}
 			}
+		}
+	}
+}
+
+// autoRegisterAdapterSelection registers a default adapter-selection handler if none exists.
+// The default implementation drains input and returns an empty END (no match found).
+// Cartridge authors can override this by calling Register after construction.
+func (pr *CartridgeRuntime) autoRegisterAdapterSelection() {
+	const capAdapterSelection = `cap:in="media:";out="media:adapter-selection;json;record"`
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	if _, exists := pr.handlers[capAdapterSelection]; !exists {
+		pr.handlers[capAdapterSelection] = func(input <-chan Frame, output StreamEmitter, peer PeerInvoker) error {
+			// Drain input frames
+			for range input {
+			}
+			// Return empty END (no adapter match)
+			return nil
 		}
 	}
 }
