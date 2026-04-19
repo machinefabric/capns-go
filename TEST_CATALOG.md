@@ -1,8 +1,8 @@
 # CapDag-Go Test Catalog
 
-**Total Tests:** 836
+**Total Tests:** 868
 
-**Numbered Tests:** 768
+**Numbered Tests:** 800
 
 **Unnumbered Tests:** 68
 
@@ -534,7 +534,7 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test626 | `Test626_unknown_profile_skips_validation` | TEST626: Verify unknown profile URL skips validation and returns Ok | media/profile_test.go:126 |
 | test627 | `Test627_is_embedded_profile` | TEST627: Verify is_embedded_profile recognizes standard and rejects custom URLs | media/profile_test.go:133 |
 | test628 | `Test628_media_urn_constants_format` | TEST628: Verify media URN constants all start with "media:" prefix | urn/media_urn_test.go:734 |
-| test629 | `Test629_profile_constants_format` | TEST629: Verify profile URL constants all start with capdag.com schema prefix | media/spec_test.go:643 |
+| test629 | `Test629_profile_constants_format` | TEST629: Verify profile URL constants all start with capdag.com schema prefix | media/spec_test.go:719 |
 | test630 | `Test630_cartridge_repo_creation` | TEST630: Verify CartridgeRepo creation starts with empty cartridge list | bifaci/cartridge_repo_test.go:640 |
 | test631 | `Test631_needs_sync_empty_cache` | TEST631: Verify needs_sync returns true with empty cache and non-empty URLs | bifaci/cartridge_repo_test.go:648 |
 | test638 | `Test638_no_peer_router_rejects_all` | TEST638: Verify NoPeerRouter rejects all requests with PeerInvokeNotSupported | bifaci/router_test.go:12 |
@@ -628,7 +628,7 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test761 | `Test761_prefix_is_dag` | TEST761: Prefix sub-plan can be topologically sorted (is a valid DAG) | planner/plan_test.go:493 |
 | test762 | `Test762_body_is_dag` | TEST762: Body sub-plan can be topologically sorted (is a valid DAG) | planner/plan_test.go:502 |
 | test763 | `Test763_suffix_is_dag` | TEST763: Suffix sub-plan can be topologically sorted (is a valid DAG) | planner/plan_test.go:511 |
-| test764 | `Test764_extract_prefix_to_input_slot` | TEST764: extract_prefix_to with InputSlot as target (trivial prefix) | planner/plan_test.go:520 |
+| test764 | `Test764_extract_prefix_to_input_slot` | TEST764: extract_prefix_to with InputSlot as target (trivial prefix) | planner/plan_test.go:568 |
 | test767 | `Test767_argument_resolution_string_representations` | TEST767: Tests ArgumentResolution String() returns correct snake_case names ArgumentInfo.Resolution is serialized to JSON using String(). Verifies that each resolution variant maps to the correct identifier expected by API consumers. | planner/plan_builder_test.go:15 |
 | test768 | `Test768_analyze_path_arguments_stdin_is_from_input_file` | TEST768: Tests AnalyzePathArguments classifies stdin arg as FromInputFile for first cap Verifies that the argument analysis correctly identifies input-file arguments when the cap's stdin arg media URN matches the cap's in_spec. | planner/plan_builder_test.go:34 |
 | test769 | `Test769_analyze_path_arguments_user_input_arg_appears_in_slots` | TEST769: Tests AnalyzePathArguments puts RequiresUserInput args in slots and sets CanExecuteWithoutInput=false Verifies that caps with non-stdin, non-default arguments are identified as requiring user input, appear in slots, and the requirements reflect that execution cannot proceed without them. | planner/plan_builder_test.go:75 |
@@ -723,12 +723,16 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test892 | `Test892_extensions_serialization` | TEST892: Test extensions serializes/deserializes correctly in MediaSpecDef | media/spec_test.go:422 |
 | test893 | `Test893_extensions_with_metadata_and_validation` | TEST893: Test extensions can coexist with metadata and validation | media/spec_test.go:447 |
 | test894 | `Test894_multiple_extensions` | TEST894: Test multiple extensions in a media spec | media/spec_test.go:480 |
-| test920 | `Test920_cap_documentation_roundtrip` | TEST920: Tests creation of a simple execution plan with a single capability Verifies that single_cap() generates a valid plan with input_slot, cap node, and output node | cap/definition_test.go:514 |
-| test921 | `Test921_cap_documentation_omitted_when_nil` | TEST921: Tests creation of a linear chain of capabilities connected in sequence Verifies that linear_chain() correctly links multiple caps with proper edges and topological order | cap/definition_test.go:532 |
-| test922 | `Test922_cap_documentation_parses_from_json` | TEST922: Tests creation and validation of an empty execution plan with no nodes Verifies that plans without capabilities are valid and handle zero nodes correctly | cap/definition_test.go:544 |
-| test923 | `Test923_cap_documentation_lifecycle` | TEST923: Tests storing and retrieving metadata attached to an execution plan Verifies that arbitrary JSON metadata can be associated with a plan for context preservation | cap/definition_test.go:563 |
+| test920 | `Test920_single_cap_plan` | TEST920: SingleCap creates a valid plan with input_slot, cap node, and output node. | planner/plan_test.go:520 |
+| test921 | `Test921_linear_chain_plan` | TEST921: LinearChain creates a plan with correct nodes and edges in topological order. | planner/plan_test.go:530 |
+| test922 | `Test922_empty_plan` | TEST922: An empty MachinePlan is valid with zero nodes. | planner/plan_test.go:549 |
+| test923 | `Test923_plan_with_metadata` | TEST923: MachinePlan stores and retrieves metadata by key. | planner/plan_test.go:556 |
 | test955 | `Test955_split_map_array` | TEST955: split_cbor_array with nested maps | orchestrator/cbor_util_test.go:110 |
 | test956 | `Test956_roundtrip_assemble_split` | TEST956: assemble then split roundtrip preserves data | orchestrator/cbor_util_test.go:127 |
+| test957 | `Test957_cap_input_file_new` | TEST957: NewCapInputFile creates a CapInputFile with correct path and media URN. Metadata and source fields must be nil. | planner/argument_binding_test.go:502 |
+| test958 | `Test958_cap_input_file_from_listing` | TEST958: CapInputFileFromListing sets source_id and source_type to Listing. | planner/argument_binding_test.go:519 |
+| test959 | `Test959_cap_input_file_filename` | TEST959: CapInputFile.Filename() extracts the basename from a full path. | planner/argument_binding_test.go:530 |
+| test960 | `Test960_argument_binding_literal_string` | TEST960: NewLiteralStringBinding creates a Literal binding wrapping a JSON string. | planner/argument_binding_test.go:542 |
 | test961 | `Test961_assemble_empty` | TEST961: assemble empty list produces empty CBOR array | orchestrator/cbor_util_test.go:144 |
 | test962 | `Test962_assemble_invalid_item` | TEST962: assemble rejects invalid CBOR item | orchestrator/cbor_util_test.go:154 |
 | test963 | `Test963_split_binary_items` | TEST963: split preserves CBOR byte strings (binary data) | orchestrator/cbor_util_test.go:167 |
@@ -750,11 +754,31 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test1107 | `Test1107_SlotValueOverridesCapSettingsPerStep` | TEST1107: step_0 has a slot_value override, step_1 falls through to cap_settings. Proves per-step override works while shared settings remain as fallback. | planner/argument_binding_test.go:174 |
 | test1108 | `Test1108_ResolveAllPassesNodeID` | TEST1108: ResolveAll with node_id threads correctly through to each binding. | planner/argument_binding_test.go:216 |
 | test1109 | `Test1109_SlotKeyUsesNodeIDNotCapUrn` | TEST1109: Slot key uses node_id, NOT cap_urn — a slot_value keyed by cap_urn must not match. | planner/argument_binding_test.go:267 |
+| test1111 | `Test1111_foreach_for_user_provided_list_source` | TEST1111: ForEach works for user-provided list sources not in the graph. User provides media:list;textable;txt with is_sequence=true → ForEach+cap path found. | planner/live_cap_graph_test.go:249 |
+| test1112 | `Test1112_no_collect_in_path_finding` | TEST1112: Collect is not synthesized during path finding. Reaching a list target type requires the cap itself to output a list type. | planner/live_cap_graph_test.go:290 |
+| test1113 | `Test1113_multi_cap_path_no_collect` | TEST1113: Multi-cap path without Collect — Collect is not synthesized. PDF→disbind→page→summarize→summary. CapStepCount=2. | planner/live_cap_graph_test.go:314 |
+| test1114 | `Test1114_graph_stores_only_cap_edges` | TEST1114: Graph stores only Cap edges after SyncFromCaps. All stored edges must have IsCap() == true. | planner/live_cap_graph_test.go:338 |
+| test1115 | `Test1115_dynamic_foreach_with_is_sequence` | TEST1115: ForEach is synthesized when is_sequence=true AND caps can consume items. getOutgoingEdges(source, true) → ForEach edge present, next_is_seq=false. | planner/live_cap_graph_test.go:357 |
+| test1116 | `Test1116_collect_never_synthesized` | TEST1116: Collect is never synthesized during path finding. getOutgoingEdges for both scalar and sequence returns no Collect edges. | planner/live_cap_graph_test.go:391 |
+| test1117 | `Test1117_no_foreach_when_not_sequence` | TEST1117: ForEach is NOT synthesized when is_sequence=false. Even with caps that could consume, ForEach requires is_sequence=true. | planner/live_cap_graph_test.go:411 |
+| test1118 | `Test1118_no_foreach_without_cap_consumers` | TEST1118: ForEach not synthesized without cap consumers even with is_sequence=true. | planner/live_cap_graph_test.go:432 |
+| test1119 | `Test1119_FromStrand_returns_single_strand_machine` | TEST1119: FromStrand builds a single-strand Machine from a planner.Strand. Smoke test the registry-threaded API end-to-end. | machine/machine_test.go:671 |
+| test1120 | `Test1120_FromStrand_unknown_cap_fails_hard` | TEST1120: FromStrand fails hard when the cap is not in the registry. The planner produces strands referencing caps that must be present in the cap registry cache for resolution to succeed. | machine/machine_test.go:699 |
+| test1127 | `Test1127_cap_documentation_round_trip_with_markdown_body` | TEST1127: Documentation field round-trips through JSON serialize/deserialize. The body must survive multi-line markdown with CRLF, backticks, double quotes, and Unicode characters — every character must be preserved. | cap/definition_test.go:516 |
+| test1128 | `Test1128_cap_documentation_omitted_when_none` | TEST1128: When Documentation is nil, the serializer must omit the field entirely. There must be no "documentation":null — only absence. | cap/definition_test.go:538 |
+| test1129 | `Test1129_cap_documentation_parses_from_capgraph_json` | TEST1129: A capgraph-shaped JSON document with a documentation field must deserialize into a Cap with the body intact. | cap/definition_test.go:556 |
+| test1130 | `Test1130_cap_documentation_set_and_clear_lifecycle` | TEST1130: Documentation set/clear lifecycle must not cross-contaminate cap_description. | cap/definition_test.go:573 |
+| test1131 | `Test1131_media_documentation_propagates_through_resolve` | TEST1131: Documentation propagates from MediaSpecDef through ResolveMediaUrn into ResolvedMediaSpec. Verifies description and documentation remain distinct. | media/spec_test.go:644 |
+| test1132 | `Test1132_media_spec_def_documentation_round_trip` | TEST1132: MediaSpecDef serializes documentation only when present and round-trips losslessly. When nil, the field must be omitted entirely. | media/spec_test.go:667 |
+| test1133 | `Test1133_media_spec_def_documentation_lifecycle` | TEST1133: MediaSpecDef set/clear lifecycle for documentation. Setter and clearer must not cross-contaminate the description field. | media/spec_test.go:697 |
 | test1142 | `Test1142_resolved_graph_to_mermaid_renders_shapes_dedupes_edges_and_escapes` | TEST1142: ResolvedGraph.to_mermaid() renders node shapes, deduplicates edges, and escapes labels | orchestrator/orchestrator_test.go:38 |
 | test1143 | `Test1143_InputItemFromStringDistinguishesGlobDirectoryAndFile` | TEST1143: InputItem::from_string distinguishes glob patterns, directories, and files | input_resolver/types_test.go:11 |
 | test1144 | `Test1144_ContentStructureHelpersAndDisplay` | TEST1144: ContentStructure is_list/is_record helpers and Display implementation are correct | input_resolver/types_test.go:43 |
 | test1145 | `Test1145_ResolvedInputSetUsesEquivalentMediaAndFileCountCardinality` | TEST1145: ResolvedInputSet uses URN equivalence for common_media and file count for is_sequence | input_resolver/types_test.go:80 |
 | test1146 | `Test1146_InputResolverErrorDisplayAndSource` | TEST1146: InputResolverError Display and source() implementations produce correct messages | input_resolver/types_test.go:127 |
+| test1147 | `Test1147_machine_syntax_error_display_is_specific` | TEST1147: MachineSyntaxError.Error() includes position and detail. invalidWiringError(7) must produce a message containing "statement 7" and "invalid wiring". | machine/machine_test.go:717 |
+| test1148 | `Test1148_machine_parse_error_from_syntax_preserves_variant` | TEST1148: MachineParseError with Syntax field preserves the syntax error kind. | machine/machine_test.go:729 |
+| test1149 | `Test1149_machine_parse_error_from_resolution_preserves_variant` | TEST1149: MachineParseError with Abstraction field preserves the resolution error kind. | machine/machine_test.go:745 |
 | test1155 | `Test1155_FromStrandProducesSingleStrandMachine` | TEST1155: Building a machine from one strand produces one strand with one resolved edge. | machine/machine_test.go:152 |
 | test1156 | `Test1156_FromStrandsKeepStrandsDisjoint` | TEST1156: Building from multiple strands keeps them disjoint and preserves input strand order. | machine/machine_test.go:169 |
 | test1157 | `Test1157_FromStrandsEmptyInputFailsHard` | TEST1157: Building from zero strands fails with NoCapabilitySteps. | machine/machine_test.go:196 |
@@ -774,7 +798,10 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test1171 | `Test1171_ParseEmptyInputReturnsError` | TEST1171: Empty machine notation is rejected as a syntax error. | machine/machine_test.go:441 |
 | test1172 | `Test1172_MachineStringRepr` | TEST1172: Serializing a two-step strand emits the expected aliases and node names. | machine/machine_test.go:576 |
 | test1173 | `Test1173_ToMachineNotationRoundTrips` | TEST1173: Serializing and reparsing a machine preserves strict machine equivalence. | machine/machine_test.go:536 |
+| test1174 | `Test1174_line_based_format_round_trips` | TEST1174: Line-based notation format round-trips back to the same machine. ToMachineNotationFormatted(NotationFormatLineBased) must not contain '[', and re-parsing must yield an equivalent machine. | machine/machine_test.go:763 |
 | test1175 | `Test1175_EmptyMachineSerializesToEmpty` | TEST1175: Serializing an empty machine produces an empty string. | machine/machine_test.go:567 |
+| test1176 | `Test1176_render_payload_json_includes_strand_with_anchors` | TEST1176: ToRenderPayloadJSON for a populated machine includes strand with nodes, edges, input_anchor_nodes, and output_anchor_nodes. | machine/machine_test.go:792 |
+| test1177 | `Test1177_render_payload_for_empty_machine_has_empty_strands_array` | TEST1177: ToRenderPayloadJSON for an empty machine emits an empty strands array. | machine/machine_test.go:831 |
 | test1187 | `Test1187_StrandNonEquivalenceDifferentCap` | TEST1187: Strand resolution fails when a referenced cap is not found in the registry. | machine/machine_test.go:645 |
 | test1189 | `Test1189_StrandEquivalenceWithDifferentNodeAllocationOrders` | TEST1189: Strand resolution keeps canonical anchor ordering stable across equivalent inputs. | machine/machine_test.go:596 |
 | test1271 | `Test1271_media_adapter_selection_constant` | TEST1271: MEDIA_ADAPTER_SELECTION constant parses and has expected tags | standard/caps_test.go:134 |
@@ -784,6 +811,11 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test1282 | `Test1282_adapter_selection_auto_registered` | TEST1282: AdapterSelectionOp is auto-registered by CartridgeRuntime | bifaci/cartridge_runtime_test.go:2809 |
 | test1283 | `Test1283_adapter_selection_custom_override` | TEST1283: Custom adapter selection handler overrides the default | bifaci/cartridge_runtime_test.go:2823 |
 | test1284 | `Test1284_cap_group_with_adapter_urns` | TEST1284: Cap group with adapter URNs serializes and deserializes correctly | bifaci/manifest_test.go:327 |
+| test1289 | `Test1289_bfs_reachable_includes_source_roundtrip` | TEST1289: BFS reachable targets includes the source itself when round-trip paths exist. A→B and B→A means A is reachable from A (via A→B→A). | planner/live_cap_graph_test.go:446 |
+| test1290 | `Test1290_iddfs_finds_roundtrip_paths` | TEST1290: IDDFS find_paths_to_exact_target finds round-trip paths when source == target. | planner/live_cap_graph_test.go:480 |
+| test1291 | `Test1291_iddfs_roundtrip_with_sequence` | TEST1291: IDDFS round-trip paths are also found with is_sequence=true. | planner/live_cap_graph_test.go:517 |
+| test1292 | `Test1292_bfs_iddfs_roundtrip_consistency` | TEST1292: BFS and IDDFS agree that round-trip targets exist. If BFS says target X is reachable from source X, IDDFS must find at least one path. | planner/live_cap_graph_test.go:547 |
+| test1293 | `Test1293_roundtrip_requires_cap_steps` | TEST1293: IDDFS round-trip does not produce paths with 0 cap steps. No round-trip should exist when there's no return edge. | planner/live_cap_graph_test.go:589 |
 | | | | |
 | unnumbered | `TestArgumentsMultiple` | Mirror-specific coverage: Test multiple arguments are correctly serialized in CBOR payload | bifaci/integration_test.go:1592 |
 | unnumbered | `TestArgumentsRoundtrip` | Mirror-specific coverage: Test host call with unified CBOR arguments sends correct content_type and payload | bifaci/integration_test.go:1232 |
@@ -797,7 +829,7 @@ This catalog lists all tests in the CapDag-Go codebase.
 | unnumbered | `TestCapCallerWithArguments` |  | cap/caller_test.go:157 |
 | unnumbered | `TestCapDescription` |  | cap/definition_test.go:446 |
 | unnumbered | `TestCapExists` |  | cap/registry_test.go:119 |
-| unnumbered | `TestCapJSONRoundTrip` |  | cap/definition_test.go:581 |
+| unnumbered | `TestCapJSONRoundTrip` |  | cap/definition_test.go:593 |
 | unnumbered | `TestCapManifestCompatibility` |  | bifaci/manifest_test.go:262 |
 | unnumbered | `TestCapManifestValidation` |  | bifaci/manifest_test.go:232 |
 | unnumbered | `TestCapManifestWithPageURL` |  | bifaci/manifest_test.go:62 |
@@ -871,7 +903,7 @@ The following tests are cataloged but do not currently participate in numeric te
 - `TestCapCallerWithArguments` — cap/caller_test.go:157
 - `TestCapDescription` — cap/definition_test.go:446
 - `TestCapExists` — cap/registry_test.go:119
-- `TestCapJSONRoundTrip` — cap/definition_test.go:581
+- `TestCapJSONRoundTrip` — cap/definition_test.go:593
 - `TestCapManifestCompatibility` — bifaci/manifest_test.go:262
 - `TestCapManifestValidation` — bifaci/manifest_test.go:232
 - `TestCapManifestWithPageURL` — bifaci/manifest_test.go:62
@@ -931,8 +963,8 @@ The following tests are cataloged but do not currently participate in numeric te
 ---
 
 *Generated from CapDag-Go source tree*
-*Total tests: 836*
-*Total numbered tests: 768*
+*Total tests: 868*
+*Total numbered tests: 800*
 *Total unnumbered tests: 68*
 *Total numbered tests missing descriptions: 0*
 *Total numbering mismatches: 0*

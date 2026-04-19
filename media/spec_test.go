@@ -639,6 +639,82 @@ func Test617_normalize_media_urn(t *testing.T) {
 	assert.Equal(t, urn1, urn2)
 }
 
+// TEST1131: Documentation propagates from MediaSpecDef through ResolveMediaUrn
+// into ResolvedMediaSpec. Verifies description and documentation remain distinct.
+func Test1131_media_documentation_propagates_through_resolve(t *testing.T) {
+	registry := testRegistry(t)
+	body := "## Markdown body\n\nWith `code` and a [link](https://example.com)."
+	docUrn := "media:doc-test-1131;textable"
+	spec := MediaSpecDef{
+		Urn:           docUrn,
+		MediaType:     "text/plain",
+		Title:         "Documented",
+		Description:   "short desc",
+		Documentation: &body,
+	}
+
+	resolved, err := ResolveMediaUrn(docUrn, []MediaSpecDef{spec}, registry)
+	require.NoError(t, err)
+	require.NotNil(t, resolved.Documentation,
+		"documentation must propagate from MediaSpecDef into ResolvedMediaSpec")
+	assert.Equal(t, body, *resolved.Documentation)
+	// description and documentation must remain distinct fields
+	assert.Equal(t, "short desc", resolved.Description)
+}
+
+// TEST1132: MediaSpecDef serializes documentation only when present and
+// round-trips losslessly. When nil, the field must be omitted entirely.
+func Test1132_media_spec_def_documentation_round_trip(t *testing.T) {
+	body := "Body with newline\nand backslash \\"
+	withDoc := MediaSpecDef{
+		Urn:           "media:rt-test-1132",
+		MediaType:     "text/plain",
+		Title:         "Round Trip",
+		Documentation: &body,
+	}
+	data, err := json.Marshal(withDoc)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"documentation"`)
+
+	var parsed MediaSpecDef
+	require.NoError(t, json.Unmarshal(data, &parsed))
+	require.NotNil(t, parsed.Documentation)
+	assert.Equal(t, body, *parsed.Documentation)
+
+	withoutDoc := MediaSpecDef{
+		Urn:       "media:rt-test-1132b",
+		MediaType: "text/plain",
+		Title:     "No Doc",
+	}
+	data2, err := json.Marshal(withoutDoc)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data2), "documentation",
+		"documentation must be omitted from MediaSpecDef JSON when nil, got: %s", string(data2))
+}
+
+// TEST1133: MediaSpecDef set/clear lifecycle for documentation.
+// Setter and clearer must not cross-contaminate the description field.
+func Test1133_media_spec_def_documentation_lifecycle(t *testing.T) {
+	spec := MediaSpecDef{
+		Urn:         "media:doc-test-1133",
+		MediaType:   "text/plain",
+		Title:       "Doc Test",
+		Description: "short",
+	}
+	assert.Nil(t, spec.GetDocumentation())
+	assert.Equal(t, "short", spec.Description)
+
+	spec.SetDocumentation("body")
+	assert.Equal(t, "body", *spec.GetDocumentation())
+	// setter must not touch description
+	assert.Equal(t, "short", spec.Description)
+
+	spec.ClearDocumentation()
+	assert.Nil(t, spec.GetDocumentation())
+	// clearer must not touch description
+	assert.Equal(t, "short", spec.Description)
+}
+
 // TEST629: Verify profile URL constants all start with capdag.com schema prefix
 func Test629_profile_constants_format(t *testing.T) {
 	prefix := "https://capdag.com/schema/"

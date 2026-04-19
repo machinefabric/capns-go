@@ -787,6 +787,55 @@ func Test1174_line_based_format_round_trips(t *testing.T) {
 	}
 }
 
+// TEST1176: ToRenderPayloadJSON for a populated machine includes strand with
+// nodes, edges, input_anchor_nodes, and output_anchor_nodes.
+func Test1176_render_payload_json_includes_strand_with_anchors(t *testing.T) {
+	registry := pdfExtractEmbedRegistry()
+
+	strand := strandFromSteps([]*planner.StrandStep{
+		capStep(`cap:in=media:pdf;op=extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
+		capStep(`cap:in=media:textable;op=embed;out="media:vec;record"`, "embed", `media:txt;textable`, `media:vec;record`),
+	}, "pdf to vec")
+
+	m, aerr := FromStrand(strand, registry)
+	if aerr != nil {
+		t.Fatalf("FromStrand failed: %v", aerr)
+	}
+
+	payload := m.ToRenderPayloadJSON()
+
+	if !containsStr(payload, `{"strands":[`) {
+		t.Errorf("payload must start with strands array, got: %q", payload)
+	}
+	if !containsStr(payload, `"nodes":[`) {
+		t.Errorf("payload must contain nodes, got: %q", payload)
+	}
+	if !containsStr(payload, `"edges":[`) {
+		t.Errorf("payload must contain edges, got: %q", payload)
+	}
+	if !containsStr(payload, `"input_anchor_nodes":[`) {
+		t.Errorf("payload must contain input_anchor_nodes, got: %q", payload)
+	}
+	if !containsStr(payload, `"output_anchor_nodes":[`) {
+		t.Errorf("payload must contain output_anchor_nodes, got: %q", payload)
+	}
+	if !containsStr(payload, "op=extract") {
+		t.Errorf("payload must contain extract cap URN, got: %q", payload)
+	}
+	if !containsStr(payload, "op=embed") {
+		t.Errorf("payload must contain embed cap URN, got: %q", payload)
+	}
+}
+
+// TEST1177: ToRenderPayloadJSON for an empty machine emits an empty strands array.
+func Test1177_render_payload_for_empty_machine_has_empty_strands_array(t *testing.T) {
+	m := fromResolvedStrands(nil)
+	payload := m.ToRenderPayloadJSON()
+	if payload != `{"strands":[]}` {
+		t.Errorf("empty machine must produce {\"strands\":[]}, got: %q", payload)
+	}
+}
+
 // ===================================================================
 // Helpers
 // ===================================================================

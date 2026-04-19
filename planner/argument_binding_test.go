@@ -497,6 +497,63 @@ func Test803_StrandInputInvalidSingle(t *testing.T) {
 	}
 }
 
+// TEST957: NewCapInputFile creates a CapInputFile with correct path and media URN.
+// Metadata and source fields must be nil.
+func Test957_cap_input_file_new(t *testing.T) {
+	file := NewCapInputFile("/path/to/file.pdf", "media:pdf")
+	if file.FilePath != "/path/to/file.pdf" {
+		t.Errorf("FilePath = %q, want /path/to/file.pdf", file.FilePath)
+	}
+	if file.MediaUrn != "media:pdf" {
+		t.Errorf("MediaUrn = %q, want media:pdf", file.MediaUrn)
+	}
+	if file.Metadata != nil {
+		t.Error("Metadata must be nil")
+	}
+	if file.SourceID != nil {
+		t.Error("SourceID must be nil")
+	}
+}
+
+// TEST958: CapInputFileFromListing sets source_id and source_type to Listing.
+func Test958_cap_input_file_from_listing(t *testing.T) {
+	file := CapInputFileFromListing("listing-123", "/path/to/file.pdf", "media:pdf")
+	if file.SourceID == nil || *file.SourceID != "listing-123" {
+		t.Errorf("SourceID = %v, want listing-123", file.SourceID)
+	}
+	if file.SourceType == nil || *file.SourceType != SourceListing {
+		t.Errorf("SourceType = %v, want SourceListing", file.SourceType)
+	}
+}
+
+// TEST959: CapInputFile.Filename() extracts the basename from a full path.
+func Test959_cap_input_file_filename(t *testing.T) {
+	file := NewCapInputFile("/path/to/document.pdf", "media:pdf")
+	name := file.Filename()
+	if name == nil {
+		t.Fatal("Filename() must not return nil for a valid path")
+	}
+	if *name != "document.pdf" {
+		t.Errorf("Filename() = %q, want document.pdf", *name)
+	}
+}
+
+// TEST960: NewLiteralStringBinding creates a Literal binding wrapping a JSON string.
+func Test960_argument_binding_literal_string(t *testing.T) {
+	binding := NewLiteralStringBinding("test")
+	if binding.Kind != BindingLiteral {
+		t.Fatalf("expected BindingLiteral, got %v", binding.Kind)
+	}
+	// Value must be JSON encoding of "test" → `"test"`
+	var s string
+	if err := json.Unmarshal(binding.Value, &s); err != nil {
+		t.Fatalf("failed to unmarshal value: %v", err)
+	}
+	if s != "test" {
+		t.Errorf("literal value = %q, want test", s)
+	}
+}
+
 // contains is a simple string-contains helper for tests.
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && stringContains(s, substr))

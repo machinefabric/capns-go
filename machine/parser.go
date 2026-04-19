@@ -35,7 +35,7 @@ const goPegGrammar = `
   alias       <- < [a-zA-Z_] [-a-zA-Z0-9_]* >
   alias_ref   <- < [a-zA-Z_] [-a-zA-Z0-9_]* >
   cap_urn     <- < 'cap:' cap_urn_body* >
-  cap_urn_body <- quoted_value / !'\]' .
+  cap_urn_body <- quoted_value / !(']' / '\n' / '\r') .
   quoted_value <- '"' ('\\"' / '\\\\' / !'"' .)* '"'
   %whitespace <- [ \t\r\n]*
 `

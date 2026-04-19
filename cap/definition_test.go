@@ -510,72 +510,84 @@ func TestCapWithMediaSpecs(t *testing.T) {
 	assert.NotNil(t, outResolved.Schema)
 }
 
-// TEST920: Tests creation of a simple execution plan with a single capability Verifies that single_cap() generates a valid plan with input_slot, cap node, and output node
-func Test920_cap_documentation_roundtrip(t *testing.T) {
-	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
+// TEST1127: Documentation field round-trips through JSON serialize/deserialize.
+// The body must survive multi-line markdown with CRLF, backticks, double quotes,
+// and Unicode characters — every character must be preserved.
+func Test1127_cap_documentation_round_trip_with_markdown_body(t *testing.T) {
+	u, err := urn.NewCapUrnFromString(defTestUrn("op=documented"))
 	require.NoError(t, err)
-	c := NewCap(u, "Test", "cmd")
-	c.SetDocumentation("# My Cap\n\nThis cap does things.\n\n## Usage\n\nCall it.")
+	c := NewCap(u, "Documented Cap", "documented")
+
+	body := "# Documented Cap\r\n\nDoes the thing.\n\n```bash\necho \"hi\"\n```\n\nSee also: ★\n"
+	c.SetDocumentation(body)
+	require.Equal(t, body, *c.GetDocumentation())
 
 	data, err := json.Marshal(c)
 	require.NoError(t, err)
+	require.Contains(t, string(data), `"documentation"`,
+		"documentation field must be present in JSON output")
 
 	var restored Cap
-	err = json.Unmarshal(data, &restored)
-	require.NoError(t, err)
-
-	require.NotNil(t, restored.GetDocumentation())
-	assert.Equal(t, "# My Cap\n\nThis cap does things.\n\n## Usage\n\nCall it.", *restored.GetDocumentation())
+	require.NoError(t, json.Unmarshal(data, &restored))
+	require.NotNil(t, restored.GetDocumentation(), "documentation must survive round-trip")
+	assert.Equal(t, body, *restored.GetDocumentation(), "documentation body must not be mutated during round-trip")
 }
 
-// TEST921: Tests creation of a linear chain of capabilities connected in sequence Verifies that linear_chain() correctly links multiple caps with proper edges and topological order
-func Test921_cap_documentation_omitted_when_nil(t *testing.T) {
-	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
+// TEST1128: When Documentation is nil, the serializer must omit the field entirely.
+// There must be no "documentation":null — only absence.
+func Test1128_cap_documentation_omitted_when_none(t *testing.T) {
+	u, err := urn.NewCapUrnFromString(defTestUrn("op=undocumented"))
 	require.NoError(t, err)
-	c := NewCap(u, "Test", "cmd")
+	c := NewCap(u, "Undocumented Cap", "undocumented")
+	require.Nil(t, c.GetDocumentation())
 
 	data, err := json.Marshal(c)
 	require.NoError(t, err)
+	assert.NotContains(t, string(data), "documentation",
+		"documentation field must be omitted when nil, got: %s", string(data))
 
-	assert.NotContains(t, string(data), "documentation")
+	var restored Cap
+	require.NoError(t, json.Unmarshal(data, &restored))
+	assert.Nil(t, restored.GetDocumentation())
 }
 
-// TEST922: Tests creation and validation of an empty execution plan with no nodes Verifies that plans without capabilities are valid and handle zero nodes correctly
-func Test922_cap_documentation_parses_from_json(t *testing.T) {
-	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
-	require.NoError(t, err)
-
-	// Build JSON from a round-tripped cap so URN escaping is correct
-	c0 := NewCap(u, "Test", "cmd")
-	c0.SetDocumentation("Docs here.")
-	data, err := json.Marshal(c0)
-	require.NoError(t, err)
-
+// TEST1129: A capgraph-shaped JSON document with a documentation field
+// must deserialize into a Cap with the body intact.
+func Test1129_cap_documentation_parses_from_capgraph_json(t *testing.T) {
+	raw := `{
+		"urn": "cap:in=\"media:textable\";op=docparse;out=\"media:textable\"",
+		"title": "Doc Parse",
+		"command": "docparse",
+		"cap_description": "short",
+		"documentation": "## Heading\n\nbody text",
+		"metadata": {}
+	}`
 	var c Cap
-	err = json.Unmarshal(data, &c)
-	require.NoError(t, err)
-
+	require.NoError(t, json.Unmarshal([]byte(raw), &c), "must parse capgraph-shaped JSON")
 	require.NotNil(t, c.GetDocumentation())
-	assert.Equal(t, "Docs here.", *c.GetDocumentation())
+	assert.Equal(t, "## Heading\n\nbody text", *c.GetDocumentation())
+	assert.Equal(t, "short", *c.CapDescription)
 }
 
-// TEST923: Tests storing and retrieving metadata attached to an execution plan Verifies that arbitrary JSON metadata can be associated with a plan for context preservation
-func Test923_cap_documentation_lifecycle(t *testing.T) {
-	u, err := urn.NewCapUrnFromString(defTestUrn("op=test"))
+// TEST1130: Documentation set/clear lifecycle must not cross-contaminate cap_description.
+func Test1130_cap_documentation_set_and_clear_lifecycle(t *testing.T) {
+	u, err := urn.NewCapUrnFromString(defTestUrn("op=lifecycle"))
 	require.NoError(t, err)
-	c := NewCap(u, "Test", "cmd")
+	short := "short"
+	c := &Cap{Urn: u, Title: "Lifecycle", Command: "lifecycle", CapDescription: &short}
 
-	// Initially nil
+	assert.Equal(t, "short", *c.CapDescription)
 	assert.Nil(t, c.GetDocumentation())
 
-	// Set
-	c.SetDocumentation("Some docs.")
-	require.NotNil(t, c.GetDocumentation())
-	assert.Equal(t, "Some docs.", *c.GetDocumentation())
+	c.SetDocumentation("long body")
+	assert.Equal(t, "long body", *c.GetDocumentation())
+	// setter must not touch cap_description
+	assert.Equal(t, "short", *c.CapDescription)
 
-	// Clear
 	c.ClearDocumentation()
 	assert.Nil(t, c.GetDocumentation())
+	// clearer must not touch cap_description
+	assert.Equal(t, "short", *c.CapDescription)
 }
 
 func TestCapJSONRoundTrip(t *testing.T) {

@@ -516,6 +516,54 @@ func Test763_suffix_is_dag(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TEST920: SingleCap creates a valid plan with input_slot, cap node, and output node.
+func Test920_single_cap_plan(t *testing.T) {
+	plan := SingleCap("cap:test", "media:pdf", "media:png", "input_file")
+	// 3 nodes: input_slot, cap_0, output
+	assert.Equal(t, 3, len(plan.Nodes))
+	assert.Equal(t, 1, len(plan.EntryNodes))
+	assert.Equal(t, 1, len(plan.OutputNodes))
+	assert.NoError(t, plan.Validate())
+}
+
+// TEST921: LinearChain creates a plan with correct nodes and edges in topological order.
+func Test921_linear_chain_plan(t *testing.T) {
+	plan := LinearChain(
+		[]string{"cap:a", "cap:b", "cap:c"},
+		"media:pdf",
+		"media:png",
+		[]string{"input_a", "input_b", "input_c"},
+	)
+	// 5 nodes: input_slot, cap_0, cap_1, cap_2, output
+	assert.Equal(t, 5, len(plan.Nodes))
+	// 4 edges: input_slot→cap_0, cap_0→cap_1, cap_1→cap_2, cap_2→output
+	assert.Equal(t, 4, len(plan.Edges))
+	assert.NoError(t, plan.Validate())
+
+	order, err := plan.TopologicalOrder()
+	require.NoError(t, err)
+	assert.Equal(t, 5, len(order))
+}
+
+// TEST922: An empty MachinePlan is valid with zero nodes.
+func Test922_empty_plan(t *testing.T) {
+	plan := NewMachinePlan("empty")
+	assert.Equal(t, 0, len(plan.Nodes))
+	assert.NoError(t, plan.Validate())
+}
+
+// TEST923: MachinePlan stores and retrieves metadata by key.
+func Test923_plan_with_metadata(t *testing.T) {
+	plan := NewMachinePlan("test")
+	plan.Metadata = map[string]any{
+		"source":  "pdf",
+		"version": 1,
+	}
+	require.NotNil(t, plan.Metadata)
+	assert.Equal(t, "pdf", plan.Metadata["source"])
+	assert.Equal(t, 1, plan.Metadata["version"])
+}
+
 // TEST764: extract_prefix_to with InputSlot as target (trivial prefix)
 func Test764_extract_prefix_to_input_slot(t *testing.T) {
 	plan := buildForeachPlanWithCollect()

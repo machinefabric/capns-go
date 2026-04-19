@@ -423,3 +423,120 @@ func (m *Machine) ToMachineNotationFormatted(format NotationFormat) string {
 	}
 	return strings.Join(parts, "\n")
 }
+
+// jsonEscape escapes only `\` and `"` in a string.
+// MediaUrn and CapUrn produce ASCII-safe canonical text, so only
+// these two metacharacters need escaping for valid JSON output.
+func jsonEscape(s string) string {
+	var out strings.Builder
+	for _, c := range s {
+		if c == '"' {
+			out.WriteString(`\"`)
+		} else if c == '\\' {
+			out.WriteString(`\\`)
+		} else {
+			out.WriteRune(c)
+		}
+	}
+	return out.String()
+}
+
+// ToRenderPayloadJSON serializes the machine to a JSON payload intended for
+// rendering the graph in a UI. The format mirrors the Rust to_render_payload_json.
+//
+// Format: {"strands":[{"nodes":[...],"edges":[...],"input_anchor_nodes":[...],"output_anchor_nodes":[...]},...]}
+func (m *Machine) ToRenderPayloadJSON() string {
+	if m.IsEmpty() {
+		return `{"strands":[]}`
+	}
+
+	// Build per-strand node and edge aliases. Counters are global across all
+	// strands, matching the Rust serializer's behavior.
+	type strandPlan struct {
+		nodeNames  []string
+		edgeAliases []string
+	}
+	plans := make([]strandPlan, len(m.strands))
+	nextNode := 0
+	nextAlias := 0
+	for i, strand := range m.strands {
+		nodeNames := make([]string, len(strand.nodes))
+		for j := range strand.nodes {
+			nodeNames[j] = fmt.Sprintf("n%d", nextNode)
+			nextNode++
+		}
+		edgeAliases := make([]string, len(strand.edges))
+		for j := range strand.edges {
+			edgeAliases[j] = fmt.Sprintf("edge_%d", nextAlias)
+			nextAlias++
+		}
+		plans[i] = strandPlan{nodeNames: nodeNames, edgeAliases: edgeAliases}
+	}
+
+	var out strings.Builder
+	out.WriteString(`{"strands":[`)
+	for sIdx, strand := range m.strands {
+		if sIdx > 0 {
+			out.WriteByte(',')
+		}
+		plan := plans[sIdx]
+		out.WriteByte('{')
+
+		// nodes
+		out.WriteString(`"nodes":[`)
+		for id, u := range strand.nodes {
+			if id > 0 {
+				out.WriteByte(',')
+			}
+			fmt.Fprintf(&out, `{"id":%q,"urn":%q}`, plan.nodeNames[id], u.String())
+		}
+		out.WriteString(`],`)
+
+		// edges
+		out.WriteString(`"edges":[`)
+		for eIdx, edge := range strand.edges {
+			if eIdx > 0 {
+				out.WriteByte(',')
+			}
+			isLoopStr := "false"
+			if edge.IsLoop {
+				isLoopStr = "true"
+			}
+			fmt.Fprintf(&out, `{"alias":%q,"cap_urn":%q,"is_loop":%s,"assignment":[`,
+				plan.edgeAliases[eIdx], edge.CapUrn.String(), isLoopStr)
+			for bIdx, b := range edge.Assignment {
+				if bIdx > 0 {
+					out.WriteByte(',')
+				}
+				fmt.Fprintf(&out, `{"cap_arg_media_urn":%q,"source_node":%q}`,
+					b.CapArgMediaUrn.String(), plan.nodeNames[b.Source])
+			}
+			fmt.Fprintf(&out, `],"target_node":%q}`, plan.nodeNames[edge.Target])
+		}
+		out.WriteString(`],`)
+
+		// input_anchor_nodes
+		out.WriteString(`"input_anchor_nodes":[`)
+		for i, id := range strand.inputAnchorIds {
+			if i > 0 {
+				out.WriteByte(',')
+			}
+			fmt.Fprintf(&out, "%q", plan.nodeNames[id])
+		}
+		out.WriteString(`],`)
+
+		// output_anchor_nodes
+		out.WriteString(`"output_anchor_nodes":[`)
+		for i, id := range strand.outputAnchorIds {
+			if i > 0 {
+				out.WriteByte(',')
+			}
+			fmt.Fprintf(&out, "%q", plan.nodeNames[id])
+		}
+		out.WriteString(`]`)
+
+		out.WriteByte('}')
+	}
+	out.WriteString(`]}`)
+	return out.String()
+}
