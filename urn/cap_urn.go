@@ -650,18 +650,20 @@ func (c *CapUrn) IsDispatchable(request *CapUrn) bool {
 
 // IsComparable checks if two cap URNs are comparable in the order-theoretic sense.
 //
-// Two URNs are comparable if either one can dispatch the other.
-// This is the symmetric closure of the IsDispatchable relation.
+// Two URNs are comparable if either one accepts (subsumes) the other.
+// This is the symmetric closure of the Accepts relation.
+// Matches Rust's is_comparable which uses accepts, not is_dispatchable.
 func (c *CapUrn) IsComparable(other *CapUrn) bool {
-	return c.IsDispatchable(other) || other.IsDispatchable(c)
+	return c.Accepts(other) || other.Accepts(c)
 }
 
 // IsEquivalent checks if two cap URNs are equivalent in the order-theoretic sense.
 //
-// Two URNs are equivalent if each can dispatch the other.
+// Two URNs are equivalent if each accepts (subsumes) the other.
 // This means they have the same position in the specificity lattice.
+// Matches Rust's is_equivalent which uses accepts, not is_dispatchable.
 func (c *CapUrn) IsEquivalent(other *CapUrn) bool {
-	return c.IsDispatchable(other) && other.IsDispatchable(c)
+	return c.Accepts(other) && other.Accepts(c)
 }
 
 // AcceptsStr checks if this cap (handler) accepts a request given as a string.

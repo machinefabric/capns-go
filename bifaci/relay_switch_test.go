@@ -611,7 +611,7 @@ func Test435_relay_switch_urn_matching(t *testing.T) {
 
 // TEST437: find_master_for_cap with preferred_cap routes to generic handler.
 // Generic provider (in=media:) CAN dispatch specific request (in="media:pdf").
-// Preference routes to preferred among dispatchable candidates.
+// Preference routes to preferred among dispatchable candidates via IsEquivalent (Accepts-based).
 func Test437_preferred_cap_routes_to_generic(t *testing.T) {
 	// Master 0: generic thumbnail handler
 	engineRead0, slaveWrite0 := net.Pipe()
@@ -656,19 +656,19 @@ func Test437_preferred_cap_routes_to_generic(t *testing.T) {
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
 
-	// Without preference: routes to master 1 (specific, closest-specificity)
+	// Without preference: routes to master 1 (specific, closest-specificity wins)
 	idx, err := sw.findMasterForCap(request, nil)
 	if err != nil || idx != 1 {
 		t.Errorf("Without preference: expected master 1 (specific), got %d (err=%v)", idx, err)
 	}
 
-	// With preference for generic cap: routes to master 0 (via IsEquivalent)
+	// With preference for generic cap: routes to master 0 (generic is IsEquivalent to preference)
 	idx, err = sw.findMasterForCap(request, &genericCap)
 	if err != nil || idx != 0 {
 		t.Errorf("With generic preference: expected master 0, got %d (err=%v)", idx, err)
 	}
 
-	// With preference for specific cap: routes to master 1
+	// With preference for specific cap: routes to master 1 (specificCap on master 1 is IsEquivalent)
 	idx, err = sw.findMasterForCap(request, &specificCap)
 	if err != nil || idx != 1 {
 		t.Errorf("With specific preference: expected master 1, got %d (err=%v)", idx, err)
