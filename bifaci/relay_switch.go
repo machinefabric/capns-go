@@ -676,7 +676,8 @@ func (sw *RelaySwitch) rebuildCapabilities() {
 	}
 
 	manifest := map[string]interface{}{
-		"capabilities": caps,
+		"caps":                  caps,
+		"installed_cartridges": []interface{}{},
 	}
 	data, _ := json.Marshal(manifest)
 	sw.capabilities = data

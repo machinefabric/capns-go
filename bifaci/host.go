@@ -656,8 +656,11 @@ func (h *CartridgeHost) rebuildCapabilities() {
 		return
 	}
 
-	// Serialize as JSON array of URN strings (NOT a map)
-	capsJSON, err := json.Marshal(allCaps)
+	payload := map[string]interface{}{
+		"caps":                  allCaps,
+		"installed_cartridges": []interface{}{},
+	}
+	capsJSON, err := json.Marshal(payload)
 	if err != nil {
 		h.capabilities = nil
 		return
