@@ -656,9 +656,9 @@ func (h *CartridgeHost) rebuildCapabilities() {
 		return
 	}
 
-	payload := map[string]interface{}{
-		"caps":                  allCaps,
-		"installed_cartridges": []interface{}{},
+	payload := RelayNotifyCapabilitiesPayload{
+		Caps:                allCaps,
+		InstalledCartridges: []InstalledCartridgeIdentity{},
 	}
 	capsJSON, err := json.Marshal(payload)
 	if err != nil {

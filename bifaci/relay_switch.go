@@ -53,8 +53,8 @@ type InstalledCartridgeIdentity struct {
 	Sha256  string `json:"sha256"`
 }
 
-// relayNotifyCapabilitiesPayload is the parsed payload from RelayNotify frames
-type relayNotifyCapabilitiesPayload struct {
+// RelayNotifyCapabilitiesPayload is the parsed payload from RelayNotify frames
+type RelayNotifyCapabilitiesPayload struct {
 	Caps                 []string                     `json:"caps"`
 	InstalledCartridges  []InstalledCartridgeIdentity `json:"installed_cartridges"`
 }
@@ -675,9 +675,9 @@ func (sw *RelaySwitch) rebuildCapabilities() {
 		caps = append(caps, cap)
 	}
 
-	manifest := map[string]interface{}{
-		"caps":                  caps,
-		"installed_cartridges": []interface{}{},
+	manifest := RelayNotifyCapabilitiesPayload{
+		Caps:                caps,
+		InstalledCartridges: []InstalledCartridgeIdentity{},
 	}
 	data, _ := json.Marshal(manifest)
 	sw.capabilities = data
@@ -716,7 +716,7 @@ func (sw *RelaySwitch) rebuildLimits() {
 // The payload JSON must contain:
 //   - "caps": []string  (the capability URN list)
 //   - "installed_cartridges": []InstalledCartridgeIdentity (optional)
-func parseRelayNotifyPayload(manifest []byte) (*relayNotifyCapabilitiesPayload, error) {
+func parseRelayNotifyPayload(manifest []byte) (*RelayNotifyCapabilitiesPayload, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(manifest, &raw); err != nil {
 		return nil, &RelaySwitchError{
@@ -755,7 +755,7 @@ func parseRelayNotifyPayload(manifest []byte) (*relayNotifyCapabilitiesPayload, 
 		installedCartridges = []InstalledCartridgeIdentity{}
 	}
 
-	return &relayNotifyCapabilitiesPayload{
+	return &RelayNotifyCapabilitiesPayload{
 		Caps:                caps,
 		InstalledCartridges: installedCartridges,
 	}, nil
