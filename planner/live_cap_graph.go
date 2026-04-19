@@ -533,13 +533,9 @@ func (g *LiveCapGraph) iddfsFind(
 		return
 	}
 
-	vk := visitedKey{canonical: current.String(), isSequence: isSequence}
-	if visited[vk] {
-		return
-	}
-	visited[vk] = true
-	defer func() { delete(visited, vk) }()
-
+	// Check if we've reached the EXACT target.
+	// Skip this check at the starting node (empty path) — when source==target,
+	// we still want to explore edges to find round-trip transformation paths.
 	if current.IsEquivalent(target) && len(path) > 0 {
 		// Only record the path when it exactly fills the depth budget for this IDDFS
 		// iteration (depthLimit == 0). This mirrors Rust's `current_path.len() == depth_limit`
@@ -572,13 +568,28 @@ func (g *LiveCapGraph) iddfsFind(
 				})
 			}
 		}
-		// Do not continue exploring beyond the target (non-round-trip paths).
-		// Round-trip detection (source==target) is handled by the visited map.
-		return
+		// For round-trip paths (source==target), don't return early —
+		// continue exploring edges to find longer paths through this node.
+		if !originalSource.IsEquivalent(target) {
+			return
+		}
 	}
 
 	if depthLimit == 0 {
 		return
+	}
+
+	// For round-trip paths (source==target), don't mark target-equivalent nodes
+	// as visited. This allows the DFS to return to the target through different
+	// intermediate paths. Cycle prevention is handled by depth_limit.
+	isRoundtrip := originalSource.IsEquivalent(target)
+	vk := visitedKey{canonical: current.String(), isSequence: isSequence}
+	if !(isRoundtrip && current.IsEquivalent(target)) {
+		if visited[vk] {
+			return
+		}
+		visited[vk] = true
+		defer func() { delete(visited, vk) }()
 	}
 
 	edges, outSeqs := g.getOutgoingEdges(current, isSequence)

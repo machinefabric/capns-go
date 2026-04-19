@@ -285,6 +285,218 @@ func Test1109_SlotKeyUsesNodeIDNotCapUrn(t *testing.T) {
 	}
 }
 
+// TEST792: ArgumentBinding RequiresInput distinguishes Slots from Literals
+func Test792_ArgumentBindingRequiresInput(t *testing.T) {
+	slot := NewSlotBinding("width", nil)
+	if !slot.RequiresInput() {
+		t.Fatal("Slot binding must require input")
+	}
+	lit := NewLiteralBinding(json.RawMessage(`100`))
+	if lit.RequiresInput() {
+		t.Fatal("Literal binding must NOT require input")
+	}
+}
+
+// TEST793: ArgumentBinding PreviousOutput serializes/deserializes correctly
+func Test793_ArgumentBindingSerializationPreviousOutput(t *testing.T) {
+	field := "result_path"
+	binding := NewPreviousOutputBinding("node_0", &field)
+	data, err := json.Marshal(binding)
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+	s := string(data)
+	if !stringContains(s, "previous_output") {
+		t.Fatalf("expected 'previous_output' in JSON: %s", s)
+	}
+	if !stringContains(s, "node_0") {
+		t.Fatalf("expected 'node_0' in JSON: %s", s)
+	}
+	var recovered ArgumentBinding
+	if err := json.Unmarshal(data, &recovered); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if recovered.Kind != BindingPreviousOutput {
+		t.Fatal("expected PreviousOutput kind")
+	}
+	if recovered.NodeID != "node_0" {
+		t.Fatalf("expected node_id 'node_0', got %q", recovered.NodeID)
+	}
+	if recovered.OutputField == nil || *recovered.OutputField != "result_path" {
+		t.Fatalf("expected output_field 'result_path', got %v", recovered.OutputField)
+	}
+}
+
+// TEST794: ArgumentBindings AddFilePath adds InputFilePath binding
+func Test794_ArgumentBindingsAddFilePath(t *testing.T) {
+	bindings := NewArgumentBindings()
+	bindings.AddFilePath("input")
+	b, ok := bindings.Bindings["input"]
+	if !ok {
+		t.Fatal("expected binding for 'input'")
+	}
+	if b.Kind != BindingInputFilePath {
+		t.Fatalf("expected InputFilePath binding kind, got %v", b.Kind)
+	}
+}
+
+// TEST795: ArgumentBindings identifies unresolved Slot bindings
+func Test795_ArgumentBindingsUnresolvedSlots(t *testing.T) {
+	bindings := NewArgumentBindings()
+	bindings.Add("width", NewSlotBinding("width", nil))
+	bindings.Add("height", NewLiteralBinding(json.RawMessage(`100`)))
+
+	if !bindings.HasUnresolvedSlots() {
+		t.Fatal("expected HasUnresolvedSlots to be true")
+	}
+	unresolved := bindings.GetUnresolvedSlots()
+	if len(unresolved) != 1 || unresolved[0] != "width" {
+		t.Fatalf("expected ['width'], got %v", unresolved)
+	}
+}
+
+// TEST796: resolve_binding resolves InputFilePath to current file path
+func Test796_ResolveInputFilePath(t *testing.T) {
+	ctx := emptyContext(func(c *ArgumentResolutionContext) {
+		c.InputFiles = []*CapInputFile{
+			{FilePath: "/path/to/file.pdf", MediaUrn: "media:pdf"},
+		}
+	})
+	binding := NewInputFilePathBinding()
+	result, err := ResolveBinding(binding, ctx, "cap:test", "step_0", nil, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if string(result.Value) != "/path/to/file.pdf" {
+		t.Fatalf("expected path '/path/to/file.pdf', got %q", string(result.Value))
+	}
+	if result.Source != SourceArgInputFile {
+		t.Fatalf("expected SourceArgInputFile, got %v", result.Source)
+	}
+}
+
+// TEST797: resolve_binding resolves Literal to JSON-encoded bytes
+func Test797_ResolveLiteral(t *testing.T) {
+	ctx := emptyContext()
+	binding := NewLiteralBinding(json.RawMessage(`42`))
+	result, err := ResolveBinding(binding, ctx, "cap:test", "step_0", nil, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if string(result.Value) != "42" {
+		t.Fatalf("expected '42', got %q", string(result.Value))
+	}
+	if result.Source != SourceArgLiteral {
+		t.Fatalf("expected SourceArgLiteral, got %v", result.Source)
+	}
+}
+
+// TEST798: resolve_binding extracts value from previous node output
+func Test798_ResolvePreviousOutput(t *testing.T) {
+	field := "result_path"
+	ctx := emptyContext(func(c *ArgumentResolutionContext) {
+		c.PreviousOutputs = map[string]json.RawMessage{
+			"node_0": json.RawMessage(`{"result_path": "/output/result.png"}`),
+		}
+	})
+	binding := NewPreviousOutputBinding("node_0", &field)
+	result, err := ResolveBinding(binding, ctx, "cap:test", "step_0", nil, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if string(result.Value) != "/output/result.png" {
+		t.Fatalf("expected '/output/result.png', got %q", string(result.Value))
+	}
+	if result.Source != SourceArgPreviousOutput {
+		t.Fatalf("expected SourceArgPreviousOutput, got %v", result.Source)
+	}
+}
+
+// TEST799: StrandInput single constructor creates valid Single cardinality input
+func Test799_StrandInputSingle(t *testing.T) {
+	file := &CapInputFile{FilePath: "/path/to/file.pdf", MediaUrn: "media:pdf"}
+	input := NewSingleStrandInput(file)
+	if len(input.Files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(input.Files))
+	}
+	if input.Cardinality != CardinalitySingle {
+		t.Fatal("expected Single cardinality")
+	}
+	if !input.IsValid() {
+		t.Fatal("expected IsValid() to be true")
+	}
+}
+
+// TEST800: StrandInput sequence constructor creates valid Sequence cardinality input
+func Test800_StrandInputSequence(t *testing.T) {
+	files := []*CapInputFile{
+		{FilePath: "/path/1.pdf", MediaUrn: "media:pdf"},
+		{FilePath: "/path/2.pdf", MediaUrn: "media:pdf"},
+	}
+	input := NewSequenceStrandInput(files, "media:pdf")
+	if len(input.Files) != 2 {
+		t.Fatalf("expected 2 files, got %d", len(input.Files))
+	}
+	if input.Cardinality != CardinalitySequence {
+		t.Fatal("expected Sequence cardinality")
+	}
+	if !input.IsValid() {
+		t.Fatal("expected IsValid() to be true")
+	}
+}
+
+// TEST801: CapInputFile deserializes from JSON with source metadata fields
+func Test801_CapInputFileDeserializationWithSourceMetadata(t *testing.T) {
+	jsonStr := `[{"file_path":"/Users/bahram/ws/prj/machinefabric/pdfcartridge/test_files/aws_in_action.pdf","media_urn":"media:pdf","source_id":"1b964d3b-f409-4f51-8684-884348ec2501","source_type":"listing"}]`
+	var files []CapInputFile
+	if err := json.Unmarshal([]byte(jsonStr), &files); err != nil {
+		t.Fatalf("deserialization failed: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(files))
+	}
+	if files[0].SourceType == nil || *files[0].SourceType != SourceListing {
+		t.Fatalf("expected SourceListing, got %v", files[0].SourceType)
+	}
+}
+
+// TEST802: CapInputFile deserializes from compact JSON
+func Test802_CapInputFileDeserializationCompact(t *testing.T) {
+	jsonStr := `[{"file_path":"/path/to/file.pdf","media_urn":"media:pdf","source_id":"abc123","source_type":"listing"}]`
+	var files []CapInputFile
+	if err := json.Unmarshal([]byte(jsonStr), &files); err != nil {
+		t.Fatalf("deserialization failed: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(files))
+	}
+}
+
+// TEST803: StrandInput validation detects mismatched Single cardinality with multiple files
+func Test803_StrandInputInvalidSingle(t *testing.T) {
+	files := []*CapInputFile{
+		{FilePath: "/path/1.pdf", MediaUrn: "media:pdf"},
+		{FilePath: "/path/2.pdf", MediaUrn: "media:pdf"},
+	}
+	input := &StrandInput{
+		Files:           files,
+		ExpectedMediaUrn: "media:pdf",
+		Cardinality:     CardinalitySingle,
+	}
+	if input.IsValid() {
+		t.Fatal("expected IsValid() to be false for Single with multiple files")
+	}
+}
+
 // contains is a simple string-contains helper for tests.
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && stringContains(s, substr))

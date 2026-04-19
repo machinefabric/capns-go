@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"bytes"
 	"fmt"
+	"io"
 
 	cborlib "github.com/fxamacker/cbor/v2"
 )
@@ -129,9 +130,14 @@ func SplitCborSequence(data []byte) ([][]byte, error) {
 	reader := bytes.NewReader(data)
 	decoder := cborlib.NewDecoder(reader)
 
-	for reader.Len() > 0 {
+	// Loop until EOF — fxamacker buffers the full reader internally so reader.Len()
+	// drops to 0 after the first Decode call. The decoder itself tracks remaining items.
+	for {
 		var value interface{}
 		if err := decoder.Decode(&value); err != nil {
+			if err == io.EOF {
+				break
+			}
 			return nil, cborDeserializeError(err.Error())
 		}
 

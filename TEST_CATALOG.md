@@ -1,8 +1,8 @@
 # CapDag-Go Test Catalog
 
-**Total Tests:** 662
+**Total Tests:** 836
 
-**Numbered Tests:** 594
+**Numbered Tests:** 768
 
 **Unnumbered Tests:** 68
 
@@ -408,12 +408,49 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test457 | `Test457_reorder_buffer_cleanup` | TEST457: cleanup_flow removes state; new frames start at seq 0 | bifaci/frame_test.go:1276 |
 | test458 | `Test458_reorder_buffer_non_flow_bypass` | TEST458: Non-flow frames bypass reorder entirely | bifaci/frame_test.go:1301 |
 | test459 | `Test459_reorder_buffer_end_frame` | TEST459: Terminal END frame flows through correctly | bifaci/frame_test.go:1317 |
-| test460 | `Test460_reorder_buffer_err_frame` | TEST460: Terminal ERR frame flows through correctly | bifaci/frame_test.go:1359 |
+| test460 | `Test460_reorder_buffer_err_frame` | TEST460: Terminal ERR frame flows through correctly | bifaci/frame_test.go:1975 |
 | test473 | `Test473_cap_discard_parses_as_valid_urn` | TEST473: CAP_DISCARD parses as valid CapUrn with in=media: and out=media:void | standard/caps_test.go:59 |
 | test474 | `Test474_cap_discard_structure` | TEST474: CAP_DISCARD accepts specific-input/void-output caps | standard/caps_test.go:68 |
 | test475 | `Test475_validate_passes_with_identity` | TEST475: validate() passes with CAP_IDENTITY in a cap group | bifaci/manifest_test.go:304 |
 | test476 | `Test476_validate_fails_without_identity` | TEST476: validate() fails without CAP_IDENTITY | bifaci/manifest_test.go:315 |
+| test491 | `Test491_chunk_requires_chunk_index_and_checksum` | TEST491: Frame::chunk constructor requires and sets chunk_index and checksum | bifaci/frame_test.go:1370 |
+| test492 | `Test492_stream_end_requires_chunk_count` | TEST492: Frame::stream_end constructor requires and sets chunk_count | bifaci/frame_test.go:1386 |
+| test493 | `Test493_compute_checksum_fnv1a_test_vectors` | TEST493: compute_checksum produces correct FNV-1a hash for known test vectors | bifaci/frame_test.go:1399 |
+| test494 | `Test494_compute_checksum_deterministic` | TEST494: compute_checksum is deterministic | bifaci/frame_test.go:1406 |
+| test495 | `Test495_cbor_rejects_chunk_without_chunk_index` | TEST495: CBOR decode REJECTS CHUNK frame missing chunk_index field | bifaci/frame_test.go:1417 |
+| test496 | `Test496_cbor_rejects_chunk_without_checksum` | TEST496: CBOR decode REJECTS CHUNK frame missing checksum field | bifaci/frame_test.go:1445 |
 | test497 | `Test497_chunk_corrupted_payload_rejected` | TEST497: Verify CHUNK frame with corrupted payload is rejected by checksum | bifaci/io_test.go:1021 |
+| test498 | `Test498_routing_id_cbor_roundtrip` | TEST498: routing_id field roundtrips through CBOR encoding | bifaci/frame_test.go:1473 |
+| test499 | `Test499_chunk_index_checksum_cbor_roundtrip` | TEST499: chunk_index and checksum roundtrip through CBOR encoding | bifaci/frame_test.go:1491 |
+| test500 | `Test500_chunk_count_cbor_roundtrip` | TEST500: chunk_count roundtrips through CBOR encoding | bifaci/frame_test.go:1511 |
+| test501 | `Test501_frame_new_initializes_optional_fields_none` | TEST501: Frame creation initializes optional fields to nil | bifaci/frame_test.go:1528 |
+| test502 | `Test502_codec_key_constants` | TEST502: Codec key constants match protocol spec values | bifaci/frame_test.go:1538 |
+| test503 | `Test503_compute_checksum_empty_data` | TEST503: compute_checksum handles empty data correctly (FNV-1a offset basis) | bifaci/frame_test.go:1546 |
+| test504 | `Test504_compute_checksum_large_payload` | TEST504: compute_checksum handles large payloads without overflow | bifaci/frame_test.go:1552 |
+| test505 | `Test505_chunk_with_offset_sets_chunk_index` | TEST505: chunk_with_offset sets chunk_index correctly | bifaci/frame_test.go:1565 |
+| test506 | `Test506_compute_checksum_different_data_different_hash` | TEST506: Different data produces different checksums | bifaci/frame_test.go:1582 |
+| test507 | `Test507_reorder_buffer_xid_isolation` | TEST507: ReorderBuffer isolates flows by XID — same RID different XIDs are independent | bifaci/frame_test.go:1589 |
+| test508 | `Test508_reorder_buffer_duplicate_buffered_seq` | TEST508: ReorderBuffer rejects duplicate seq already in buffer | bifaci/frame_test.go:1620 |
+| test509 | `Test509_reorder_buffer_large_gap_rejected` | TEST509: ReorderBuffer handles large seq gaps without DOS — overflow fails | bifaci/frame_test.go:1636 |
+| test510 | `Test510_reorder_buffer_multiple_gaps` | TEST510: ReorderBuffer with multiple interleaved gaps fills correctly | bifaci/frame_test.go:1655 |
+| test511 | `Test511_reorder_buffer_cleanup_with_buffered_frames` | TEST511: ReorderBuffer cleanup with buffered frames discards them | bifaci/frame_test.go:1689 |
+| test512 | `Test512_reorder_buffer_burst_delivery` | TEST512: ReorderBuffer delivers burst of consecutive buffered frames | bifaci/frame_test.go:1713 |
+| test513 | `Test513_reorder_buffer_mixed_types_same_flow` | TEST513: ReorderBuffer different frame types in same flow maintain order | bifaci/frame_test.go:1734 |
+| test514 | `Test514_reorder_buffer_xid_cleanup_isolation` | TEST514: ReorderBuffer XID cleanup doesn't affect different XID flows | bifaci/frame_test.go:1757 |
+| test515 | `Test515_reorder_buffer_overflow_error_details` | TEST515: ReorderBuffer overflow error includes diagnostic information | bifaci/frame_test.go:1783 |
+| test516 | `Test516_reorder_buffer_stale_error_details` | TEST516: ReorderBuffer stale error includes diagnostic information | bifaci/frame_test.go:1799 |
+| test517 | `Test517_flow_key_none_vs_some_xid` | TEST517: FlowKey with empty XID differs from non-empty XID (mirrors Rust None vs Some) | bifaci/frame_test.go:1817 |
+| test518 | `Test518_reorder_buffer_empty_ready_vec` | TEST518: ReorderBuffer handles zero-length ready vec correctly | bifaci/frame_test.go:1832 |
+| test519 | `Test519_reorder_buffer_state_persistence` | TEST519: ReorderBuffer state persists across accept calls | bifaci/frame_test.go:1844 |
+| test520 | `Test520_reorder_buffer_per_flow_limit` | TEST520: ReorderBuffer max_buffer_per_flow is per-flow not global | bifaci/frame_test.go:1863 |
+| test521 | `Test521_relay_notify_cbor_roundtrip` | TEST521: RelayNotify CBOR roundtrip preserves manifest and limits | bifaci/frame_test.go:1886 |
+| test522 | `Test522_relay_state_cbor_roundtrip` | TEST522: RelayState CBOR roundtrip preserves payload | bifaci/frame_test.go:1906 |
+| test523 | `Test523_relay_notify_not_flow_frame` | TEST523: IsFlowFrame returns false for RelayNotify | bifaci/frame_test.go:1922 |
+| test524 | `Test524_relay_state_not_flow_frame` | TEST524: IsFlowFrame returns false for RelayState | bifaci/frame_test.go:1928 |
+| test525 | `Test525_relay_notify_empty_manifest` | TEST525: RelayNotify with empty manifest is valid | bifaci/frame_test.go:1934 |
+| test526 | `Test526_relay_state_empty_payload` | TEST526: RelayState with empty payload is valid | bifaci/frame_test.go:1941 |
+| test527 | `Test527_relay_notify_large_manifest` | TEST527: RelayNotify with large manifest roundtrips correctly | bifaci/frame_test.go:1948 |
+| test528 | `Test528_relay_frames_use_uint_zero_id` | TEST528: RelayNotify and RelayState use uint 0 as sentinel ID (not UUID) | bifaci/frame_test.go:1965 |
 | test544 | `Test544_peer_invoker_sends_end_frame` | TEST544: PeerCall::finish sends END frame | bifaci/cartridge_runtime_test.go:2337 |
 | test545 | `Test545_demux_peer_response_returns_data` | TEST545: PeerCall::finish returns PeerResponse with data | bifaci/cartridge_runtime_test.go:2370 |
 | test546 | `Test546_is_image` | TEST546: is_image returns true only when image marker tag is present | urn/media_urn_test.go:408 |
@@ -527,6 +564,122 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test681 | `Test681_find_stream_multiple` | TEST681: find_stream with multiple streams returns the correct one | bifaci/cartridge_runtime_test.go:2587 |
 | test682 | `Test682_require_stream_returns_data` | TEST682: require_stream_str returns UTF-8 string for text data | bifaci/cartridge_runtime_test.go:2603 |
 | test683 | `Test683_find_stream_invalid_urn_returns_nil` | TEST683: find_stream returns None for invalid media URN string (not a parse error — just None) | bifaci/cartridge_runtime_test.go:2617 |
+| test688 | `Test688_is_multiple` | TEST688: Tests IsMultiple method correctly identifies multi-value cardinalities Verifies Single returns false while Sequence and AtLeastOne return true | planner/cardinality_test.go:12 |
+| test689 | `Test689_accepts_single` | TEST689: Tests AcceptsSingle method identifies cardinalities that accept single values Verifies Single and AtLeastOne accept singles while Sequence does not | planner/cardinality_test.go:20 |
+| test690 | `Test690_compatibility_single_to_single` | TEST690: Tests cardinality compatibility for single-to-single data flow Verifies Direct compatibility when both input and output are Single | planner/cardinality_test.go:28 |
+| test691 | `Test691_compatibility_single_to_vector` | TEST691: Tests cardinality compatibility when wrapping single value into array Verifies WrapInArray compatibility when Sequence expects Single input | planner/cardinality_test.go:34 |
+| test692 | `Test692_compatibility_vector_to_single` | TEST692: Tests cardinality compatibility when unwrapping array to singles Verifies RequiresFanOut compatibility when Single expects Sequence input | planner/cardinality_test.go:40 |
+| test693 | `Test693_compatibility_vector_to_vector` | TEST693: Tests cardinality compatibility for sequence-to-sequence data flow Verifies Direct compatibility when both input and output are Sequence | planner/cardinality_test.go:46 |
+| test697 | `Test697_cap_shape_info_one_to_one` | TEST697: Tests CapShapeInfo correctly identifies one-to-one pattern Verifies Single input and Single output result in OneToOne pattern | planner/cardinality_test.go:52 |
+| test698 | `Test698_cap_shape_info_cardinality_always_single_from_urn` | TEST698: CapShapeInfo cardinality is always Single when derived from URN Cardinality comes from context (IsSequence), not from URN tags. The list tag is a semantic type property, not a cardinality indicator. | planner/cardinality_test.go:62 |
+| test699 | `Test699_cap_shape_info_list_urn_still_single_cardinality` | TEST699: CapShapeInfo cardinality from URN is always Single; ManyToOne requires IsSequence context | planner/cardinality_test.go:70 |
+| test709 | `Test709_pattern_produces_vector` | TEST709: Tests CardinalityPattern correctly identifies patterns that produce vectors Verifies OneToMany and ManyToMany return true, others return false | planner/cardinality_test.go:90 |
+| test710 | `Test710_pattern_requires_vector` | TEST710: Tests CardinalityPattern correctly identifies patterns that require vectors Verifies ManyToOne and ManyToMany return true, others return false | planner/cardinality_test.go:99 |
+| test711 | `Test711_strand_shape_analysis_simple_linear` | TEST711: Tests shape chain analysis for simple linear one-to-one capability chains | planner/cardinality_test.go:107 |
+| test712 | `Test712_strand_shape_analysis_with_fan_out` | TEST712: Tests shape chain analysis detects fan-out points in capability chains Fan-out requires Sequence cardinality on the cap's output (from is_sequence=true wire context) | planner/cardinality_test.go:120 |
+| test713 | `Test713_strand_shape_analysis_empty` | TEST713: Tests shape chain analysis handles empty capability chains correctly | planner/cardinality_test.go:138 |
+| test714 | `Test714_cardinality_string` | TEST714: Tests InputCardinality String() representation | planner/cardinality_test.go:145 |
+| test715 | `Test715_pattern_string` | TEST715: Tests CardinalityPattern String() representation | planner/cardinality_test.go:152 |
+| test716 | `Test716_empty_collection` | TEST716: Tests CapInputCollection empty collection has zero files and folders Verifies is_empty() returns true and counts are zero for new collection | planner/collection_input_test.go:11 |
+| test717 | `Test717_collection_with_files` | TEST717: Tests CapInputCollection correctly counts files in flat collection Verifies total_file_count() returns 2 for collection with 2 files, no folders | planner/collection_input_test.go:20 |
+| test718 | `Test718_nested_collection` | TEST718: Tests CapInputCollection correctly counts files and folders in nested structure Verifies total_file_count() includes subfolder files and total_folder_count() counts subfolders | planner/collection_input_test.go:32 |
+| test719 | `Test719_flatten_to_files` | TEST719: Tests CapInputCollection flatten_to_files recursively collects all files Verifies flatten() extracts files from root and all subfolders into flat list | planner/collection_input_test.go:48 |
+| test720 | `Test720_from_media_urn_opaque` | TEST720: Tests InputStructure correctly identifies opaque media URNs Verifies that URNs without record marker are parsed as Opaque | planner/cardinality_test.go:161 |
+| test721 | `Test721_from_media_urn_record` | TEST721: Tests InputStructure correctly identifies record media URNs Verifies that URNs with record marker tag are parsed as Record | planner/cardinality_test.go:171 |
+| test722 | `Test722_structure_compatibility_opaque_to_opaque` | TEST722: Tests structure compatibility for opaque-to-opaque data flow | planner/cardinality_test.go:180 |
+| test723 | `Test723_structure_compatibility_record_to_record` | TEST723: Tests structure compatibility for record-to-record data flow | planner/cardinality_test.go:186 |
+| test724 | `Test724_structure_incompatibility_opaque_to_record` | TEST724: Tests structure incompatibility for opaque-to-record flow | planner/cardinality_test.go:192 |
+| test725 | `Test725_structure_incompatibility_record_to_opaque` | TEST725: Tests structure incompatibility for record-to-opaque flow | planner/cardinality_test.go:198 |
+| test726 | `Test726_apply_structure_add_record` | TEST726: Tests applying Record structure adds record marker to URN | planner/cardinality_test.go:204 |
+| test727 | `Test727_apply_structure_remove_record` | TEST727: Tests applying Opaque structure removes record marker from URN | planner/cardinality_test.go:210 |
+| test728 | `Test728_cap_node_helpers` | TEST728: Tests MachineNode helper methods for identifying node types (cap, fan-out, fan-in) Verifies IsCap(), IsFanOut(), IsFanIn(), and GetCapUrn() correctly classify node types | planner/plan_test.go:12 |
+| test729 | `Test729_edge_types` | TEST729: Tests creation and classification of different edge types (Direct, Iteration, Collection, JsonField) Verifies that edge constructors produce correct EdgeKind variants | planner/plan_test.go:35 |
+| test730 | `Test730_media_shape_from_urn_all_combinations` | TEST730: Tests MediaShape correctly parses all four combinations | planner/cardinality_test.go:216 |
+| test731 | `Test731_media_shape_compatible_direct` | TEST731: Tests MediaShape compatibility for matching shapes (Direct) | planner/cardinality_test.go:239 |
+| test732 | `Test732_media_shape_cardinality_changes` | TEST732: Tests MediaShape compatibility for cardinality changes with matching structure | planner/cardinality_test.go:252 |
+| test733 | `Test733_media_shape_structure_mismatch` | TEST733: Tests MediaShape incompatibility when structures don't match | planner/cardinality_test.go:268 |
+| test734 | `Test734_topological_order_self_loop` | TEST734: Tests topological sort detects self-referencing cycles (A→A) Verifies that self-loops are recognized as cycles and produce an error | planner/plan_test.go:52 |
+| test735 | `Test735_topological_order_multiple_entry_points` | TEST735: Tests topological sort handles graphs with multiple independent starting nodes Verifies that parallel entry points (A→C, B→C) both precede their merge point in ordering | planner/plan_test.go:64 |
+| test736 | `Test736_topological_order_complex_dag` | TEST736: Tests topological sort on a complex multi-path DAG with 6 nodes Verifies that all dependency constraints are satisfied in a graph with multiple converging paths | planner/plan_test.go:96 |
+| test737 | `Test737_linear_chain_single_cap` | TEST737: Tests LinearChain() with exactly one capability Verifies that a single-element chain produces a valid plan with input_slot, cap, and output | planner/plan_test.go:140 |
+| test738 | `Test738_linear_chain_empty` | TEST738: Tests LinearChain() with empty capability list Verifies that an empty chain produces a plan with zero nodes and edges | planner/plan_test.go:149 |
+| test739 | `Test739_machine_result_primary_output` | TEST739: Tests MachineResult PrimaryOutput returns populated output and nil when empty Verifies the PrimaryOutput() accessor distinguishes populated vs empty outputs maps | planner/plan_test.go:157 |
+| test740 | `Test740_cap_shape_info_from_specs` | TEST740: Tests CapShapeInfo correctly parses cap specs | planner/cardinality_test.go:286 |
+| test741 | `Test741_cap_shape_info_pattern` | TEST741: Tests CapShapeInfo pattern detection — OneToMany requires Sequence output cardinality | planner/cardinality_test.go:295 |
+| test742 | `Test742_iteration_edge_does_not_create_topological_dependency` | TEST742: Tests that edge types determine dependency direction in TopologicalOrder Iteration edges must NOT create a topological dependency (ForEach body must not block ForEach node). Direct edges MUST create a dependency. Verifies that edge kind affects plan execution order. | planner/plan_test.go:174 |
+| test743 | `Test743_foreach_body_bounds_determine_extraction` | TEST743: Tests that ForEach node's body range fields are used correctly by ExtractForEachBody The bodyEntry/bodyExit fields define which nodes are in scope. Verifies that wrong body bounds produce a different extraction than correct ones — body_exit determines what gets included. | planner/plan_test.go:206 |
+| test744 | `Test744_single_cap_plan_validates_and_orders_correctly` | TEST744: Tests SingleCap plan passes Validate and TopologicalOrder produces correct sequence Verifies the plan is structurally sound: input_slot must precede cap_0 must precede output | planner/plan_test.go:230 |
+| test745 | `Test745_merge_strategy_values` | TEST745: Tests MergeStrategy enum values Verifies MergeConcat and MergeZipWith have correct string representations | planner/plan_test.go:255 |
+| test746 | `Test746_output_node_registered_on_add` | TEST746: Tests Output node is automatically registered as output_node on AddNode Verifies that Validate() accepts a plan where the Output node is the plan's only output_node | planner/plan_test.go:262 |
+| test747 | `Test747_cap_node_merge` | TEST747: Tests creation and validation of Merge node that combines multiple inputs Verifies that Merge nodes with multiple input nodes and a strategy can be added to plans | planner/plan_test.go:276 |
+| test748 | `Test748_split_and_merge_not_classified_as_cap_fanout_fanin` | TEST748: Tests that IsCap/IsFanOut/IsFanIn return false for Split and Merge node types Verifies that node type classification methods correctly reject non-cap, non-foreach, non-collect kinds | planner/plan_test.go:299 |
+| test749 | `Test749_get_node` | TEST749: Tests GetNode() method for looking up nodes by ID in a plan Verifies that existing nodes are found and non-existent nodes return nil | planner/plan_test.go:327 |
+| test750 | `Test750_strand_shape_valid` | TEST750: Tests shape chain analysis for valid chain with matching structures | planner/cardinality_test.go:306 |
+| test751 | `Test751_strand_shape_structure_mismatch` | TEST751: Tests shape chain analysis detects structure mismatch | planner/cardinality_test.go:317 |
+| test752 | `Test752_strand_shape_with_fanout` | TEST752: Tests shape chain analysis with fan-out (matching structures) Fan-out requires Sequence output cardinality (from is_sequence=true wire context) | planner/cardinality_test.go:331 |
+| test753 | `Test753_strand_shape_list_record_to_list_record` | TEST753: Tests shape chain analysis correctly handles list-to-list record flow | planner/cardinality_test.go:348 |
+| test754 | `Test754_extract_prefix_nonexistent` | TEST754: extract_prefix_to with nonexistent node returns error | planner/plan_test.go:380 |
+| test755 | `Test755_extract_foreach_body` | TEST755: extract_foreach_body extracts body as standalone plan | planner/plan_test.go:387 |
+| test756 | `Test756_extract_foreach_body_unclosed` | TEST756: extract_foreach_body for unclosed ForEach (single body cap) | planner/plan_test.go:415 |
+| test757 | `Test757_extract_foreach_body_wrong_type` | TEST757: extract_foreach_body fails for non-ForEach node | planner/plan_test.go:430 |
+| test758 | `Test758_extract_suffix_from` | TEST758: extract_suffix_from extracts collect → cap_post → output | planner/plan_test.go:438 |
+| test759 | `Test759_extract_suffix_nonexistent` | TEST759: extract_suffix_from fails for nonexistent node | planner/plan_test.go:455 |
+| test760 | `Test760_decomposition_covers_all_caps` | TEST760: Full decomposition roundtrip — prefix + body + suffix cover all cap nodes | planner/plan_test.go:462 |
+| test761 | `Test761_prefix_is_dag` | TEST761: Prefix sub-plan can be topologically sorted (is a valid DAG) | planner/plan_test.go:493 |
+| test762 | `Test762_body_is_dag` | TEST762: Body sub-plan can be topologically sorted (is a valid DAG) | planner/plan_test.go:502 |
+| test763 | `Test763_suffix_is_dag` | TEST763: Suffix sub-plan can be topologically sorted (is a valid DAG) | planner/plan_test.go:511 |
+| test764 | `Test764_extract_prefix_to_input_slot` | TEST764: extract_prefix_to with InputSlot as target (trivial prefix) | planner/plan_test.go:520 |
+| test767 | `Test767_argument_resolution_string_representations` | TEST767: Tests ArgumentResolution String() returns correct snake_case names ArgumentInfo.Resolution is serialized to JSON using String(). Verifies that each resolution variant maps to the correct identifier expected by API consumers. | planner/plan_builder_test.go:15 |
+| test768 | `Test768_analyze_path_arguments_stdin_is_from_input_file` | TEST768: Tests AnalyzePathArguments classifies stdin arg as FromInputFile for first cap Verifies that the argument analysis correctly identifies input-file arguments when the cap's stdin arg media URN matches the cap's in_spec. | planner/plan_builder_test.go:34 |
+| test769 | `Test769_analyze_path_arguments_user_input_arg_appears_in_slots` | TEST769: Tests AnalyzePathArguments puts RequiresUserInput args in slots and sets CanExecuteWithoutInput=false Verifies that caps with non-stdin, non-default arguments are identified as requiring user input, appear in slots, and the requirements reflect that execution cannot proceed without them. | planner/plan_builder_test.go:75 |
+| test770 | `Test770_rejects_foreach` | TEST770: PlanToResolvedGraph rejects plans containing ForEach nodes Verifies that plans requiring decomposition (ForEach) are rejected before conversion | orchestrator/orchestrator_test.go:126 |
+| test771 | `Test771_rejects_foreach_paired_collect` | TEST771: PlanToResolvedGraph rejects plans containing ForEach-paired Collect nodes Verifies that Collect nodes without OutputMediaUrn (ForEach-paired) are rejected | orchestrator/orchestrator_test.go:158 |
+| test772 | `Test772_find_paths_finds_multi_step_paths` | TEST772: Tests FindPathsToExactTarget() finds multi-step paths Verifies that paths through intermediate nodes are found correctly | planner/live_cap_graph_test.go:20 |
+| test773 | `Test773_find_paths_returns_empty_when_no_path` | TEST773: Tests FindPathsToExactTarget() returns empty when no path exists Verifies that pathfinding returns no paths when target is unreachable | planner/live_cap_graph_test.go:44 |
+| test774 | `Test774_get_reachable_targets_finds_all_targets` | TEST774: Tests GetReachableTargets() returns all reachable targets Verifies that reachable targets include direct cap targets | planner/live_cap_graph_test.go:62 |
+| test777 | `Test777_type_mismatch_pdf_cap_does_not_match_png_input` | TEST777: Tests type checking prevents using PDF-specific cap with PNG input | planner/live_cap_graph_test.go:95 |
+| test778 | `Test778_type_mismatch_png_cap_does_not_match_pdf_input` | TEST778: Tests type checking prevents using PNG-specific cap with PDF input | planner/live_cap_graph_test.go:110 |
+| test779 | `Test779_get_reachable_targets_respects_type_matching` | TEST779: Tests get_reachable_targets() only returns targets reachable via type-compatible caps | planner/live_cap_graph_test.go:125 |
+| test780 | `Test780_split_integer_array` | TEST780: split_cbor_array splits a simple array of integers | orchestrator/cbor_util_test.go:30 |
+| test781 | `Test781_find_paths_respects_type_chain` | TEST781: Tests find_paths_to_exact_target() enforces type compatibility across multi-step chains | planner/live_cap_graph_test.go:162 |
+| test782 | `Test782_split_non_array` | TEST782: split_cbor_array rejects non-array input | orchestrator/cbor_util_test.go:46 |
+| test783 | `Test783_split_empty_array` | TEST783: split_cbor_array rejects empty array | orchestrator/cbor_util_test.go:56 |
+| test784 | `Test784_split_invalid_cbor` | TEST784: split_cbor_array rejects invalid CBOR bytes | orchestrator/cbor_util_test.go:66 |
+| test785 | `Test785_assemble_integer_array` | TEST785: assemble_cbor_array creates array from individual items | orchestrator/cbor_util_test.go:75 |
+| test786 | `Test786_roundtrip_split_assemble` | TEST786: split then assemble roundtrip preserves data | orchestrator/cbor_util_test.go:91 |
+| test787 | `Test787_find_paths_sorting_prefers_shorter` | TEST787: Tests find_paths_to_exact_target() sorts paths by length, preferring shorter ones | planner/live_cap_graph_test.go:189 |
+| test788 | `Test788_foreach_only_with_sequence_input` | TEST788: ForEach is only synthesized when is_sequence=true | planner/live_cap_graph_test.go:212 |
+| test792 | `Test792_ArgumentBindingRequiresInput` | TEST792: ArgumentBinding RequiresInput distinguishes Slots from Literals | planner/argument_binding_test.go:289 |
+| test793 | `Test793_ArgumentBindingSerializationPreviousOutput` | TEST793: ArgumentBinding PreviousOutput serializes/deserializes correctly | planner/argument_binding_test.go:301 |
+| test794 | `Test794_ArgumentBindingsAddFilePath` | TEST794: ArgumentBindings AddFilePath adds InputFilePath binding | planner/argument_binding_test.go:331 |
+| test795 | `Test795_ArgumentBindingsUnresolvedSlots` | TEST795: ArgumentBindings identifies unresolved Slot bindings | planner/argument_binding_test.go:344 |
+| test796 | `Test796_ResolveInputFilePath` | TEST796: resolve_binding resolves InputFilePath to current file path | planner/argument_binding_test.go:359 |
+| test797 | `Test797_ResolveLiteral` | TEST797: resolve_binding resolves Literal to JSON-encoded bytes | planner/argument_binding_test.go:382 |
+| test798 | `Test798_ResolvePreviousOutput` | TEST798: resolve_binding extracts value from previous node output | planner/argument_binding_test.go:401 |
+| test799 | `Test799_StrandInputSingle` | TEST799: StrandInput single constructor creates valid Single cardinality input | planner/argument_binding_test.go:425 |
+| test800 | `Test800_StrandInputSequence` | TEST800: StrandInput sequence constructor creates valid Sequence cardinality input | planner/argument_binding_test.go:440 |
+| test801 | `Test801_CapInputFileDeserializationWithSourceMetadata` | TEST801: CapInputFile deserializes from JSON with source metadata fields | planner/argument_binding_test.go:458 |
+| test802 | `Test802_CapInputFileDeserializationCompact` | TEST802: CapInputFile deserializes from compact JSON | planner/argument_binding_test.go:473 |
+| test803 | `Test803_StrandInputInvalidSingle` | TEST803: StrandInput validation detects mismatched Single cardinality with multiple files | planner/argument_binding_test.go:485 |
+| test804 | `Test804_ExtractJsonPathSimple` | TEST804: Tests basic JSON path extraction with dot notation for nested objects | planner/executor_test.go:8 |
+| test805 | `Test805_ExtractJsonPathWithArray` | TEST805: Tests JSON path extraction with array indexing syntax | planner/executor_test.go:24 |
+| test806 | `Test806_ExtractJsonPathMissingField` | TEST806: Tests error handling when JSON path references non-existent fields | planner/executor_test.go:41 |
+| test807 | `Test807_ApplyEdgeTypeDirect` | TEST807: Tests EdgeType::Direct passes JSON values through unchanged | planner/executor_test.go:54 |
+| test808 | `Test808_ApplyEdgeTypeJsonField` | TEST808: Tests EdgeType::JsonField extracts specific top-level fields from JSON objects | planner/executor_test.go:67 |
+| test809 | `Test809_ApplyEdgeTypeJsonFieldMissing` | TEST809: Tests EdgeType::JsonField error handling for missing fields | planner/executor_test.go:79 |
+| test810 | `Test810_ApplyEdgeTypeJsonPath` | TEST810: Tests EdgeType::JsonPath extracts values using nested path expressions | planner/executor_test.go:88 |
+| test811 | `Test811_ApplyEdgeTypeIteration` | TEST811: Tests EdgeType::Iteration preserves array values for iterative processing | planner/executor_test.go:106 |
+| test812 | `Test812_ApplyEdgeTypeCollection` | TEST812: Tests EdgeType::Collection preserves collected values without transformation | planner/executor_test.go:119 |
+| test813 | `Test813_ExtractJsonPathDeeplyNested` | TEST813: Tests JSON path extraction through deeply nested object hierarchies (4+ levels) | planner/executor_test.go:133 |
+| test814 | `Test814_ExtractJsonPathArrayOutOfBounds` | TEST814: Tests error handling when array index exceeds available elements | planner/executor_test.go:155 |
+| test815 | `Test815_ExtractJsonPathSingleSegment` | TEST815: Tests JSON path extraction with single-level paths (no nesting) | planner/executor_test.go:169 |
+| test816 | `Test816_ExtractJsonPathWithSpecialCharacters` | TEST816: Tests JSON path extraction preserves special characters in string values | planner/executor_test.go:181 |
+| test817 | `Test817_ExtractJsonPathWithNullValue` | TEST817: Tests JSON path extraction correctly handles explicit null values | planner/executor_test.go:198 |
+| test818 | `Test818_ExtractJsonPathWithEmptyArray` | TEST818: Tests JSON path extraction correctly returns empty arrays | planner/executor_test.go:214 |
+| test819 | `Test819_ExtractJsonPathWithNumericTypes` | TEST819: Tests JSON path extraction handles various numeric types correctly | planner/executor_test.go:231 |
+| test820 | `Test820_ExtractJsonPathWithBoolean` | TEST820: Tests JSON path extraction correctly handles boolean values | planner/executor_test.go:259 |
+| test821 | `Test821_ExtractJsonPathWithNestedArrays` | TEST821: Tests JSON path extraction with multi-dimensional arrays (matrix access) | planner/executor_test.go:283 |
+| test822 | `Test822_ExtractJsonPathInvalidArrayIndex` | TEST822: Tests error handling for non-numeric array indices | planner/executor_test.go:301 |
 | test823 | `Test823_dispatch_exact_match` | TEST823: is_dispatchable — exact match provider dispatches request | urn/cap_urn_test.go:1256 |
 | test824 | `Test824_dispatch_contravariant_input` | TEST824: is_dispatchable — provider with broader input handles specific request (contravariance) | urn/cap_urn_test.go:1265 |
 | test825 | `Test825_dispatch_request_unconstrained_input` | TEST825: is_dispatchable — request with unconstrained input dispatches to specific provider media: on the request input axis means "unconstrained" — vacuously true | urn/cap_urn_test.go:1274 |
@@ -574,6 +727,23 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test921 | `Test921_cap_documentation_omitted_when_nil` | TEST921: Tests creation of a linear chain of capabilities connected in sequence Verifies that linear_chain() correctly links multiple caps with proper edges and topological order | cap/definition_test.go:532 |
 | test922 | `Test922_cap_documentation_parses_from_json` | TEST922: Tests creation and validation of an empty execution plan with no nodes Verifies that plans without capabilities are valid and handle zero nodes correctly | cap/definition_test.go:544 |
 | test923 | `Test923_cap_documentation_lifecycle` | TEST923: Tests storing and retrieving metadata attached to an execution plan Verifies that arbitrary JSON metadata can be associated with a plan for context preservation | cap/definition_test.go:563 |
+| test955 | `Test955_split_map_array` | TEST955: split_cbor_array with nested maps | orchestrator/cbor_util_test.go:110 |
+| test956 | `Test956_roundtrip_assemble_split` | TEST956: assemble then split roundtrip preserves data | orchestrator/cbor_util_test.go:127 |
+| test961 | `Test961_assemble_empty` | TEST961: assemble empty list produces empty CBOR array | orchestrator/cbor_util_test.go:144 |
+| test962 | `Test962_assemble_invalid_item` | TEST962: assemble rejects invalid CBOR item | orchestrator/cbor_util_test.go:154 |
+| test963 | `Test963_split_binary_items` | TEST963: split preserves CBOR byte strings (binary data) | orchestrator/cbor_util_test.go:167 |
+| test964 | `Test964_split_sequence_bytes` | TEST964: split_cbor_sequence splits concatenated CBOR Bytes values | orchestrator/cbor_util_test.go:185 |
+| test965 | `Test965_split_sequence_text` | TEST965: split_cbor_sequence splits concatenated CBOR Text values | orchestrator/cbor_util_test.go:206 |
+| test966 | `Test966_split_sequence_mixed` | TEST966: split_cbor_sequence handles mixed types | orchestrator/cbor_util_test.go:221 |
+| test967 | `Test967_split_sequence_single` | TEST967: split_cbor_sequence single-item sequence | orchestrator/cbor_util_test.go:243 |
+| test968 | `Test968_roundtrip_assemble_split_sequence` | TEST968: roundtrip — assemble then split preserves items | orchestrator/cbor_util_test.go:256 |
+| test969 | `Test969_roundtrip_split_assemble_sequence` | TEST969: roundtrip — split then assemble preserves byte-for-byte | orchestrator/cbor_util_test.go:275 |
+| test970 | `Test970_split_sequence_empty` | TEST970: split_cbor_sequence rejects empty data | orchestrator/cbor_util_test.go:290 |
+| test971 | `Test971_split_sequence_truncated` | TEST971: split_cbor_sequence rejects truncated CBOR | orchestrator/cbor_util_test.go:299 |
+| test972 | `Test972_assemble_sequence_invalid_item` | TEST972: assemble_cbor_sequence rejects invalid CBOR item | orchestrator/cbor_util_test.go:314 |
+| test973 | `Test973_assemble_sequence_empty` | TEST973: assemble_cbor_sequence with empty items list produces empty bytes | orchestrator/cbor_util_test.go:327 |
+| test974 | `Test974_sequence_is_not_array` | TEST974: CBOR sequence is NOT a CBOR array — split_cbor_array rejects a sequence | orchestrator/cbor_util_test.go:334 |
+| test975 | `Test975_single_value_sequence` | TEST975: split_cbor_sequence works on data that is also a valid single CBOR value | orchestrator/cbor_util_test.go:353 |
 | test976 | `Test976_cap_graph_find_best_path` | TEST976: CapGraph::find_best_path returns highest-specificity path over shortest | cap_matrix_test.go:1091 |
 | test1105 | `Test1105_TwoStepsSameCapUrnDifferentSlotValues` | TEST1105: Two steps with the same cap_urn get distinct slot values via different node_ids. This is the core disambiguation scenario that step-index keying was designed to solve. | planner/argument_binding_test.go:96 |
 | test1106 | `Test1106_SlotFallsThroughToCapSettingsShared` | TEST1106: Slot resolution falls through to cap_settings when no slot_value exists. cap_settings are keyed by cap_urn (shared across steps), so both steps get the same value. | planner/argument_binding_test.go:138 |
@@ -581,6 +751,10 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test1108 | `Test1108_ResolveAllPassesNodeID` | TEST1108: ResolveAll with node_id threads correctly through to each binding. | planner/argument_binding_test.go:216 |
 | test1109 | `Test1109_SlotKeyUsesNodeIDNotCapUrn` | TEST1109: Slot key uses node_id, NOT cap_urn — a slot_value keyed by cap_urn must not match. | planner/argument_binding_test.go:267 |
 | test1142 | `Test1142_resolved_graph_to_mermaid_renders_shapes_dedupes_edges_and_escapes` | TEST1142: ResolvedGraph.to_mermaid() renders node shapes, deduplicates edges, and escapes labels | orchestrator/orchestrator_test.go:38 |
+| test1143 | `Test1143_InputItemFromStringDistinguishesGlobDirectoryAndFile` | TEST1143: InputItem::from_string distinguishes glob patterns, directories, and files | input_resolver/types_test.go:11 |
+| test1144 | `Test1144_ContentStructureHelpersAndDisplay` | TEST1144: ContentStructure is_list/is_record helpers and Display implementation are correct | input_resolver/types_test.go:43 |
+| test1145 | `Test1145_ResolvedInputSetUsesEquivalentMediaAndFileCountCardinality` | TEST1145: ResolvedInputSet uses URN equivalence for common_media and file count for is_sequence | input_resolver/types_test.go:80 |
+| test1146 | `Test1146_InputResolverErrorDisplayAndSource` | TEST1146: InputResolverError Display and source() implementations produce correct messages | input_resolver/types_test.go:127 |
 | test1155 | `Test1155_FromStrandProducesSingleStrandMachine` | TEST1155: Building a machine from one strand produces one strand with one resolved edge. | machine/machine_test.go:152 |
 | test1156 | `Test1156_FromStrandsKeepStrandsDisjoint` | TEST1156: Building from multiple strands keeps them disjoint and preserves input strand order. | machine/machine_test.go:169 |
 | test1157 | `Test1157_FromStrandsEmptyInputFailsHard` | TEST1157: Building from zero strands fails with NoCapabilitySteps. | machine/machine_test.go:196 |
@@ -757,8 +931,8 @@ The following tests are cataloged but do not currently participate in numeric te
 ---
 
 *Generated from CapDag-Go source tree*
-*Total tests: 662*
-*Total numbered tests: 594*
+*Total tests: 836*
+*Total numbered tests: 768*
 *Total unnumbered tests: 68*
 *Total numbered tests missing descriptions: 0*
 *Total numbering mismatches: 0*

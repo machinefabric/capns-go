@@ -90,3 +90,513 @@ func Test774_get_reachable_targets_finds_all_targets(t *testing.T) {
 	assert.True(t, reaches(mediaB), "B should be reachable")
 	assert.True(t, reaches(mediaD), "D should be reachable")
 }
+
+// TEST777: Tests type checking prevents using PDF-specific cap with PNG input
+func Test777_type_mismatch_pdf_cap_does_not_match_png_input(t *testing.T) {
+	graph := NewLiveCapGraph()
+	pdfToText := makeTestCapForGraph("media:pdf", "media:textable", "pdf2text", "PDF to Text")
+	graph.AddCap(pdfToText)
+
+	source, err := urn.NewMediaUrnFromString("media:png")
+	require.NoError(t, err)
+	target, err := urn.NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+
+	paths := graph.FindPathsToExactTarget(source, target, false, 5, 10)
+	assert.Empty(t, paths, "Should NOT find path from PNG to text via PDF cap")
+}
+
+// TEST778: Tests type checking prevents using PNG-specific cap with PDF input
+func Test778_type_mismatch_png_cap_does_not_match_pdf_input(t *testing.T) {
+	graph := NewLiveCapGraph()
+	pngToThumb := makeTestCapForGraph("media:png", "media:thumbnail", "png2thumb", "PNG to Thumbnail")
+	graph.AddCap(pngToThumb)
+
+	source, err := urn.NewMediaUrnFromString("media:pdf")
+	require.NoError(t, err)
+	target, err := urn.NewMediaUrnFromString("media:thumbnail")
+	require.NoError(t, err)
+
+	paths := graph.FindPathsToExactTarget(source, target, false, 5, 10)
+	assert.Empty(t, paths, "Should NOT find path from PDF to thumbnail via PNG cap")
+}
+
+// TEST779: Tests get_reachable_targets() only returns targets reachable via type-compatible caps
+func Test779_get_reachable_targets_respects_type_matching(t *testing.T) {
+	graph := NewLiveCapGraph()
+	pdfToText := makeTestCapForGraph("media:pdf", "media:textable", "pdf2text", "PDF to Text")
+	pngToThumb := makeTestCapForGraph("media:png", "media:thumbnail", "png2thumb", "PNG to Thumbnail")
+	graph.AddCap(pdfToText)
+	graph.AddCap(pngToThumb)
+
+	mediaTextable, err := urn.NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+	mediaThumbnail, err := urn.NewMediaUrnFromString("media:thumbnail")
+	require.NoError(t, err)
+
+	reaches := func(targets []ReachableTargetInfo, needle *urn.MediaUrn) bool {
+		for _, t := range targets {
+			if t.MediaSpec.IsEquivalent(needle) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// PNG should reach thumbnail but NOT textable
+	pngSource, err := urn.NewMediaUrnFromString("media:png")
+	require.NoError(t, err)
+	pngTargets := graph.GetReachableTargets(pngSource, false, 5)
+	assert.True(t, reaches(pngTargets, mediaThumbnail), "PNG should reach thumbnail")
+	assert.False(t, reaches(pngTargets, mediaTextable), "PNG should NOT reach textable")
+
+	// PDF should reach textable but NOT thumbnail
+	pdfSource, err := urn.NewMediaUrnFromString("media:pdf")
+	require.NoError(t, err)
+	pdfTargets := graph.GetReachableTargets(pdfSource, false, 5)
+	assert.True(t, reaches(pdfTargets, mediaTextable), "PDF should reach textable")
+	assert.False(t, reaches(pdfTargets, mediaThumbnail), "PDF should NOT reach thumbnail")
+}
+
+// TEST781: Tests find_paths_to_exact_target() enforces type compatibility across multi-step chains
+func Test781_find_paths_respects_type_chain(t *testing.T) {
+	graph := NewLiveCapGraph()
+	resizePng := makeTestCapForGraph("media:png", "media:resized-png", "resize", "Resize PNG")
+	toThumb := makeTestCapForGraph("media:resized-png", "media:thumbnail", "thumb", "To Thumbnail")
+	graph.AddCap(resizePng)
+	graph.AddCap(toThumb)
+
+	pngSource, err := urn.NewMediaUrnFromString("media:png")
+	require.NoError(t, err)
+	thumbTarget, err := urn.NewMediaUrnFromString("media:thumbnail")
+	require.NoError(t, err)
+	pdfSource, err := urn.NewMediaUrnFromString("media:pdf")
+	require.NoError(t, err)
+
+	// PNG should find path through resized-png to thumbnail
+	pngPaths := graph.FindPathsToExactTarget(pngSource, thumbTarget, false, 5, 10)
+	assert.Equal(t, 1, len(pngPaths), "Should find 1 path from PNG to thumbnail")
+	if len(pngPaths) == 1 {
+		assert.Equal(t, 2, len(pngPaths[0].Steps), "Path should have 2 steps")
+	}
+
+	// PDF should NOT find path to thumbnail (no PDF->resized-png cap)
+	pdfPaths := graph.FindPathsToExactTarget(pdfSource, thumbTarget, false, 5, 10)
+	assert.Empty(t, pdfPaths, "Should find NO paths from PDF to thumbnail (type mismatch)")
+}
+
+// TEST787: Tests find_paths_to_exact_target() sorts paths by length, preferring shorter ones
+func Test787_find_paths_sorting_prefers_shorter(t *testing.T) {
+	graph := NewLiveCapGraph()
+	direct := makeTestCapForGraph("media:format-a", "media:format-c", "direct", "Direct")
+	step1 := makeTestCapForGraph("media:format-a", "media:format-b", "step1", "Step 1")
+	step2 := makeTestCapForGraph("media:format-b", "media:format-c", "step2", "Step 2")
+	graph.AddCap(direct)
+	graph.AddCap(step1)
+	graph.AddCap(step2)
+
+	source, err := urn.NewMediaUrnFromString("media:format-a")
+	require.NoError(t, err)
+	target, err := urn.NewMediaUrnFromString("media:format-c")
+	require.NoError(t, err)
+
+	paths := graph.FindPathsToExactTarget(source, target, false, 5, 10)
+	assert.GreaterOrEqual(t, len(paths), 2, "Should find at least 2 paths")
+	if len(paths) >= 1 {
+		assert.Equal(t, 1, len(paths[0].Steps), "Shortest path should be first (1 step)")
+		assert.Equal(t, "Direct", paths[0].Steps[0].Title())
+	}
+}
+
+// TEST788: ForEach is only synthesized when is_sequence=true
+func Test788_foreach_only_with_sequence_input(t *testing.T) {
+	graph := NewLiveCapGraph()
+	disbind := makeTestCapForGraph("media:pdf", "media:page;textable", "disbind", "Disbind PDF")
+	choose := makeTestCapForGraph("media:textable", "media:decision;json;record;textable", "choose", "Make a Decision")
+	graph.SyncFromCaps([]*cap.Cap{disbind, choose})
+	nodeCount, edgeCount := graph.Stats()
+	assert.Equal(t, 2, edgeCount, "Graph should contain exactly 2 Cap edges")
+	_ = nodeCount
+
+	source, err := urn.NewMediaUrnFromString("media:pdf")
+	require.NoError(t, err)
+	target, err := urn.NewMediaUrnFromString("media:decision;json;record;textable")
+	require.NoError(t, err)
+
+	hasForEach := func(paths []*Strand) bool {
+		for _, p := range paths {
+			for _, s := range p.Steps {
+				if s.StepType == StepTypeForEach {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	// Scalar input: no ForEach
+	scalarPaths := graph.FindPathsToExactTarget(source, target, false, 10, 20)
+	assert.False(t, hasForEach(scalarPaths), "Scalar input should NOT produce ForEach")
+	assert.NotEmpty(t, scalarPaths, "Should find direct path disbind → choose")
+
+	// Sequence input: ForEach should appear
+	seqPaths := graph.FindPathsToExactTarget(source, target, true, 10, 20)
+	assert.True(t, hasForEach(seqPaths), "Sequence input should produce ForEach step")
+}
+
+// TEST1111: ForEach works for user-provided list sources not in the graph.
+// User provides media:list;textable;txt with is_sequence=true → ForEach+cap path found.
+func Test1111_foreach_for_user_provided_list_source(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	// Cap: textable → decision (accepts singular textable)
+	makeDecision := makeTestCapForGraph(
+		"media:textable",
+		"media:decision;json;record;textable",
+		"make_decision",
+		"Make Decision",
+	)
+	graph.SyncFromCaps([]*cap.Cap{makeDecision})
+
+	source, err := urn.NewMediaUrnFromString("media:list;textable;txt")
+	require.NoError(t, err)
+	target, err := urn.NewMediaUrnFromString("media:decision;json;record;textable")
+	require.NoError(t, err)
+
+	// User provides multiple files → is_sequence=true
+	paths := graph.FindPathsToExactTarget(source, target, true, 10, 20)
+
+	// Expected path: ForEach → make_decision
+	var foundPath *Strand
+	for _, p := range paths {
+		if len(p.Steps) == 2 &&
+			p.Steps[0].StepType == StepTypeForEach &&
+			p.Steps[1].StepType == StepTypeCap {
+			foundPath = p
+			break
+		}
+	}
+	require.NotNil(t, foundPath,
+		"Should find path: ForEach → make_decision. User-provided list source media:list;textable;txt must be iterable. Found %d paths.",
+		len(paths))
+
+	// ForEach step media spec should be equivalent to source
+	foreachStep := foundPath.Steps[0]
+	assert.True(t, foreachStep.MediaSpec.IsEquivalent(source), "ForEach MediaSpec should be equivalent to source")
+}
+
+// TEST1112: Collect is not synthesized during path finding.
+// Reaching a list target type requires the cap itself to output a list type.
+func Test1112_no_collect_in_path_finding(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	summarize := makeTestCapForGraph(
+		"media:textable",
+		"media:summary;textable",
+		"summarize",
+		"Summarize",
+	)
+	graph.SyncFromCaps([]*cap.Cap{summarize})
+
+	source, err := urn.NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+	// list;summary;textable is a different semantic type — can't reach it
+	// without a cap that outputs it or a Collect step (not synthesized)
+	target, err := urn.NewMediaUrnFromString("media:list;summary;textable")
+	require.NoError(t, err)
+
+	paths := graph.FindPathsToExactTarget(source, target, false, 10, 20)
+	assert.Empty(t, paths, "Should NOT find path to list type without a cap that produces it")
+}
+
+// TEST1113: Multi-cap path without Collect — Collect is not synthesized.
+// PDF→disbind→page→summarize→summary. CapStepCount=2.
+func Test1113_multi_cap_path_no_collect(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	disbind := makeTestCapForGraph("media:pdf", "media:page;textable", "disbind", "Disbind PDF")
+	summarize := makeTestCapForGraph(
+		"media:page;textable",
+		"media:summary;textable",
+		"summarize",
+		"Summarize Page",
+	)
+	graph.SyncFromCaps([]*cap.Cap{disbind, summarize})
+
+	source, err := urn.NewMediaUrnFromString("media:pdf")
+	require.NoError(t, err)
+	target, err := urn.NewMediaUrnFromString("media:summary;textable")
+	require.NoError(t, err)
+
+	paths := graph.FindPathsToExactTarget(source, target, false, 10, 20)
+	require.NotEmpty(t, paths, "Should find direct cap path")
+	assert.Equal(t, 2, paths[0].CapStepCount, "Should have 2 cap steps")
+}
+
+// TEST1114: Graph stores only Cap edges after SyncFromCaps.
+// All stored edges must have IsCap() == true.
+func Test1114_graph_stores_only_cap_edges(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	caps := []*cap.Cap{
+		makeTestCapForGraph("media:pdf", "media:page;textable", "disbind", "Disbind"),
+		makeTestCapForGraph("media:page;textable", "media:summary;textable", "summarize", "Summarize"),
+		makeTestCapForGraph("media:textable", "media:decision;json;record;textable", "decide", "Decide"),
+	}
+	graph.SyncFromCaps(caps)
+
+	assert.Equal(t, 3, len(graph.edges), "Should have exactly 3 Cap edges")
+	for _, edge := range graph.edges {
+		assert.True(t, edge.IsCap(),
+			"Stored edge should be a Cap edge, not a cardinality transition")
+	}
+}
+
+// TEST1115: ForEach is synthesized when is_sequence=true AND caps can consume items.
+// getOutgoingEdges(source, true) → ForEach edge present, next_is_seq=false.
+func Test1115_dynamic_foreach_with_is_sequence(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	// Need a cap that accepts the source type for ForEach to be synthesized
+	c := makeTestCapForGraph(
+		"media:textable",
+		"media:summary;textable",
+		"summarize",
+		"Summarize",
+	)
+	graph.SyncFromCaps([]*cap.Cap{c})
+
+	source, err := urn.NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+
+	edges, outSeqs := graph.getOutgoingEdges(source, true)
+
+	var foreachIdx = -1
+	for i, e := range edges {
+		if e.Type == EdgeTypeForEach {
+			foreachIdx = i
+			break
+		}
+	}
+	require.GreaterOrEqual(t, foreachIdx, 0, "Should synthesize ForEach when is_sequence=true and caps exist")
+	assert.False(t, outSeqs[foreachIdx], "ForEach should flip is_sequence to false")
+
+	fe := edges[foreachIdx]
+	assert.True(t, fe.FromSpec.IsEquivalent(source), "ForEach FromSpec should be the source")
+	assert.True(t, fe.ToSpec.IsEquivalent(source), "ForEach ToSpec should be the same URN")
+}
+
+// TEST1116: Collect is never synthesized during path finding.
+// getOutgoingEdges for both scalar and sequence returns no Collect edges.
+func Test1116_collect_never_synthesized(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	source, err := urn.NewMediaUrnFromString("media:page;textable")
+	require.NoError(t, err)
+
+	// Neither scalar nor sequence should produce Collect
+	edgesScalar, _ := graph.getOutgoingEdges(source, false)
+	for _, e := range edgesScalar {
+		assert.NotEqual(t, EdgeTypeCollect, e.Type, "Should NOT synthesize Collect for scalar")
+	}
+
+	edgesSeq, _ := graph.getOutgoingEdges(source, true)
+	for _, e := range edgesSeq {
+		assert.NotEqual(t, EdgeTypeCollect, e.Type, "Should NOT synthesize Collect for sequence")
+	}
+}
+
+// TEST1117: ForEach is NOT synthesized when is_sequence=false.
+// Even with caps that could consume, ForEach requires is_sequence=true.
+func Test1117_no_foreach_when_not_sequence(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	c := makeTestCapForGraph(
+		"media:textable",
+		"media:summary;textable",
+		"summarize",
+		"Summarize",
+	)
+	graph.SyncFromCaps([]*cap.Cap{c})
+
+	source, err := urn.NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+
+	edges, _ := graph.getOutgoingEdges(source, false)
+	for _, e := range edges {
+		assert.NotEqual(t, EdgeTypeForEach, e.Type, "Should NOT synthesize ForEach when is_sequence=false")
+	}
+}
+
+// TEST1118: ForEach not synthesized without cap consumers even with is_sequence=true.
+func Test1118_no_foreach_without_cap_consumers(t *testing.T) {
+	graph := NewLiveCapGraph() // empty graph — no caps
+
+	source, err := urn.NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+
+	edges, _ := graph.getOutgoingEdges(source, true)
+	for _, e := range edges {
+		assert.NotEqual(t, EdgeTypeForEach, e.Type, "Should NOT synthesize ForEach without cap consumers")
+	}
+}
+
+// TEST1289: BFS reachable targets includes the source itself when round-trip paths exist.
+// A→B and B→A means A is reachable from A (via A→B→A).
+func Test1289_bfs_reachable_includes_source_roundtrip(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	// textable → integer (coerce)
+	graph.AddCap(makeTestCapForGraph(
+		"media:textable",
+		"media:integer;numeric;textable",
+		"coerce_to_int",
+		"Coerce to Integer",
+	))
+	// integer → textable (coerce back)
+	graph.AddCap(makeTestCapForGraph(
+		"media:integer;numeric;textable",
+		"media:textable",
+		"coerce_to_text",
+		"Coerce to Text",
+	))
+
+	source, err := urn.NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+
+	targets := graph.GetReachableTargets(source, false, 5)
+
+	hasSelf := false
+	for _, tgt := range targets {
+		if tgt.MediaSpec.IsEquivalent(source) {
+			hasSelf = true
+			break
+		}
+	}
+	assert.True(t, hasSelf, "BFS must find source as reachable target in round-trip graph")
+}
+
+// TEST1290: IDDFS find_paths_to_exact_target finds round-trip paths when source == target.
+func Test1290_iddfs_finds_roundtrip_paths(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	// textable → integer
+	graph.AddCap(makeTestCapForGraph(
+		"media:textable",
+		"media:integer;numeric;textable",
+		"coerce_to_int",
+		"Coerce to Integer",
+	))
+	// integer → textable
+	graph.AddCap(makeTestCapForGraph(
+		"media:integer;numeric;textable",
+		"media:textable",
+		"coerce_to_text",
+		"Coerce to Text",
+	))
+
+	source, err := urn.NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+	target, err := urn.NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+
+	paths := graph.FindPathsToExactTarget(source, target, false, 5, 100)
+	require.NotEmpty(t, paths, "IDDFS must find round-trip paths (textable→integer→textable). Got 0 paths.")
+
+	// The shortest round-trip should be 2 steps
+	shortest := paths[0]
+	for _, p := range paths {
+		if p.TotalSteps < shortest.TotalSteps {
+			shortest = p
+		}
+	}
+	assert.Equal(t, 2, shortest.TotalSteps, "Shortest round-trip should be 2 steps (coerce + coerce back)")
+}
+
+// TEST1291: IDDFS round-trip paths are also found with is_sequence=true.
+func Test1291_iddfs_roundtrip_with_sequence(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	// textable → integer
+	graph.AddCap(makeTestCapForGraph(
+		"media:textable",
+		"media:integer;numeric;textable",
+		"coerce_to_int",
+		"Coerce to Integer",
+	))
+	// integer → textable
+	graph.AddCap(makeTestCapForGraph(
+		"media:integer;numeric;textable",
+		"media:textable",
+		"coerce_to_text",
+		"Coerce to Text",
+	))
+
+	source, err := urn.NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+	target, err := urn.NewMediaUrnFromString("media:textable")
+	require.NoError(t, err)
+
+	// With is_sequence=true, the path goes through ForEach first
+	paths := graph.FindPathsToExactTarget(source, target, true, 5, 100)
+	assert.NotEmpty(t, paths, "IDDFS must find round-trip paths even with is_sequence=true. Got 0 paths.")
+}
+
+// TEST1292: BFS and IDDFS agree that round-trip targets exist.
+// If BFS says target X is reachable from source X, IDDFS must find at least one path.
+func Test1292_bfs_iddfs_roundtrip_consistency(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	// Build a small graph: A→B, B→C, C→A
+	graph.AddCap(makeTestCapForGraph("media:a", "media:b", "a_to_b", "A to B"))
+	graph.AddCap(makeTestCapForGraph("media:b", "media:c", "b_to_c", "B to C"))
+	graph.AddCap(makeTestCapForGraph("media:c", "media:a", "c_to_a", "C to A"))
+
+	source, err := urn.NewMediaUrnFromString("media:a")
+	require.NoError(t, err)
+
+	// BFS should find source as reachable (via A→B→C→A)
+	bfsTargets := graph.GetReachableTargets(source, false, 5)
+	bfsHasSelf := false
+	for _, tgt := range bfsTargets {
+		if tgt.MediaSpec.IsEquivalent(source) {
+			bfsHasSelf = true
+			break
+		}
+	}
+	assert.True(t, bfsHasSelf, "BFS must find A reachable from A in cyclic graph")
+
+	// IDDFS must also find paths
+	target, err := urn.NewMediaUrnFromString("media:a")
+	require.NoError(t, err)
+	iddfsPaths := graph.FindPathsToExactTarget(source, target, false, 5, 100)
+	require.NotEmpty(t, iddfsPaths,
+		"IDDFS must find round-trip paths when BFS says target is reachable. BFS found %d targets including self, IDDFS found 0 paths.",
+		len(bfsTargets))
+
+	// Shortest path should be 3 steps (A→B→C→A)
+	shortest := iddfsPaths[0]
+	for _, p := range iddfsPaths {
+		if p.TotalSteps < shortest.TotalSteps {
+			shortest = p
+		}
+	}
+	assert.Equal(t, 3, shortest.TotalSteps)
+}
+
+// TEST1293: IDDFS round-trip does not produce paths with 0 cap steps.
+// No round-trip should exist when there's no return edge.
+func Test1293_roundtrip_requires_cap_steps(t *testing.T) {
+	graph := NewLiveCapGraph()
+
+	// Only one direction — no round trip possible
+	graph.AddCap(makeTestCapForGraph("media:a", "media:b", "a_to_b", "A to B"))
+
+	source, err := urn.NewMediaUrnFromString("media:a")
+	require.NoError(t, err)
+	target, err := urn.NewMediaUrnFromString("media:a")
+	require.NoError(t, err)
+
+	paths := graph.FindPathsToExactTarget(source, target, false, 5, 100)
+	assert.Empty(t, paths, "No round-trip should exist when there's no return edge. Got %d paths.", len(paths))
+}

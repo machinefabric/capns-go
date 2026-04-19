@@ -666,6 +666,127 @@ func Test1187_StrandNonEquivalenceDifferentCap(t *testing.T) {
 	}
 }
 
+// TEST1119: FromStrand builds a single-strand Machine from a planner.Strand.
+// Smoke test the registry-threaded API end-to-end.
+func Test1119_FromStrand_returns_single_strand_machine(t *testing.T) {
+	c := buildCap(
+		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+		"Extract",
+		[]string{"media:pdf"},
+		`media:txt;textable`,
+	)
+	registry := registryWith([]*cap.Cap{c})
+
+	strand := strandFromSteps([]*planner.StrandStep{
+		capStep(`cap:in=media:pdf;op=extract;out="media:txt;textable"`, "Extract", "media:pdf", `media:txt;textable`),
+	}, "pdf to txt")
+
+	machine, err := FromStrand(strand, registry)
+	if err != nil {
+		t.Fatalf("FromStrand must succeed: %v", err)
+	}
+	if machine.StrandCount() != 1 {
+		t.Fatalf("expected 1 strand, got %d", machine.StrandCount())
+	}
+	if len(machine.Strands()[0].Edges()) != 1 {
+		t.Fatalf("expected 1 edge, got %d", len(machine.Strands()[0].Edges()))
+	}
+}
+
+// TEST1120: FromStrand fails hard when the cap is not in the registry.
+// The planner produces strands referencing caps that must be present in the
+// cap registry cache for resolution to succeed.
+func Test1120_FromStrand_unknown_cap_fails_hard(t *testing.T) {
+	registry := registryWith(nil) // empty registry — no caps
+
+	strand := strandFromSteps([]*planner.StrandStep{
+		capStep(`cap:in=media:pdf;op=ghost;out="media:txt;textable"`, "Ghost", "media:pdf", `media:txt;textable`),
+	}, "ghost strand")
+
+	_, err := FromStrand(strand, registry)
+	if err == nil {
+		t.Fatal("FromStrand must fail when cap is not in registry")
+	}
+	if err.Kind != ErrAbstractionUnknownCap {
+		t.Fatalf("expected ErrAbstractionUnknownCap, got %v", err.Kind)
+	}
+}
+
+// TEST1147: MachineSyntaxError.Error() includes position and detail.
+// invalidWiringError(7) must produce a message containing "statement 7" and "invalid wiring".
+func Test1147_machine_syntax_error_display_is_specific(t *testing.T) {
+	err := invalidWiringError(7, "expected source -> cap -> target")
+	msg := err.Error()
+	if !containsStr(msg, "statement 7") {
+		t.Errorf("error message must contain 'statement 7', got: %q", msg)
+	}
+	if !containsStr(msg, "invalid wiring") {
+		t.Errorf("error message must contain 'invalid wiring', got: %q", msg)
+	}
+}
+
+// TEST1148: MachineParseError with Syntax field preserves the syntax error kind.
+func Test1148_machine_parse_error_from_syntax_preserves_variant(t *testing.T) {
+	syntaxErr := undefinedAliasError("extract")
+	parseErr := syntaxParseError(syntaxErr)
+
+	if parseErr.Syntax == nil {
+		t.Fatal("Syntax field must be set")
+	}
+	if parseErr.Syntax.Kind != ErrUndefinedAlias {
+		t.Fatalf("expected ErrUndefinedAlias, got %v", parseErr.Syntax.Kind)
+	}
+	if parseErr.Abstraction != nil {
+		t.Fatal("Abstraction field must be nil")
+	}
+}
+
+// TEST1149: MachineParseError with Abstraction field preserves the resolution error kind.
+func Test1149_machine_parse_error_from_resolution_preserves_variant(t *testing.T) {
+	absErr := ambiguousNotationError(2, "cap:in=media:pdf;out=media:text")
+	parseErr := abstractionParseError(absErr)
+
+	if parseErr.Abstraction == nil {
+		t.Fatal("Abstraction field must be set")
+	}
+	if parseErr.Abstraction.Kind != ErrAbstractionAmbiguousMachineNotation {
+		t.Fatalf("expected ErrAbstractionAmbiguousMachineNotation, got %v", parseErr.Abstraction.Kind)
+	}
+	if parseErr.Syntax != nil {
+		t.Fatal("Syntax field must be nil")
+	}
+}
+
+// TEST1174: Line-based notation format round-trips back to the same machine.
+// ToMachineNotationFormatted(NotationFormatLineBased) must not contain '[', and
+// re-parsing must yield an equivalent machine.
+func Test1174_line_based_format_round_trips(t *testing.T) {
+	registry := pdfExtractEmbedRegistry()
+
+	strand := strandFromSteps([]*planner.StrandStep{
+		capStep(`cap:in=media:pdf;op=extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
+		capStep(`cap:in=media:textable;op=embed;out="media:vec;record"`, "embed", `media:txt;textable`, `media:vec;record`),
+	}, "pdf to vec")
+
+	m1, aerr := FromStrand(strand, registry)
+	if aerr != nil {
+		t.Fatalf("FromStrand failed: %v", aerr)
+	}
+
+	lineBased := m1.ToMachineNotationFormatted(NotationFormatLineBased)
+	if containsStr(lineBased, "[") {
+		t.Errorf("line-based form must not contain brackets, got: %q", lineBased)
+	}
+
+	m2, parseErr := FromString(lineBased, registry)
+	if parseErr != nil {
+		t.Fatalf("line-based form must parse: %v", parseErr)
+	}
+	if !m1.IsEquivalent(m2) {
+		t.Error("line-based round-trip must yield equivalent machine")
+	}
+}
+
 // ===================================================================
 // Helpers
 // ===================================================================
