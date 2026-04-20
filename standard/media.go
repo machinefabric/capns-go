@@ -148,13 +148,10 @@ const MediaCSV = "media:csv;list;record;textable"
 // MediaCSVList is the media URN for single-column CSV — list of values without record structure
 const MediaCSVList = "media:csv;list;textable"
 
-// File path types - for arguments that represent filesystem paths
-
-// MediaFilePath is the media URN for a single file path - textable, scalar by default (no list marker)
+// File path type — for arguments that represent filesystem paths.
+// There is a single media URN; cardinality (single file vs many files)
+// is carried on the wire via is_sequence, not via URN tags.
 const MediaFilePath = "media:file-path;textable"
-
-// MediaFilePathArray is the media URN for an array of file paths - textable with list marker
-const MediaFilePathArray = "media:file-path;list;textable"
 
 // Semantic text input types - distinguished by their purpose/context
 

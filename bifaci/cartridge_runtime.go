@@ -18,11 +18,10 @@ import (
 	taggedurn "github.com/machinefabric/tagged-urn-go"
 )
 
-// Media URN constants for file-path conversion
-const (
-	MediaFilePath      = "media:file-path"
-	MediaFilePathArray = "media:file-path;list"
-)
+// Media URN pattern used to detect file-path args. There is a single
+// file-path media URN; cardinality (single file vs many) lives on the arg
+// definition's is_sequence flag, not on URN tags.
+const MediaFilePath = "media:file-path"
 
 // StreamEmitter allows handlers to emit CBOR values and logs.
 // Handlers emit CBOR values via EmitCbor() or logs via EmitLog().
@@ -1893,19 +1892,14 @@ func (pr *CartridgeRuntime) buildPayloadFromCLI(capDef *cap.Cap, cliArgs []strin
 			// If file-path with stdin source, use stdin source's media URN (the target type)
 			mediaUrn := argDef.MediaUrn
 
-			// Check if this is a file-path arg using pattern matching
+			// Check if this is a file-path arg using pattern matching.
+			// A single base pattern covers the file-path URN; cardinality is
+			// driven by the arg definition's IsSequence flag.
 			argMediaUrn, parseErr := urn.NewMediaUrnFromString(argDef.MediaUrn)
 			if parseErr == nil {
 				filePathPattern, _ := urn.NewMediaUrnFromString(MediaFilePath)
-				filePathArrayPattern, _ := urn.NewMediaUrnFromString(MediaFilePathArray)
 
-				// Pattern matching: check if patterns accept this instance
-				isFilePath := false
-				if filePathArrayPattern != nil && filePathArrayPattern.Accepts(argMediaUrn) {
-					isFilePath = true
-				} else if filePathPattern != nil && filePathPattern.Accepts(argMediaUrn) {
-					isFilePath = true
-				}
+				isFilePath := filePathPattern != nil && filePathPattern.Accepts(argMediaUrn)
 
 				// If file-path type, check for stdin source and use its media URN
 				if isFilePath {
@@ -1962,20 +1956,10 @@ func (pr *CartridgeRuntime) extractArgValue(argDef *cap.CapArg, cliArgs []string
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse MediaFilePath constant: %w", err)
 	}
-	filePathArrayPattern, err := urn.NewMediaUrnFromString(MediaFilePathArray)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse MediaFilePathArray constant: %w", err)
-	}
 
-	// Pattern matching: check if patterns accept this instance (array first, more specific)
-	isArray := false
-	isFilePath := false
-	if filePathArrayPattern.Accepts(argMediaUrn) {
-		isArray = true
-		isFilePath = true
-	} else if filePathPattern.Accepts(argMediaUrn) {
-		isFilePath = true
-	}
+	// A single file-path base pattern covers both scalar and sequence args;
+	// cardinality is driven by the arg's IsSequence declaration, not the URN.
+	isFilePath := filePathPattern.Accepts(argMediaUrn)
 
 	// Get stdin source media URN if it exists (tells us target type)
 	hasStdinSource := false
@@ -1994,7 +1978,7 @@ func (pr *CartridgeRuntime) extractArgValue(argDef *cap.CapArg, cliArgs []string
 			if value, found := pr.getCliFlagValue(cliArgs, *source.CliFlag); found {
 				// If file-path type with stdin source, read file(s)
 				if isFilePath && hasStdinSource {
-					return pr.readFilePathToBytes(value, isArray)
+					return pr.readFilePathToBytes(value, argDef.IsSequence)
 				}
 				return []byte(value), nil
 			}
@@ -2005,7 +1989,7 @@ func (pr *CartridgeRuntime) extractArgValue(argDef *cap.CapArg, cliArgs []string
 				value := positional[*source.Position]
 				// If file-path type with stdin source, read file(s)
 				if isFilePath && hasStdinSource {
-					return pr.readFilePathToBytes(value, isArray)
+					return pr.readFilePathToBytes(value, argDef.IsSequence)
 				}
 				return []byte(value), nil
 			}
@@ -2120,106 +2104,128 @@ func (pr *CartridgeRuntime) readStdinIfAvailable() ([]byte, error) {
 	}
 }
 
-// readFilePathToBytes reads file(s) for file-path arguments and returns bytes.
+// readFilePathToBytes reads file(s) for a file-path argument and returns the
+// CLI-wire bytes.
 //
-// This method implements automatic file-path to bytes conversion when:
-// - arg.media_urn is "media:file-path" or "media:file-path-array"
-// - arg has a stdin source (indicating bytes are the canonical type)
+// The single media:file-path URN covers both shapes; cardinality is driven
+// by the arg definition's IsSequence flag:
 //
-// # Arguments
-// * pathValue - File path string (single path or JSON array of path patterns)
-// * isArray - True if media:file-path-array (read multiple files with glob expansion)
-//
-// # Returns
-// - For single file: []byte containing raw file bytes
-// - For array: CBOR-encoded array of file bytes (each element is one file's contents)
-//
-// # Errors
-// Returns error if file cannot be read with clear error message.
-func (pr *CartridgeRuntime) readFilePathToBytes(pathValue string, isArray bool) ([]byte, error) {
-	if isArray {
-		// Parse JSON array of path patterns
-		var pathPatterns []string
-		if err := json.Unmarshal([]byte(pathValue), &pathPatterns); err != nil {
+// - isSequence == false — treat pathValue as exactly one file path. Returns
+//   the file's raw bytes. Any glob metacharacter is an error here because
+//   CLI dispatch is responsible for iterating the handler per-file when the
+//   declared arg is scalar.
+// - isSequence == true  — treat pathValue as a newline-separated list of
+//   paths and/or globs. Expand, read every resolved file, and return a CBOR
+//   array of bytes (one entry per file).
+func (pr *CartridgeRuntime) readFilePathToBytes(pathValue string, isSequence bool) ([]byte, error) {
+	expand := func(raw string) ([]string, error) {
+		isGlob := containsAny(raw, "*?[")
+		if !isGlob {
+			info, err := os.Stat(raw)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return nil, fmt.Errorf("file not found: '%s'", raw)
+				}
+				return nil, fmt.Errorf("failed to stat '%s': %w", raw, err)
+			}
+			if !info.Mode().IsRegular() {
+				return nil, fmt.Errorf("path is not a regular file: '%s'", raw)
+			}
+			return []string{raw}, nil
+		}
+		matches, err := filepath.Glob(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid glob pattern '%s': %w", raw, err)
+		}
+		var files []string
+		for _, p := range matches {
+			info, err := os.Stat(p)
+			if err != nil {
+				continue
+			}
+			if info.Mode().IsRegular() {
+				files = append(files, p)
+			}
+		}
+		if len(files) == 0 {
+			return nil, fmt.Errorf("no files matched glob pattern '%s'", raw)
+		}
+		return files, nil
+	}
+
+	if !isSequence {
+		files, err := expand(pathValue)
+		if err != nil {
+			return nil, err
+		}
+		if len(files) != 1 {
 			return nil, fmt.Errorf(
-				"failed to parse file-path-array: expected JSON array of path patterns, got '%s': %w",
-				pathValue, err,
+				"file-path arg declared is_sequence=false resolved to %d files; "+
+					"expected exactly 1. CLI dispatch must iterate the handler "+
+					"across the expanded files.",
+				len(files),
 			)
 		}
-
-		// Expand globs and collect all file paths
-		var allFiles []string
-		for _, pattern := range pathPatterns {
-			// Check if this is a literal path (no glob metacharacters) or a glob pattern
-			isGlob := containsAny(pattern, "*?[")
-
-			if !isGlob {
-				// Literal path - verify it exists and is a file
-				info, err := os.Stat(pattern)
-				if err != nil {
-					if os.IsNotExist(err) {
-						return nil, fmt.Errorf(
-							"failed to read file '%s' from file-path-array: No such file or directory",
-							pattern,
-						)
-					}
-					return nil, fmt.Errorf(
-						"failed to read file '%s' from file-path-array: %w",
-						pattern, err,
-					)
-				}
-				if info.Mode().IsRegular() {
-					allFiles = append(allFiles, pattern)
-				}
-				// Skip directories silently for consistency with glob behavior
-			} else {
-				// Glob pattern - expand it
-				matches, err := filepath.Glob(pattern)
-				if err != nil {
-					return nil, fmt.Errorf("invalid glob pattern '%s': %w", pattern, err)
-				}
-
-				for _, path := range matches {
-					info, err := os.Stat(path)
-					if err != nil {
-						continue
-					}
-					// Only include files (skip directories)
-					if info.Mode().IsRegular() {
-						allFiles = append(allFiles, path)
-					}
-				}
-			}
-		}
-
-		// Read each file sequentially
-		var filesData []interface{}
-		for _, path := range allFiles {
-			bytes, err := os.ReadFile(path)
-			if err != nil {
-				return nil, fmt.Errorf(
-					"failed to read file '%s' from file-path-array: %w",
-					path, err,
-				)
-			}
-			filesData = append(filesData, bytes)
-		}
-
-		// Encode as CBOR array
-		cborBytes, err := cborlib.Marshal(filesData)
+		bytes, err := os.ReadFile(files[0])
 		if err != nil {
-			return nil, fmt.Errorf("failed to encode CBOR array: %w", err)
-		}
-
-		return cborBytes, nil
-	} else {
-		// Single file path - read and return raw bytes
-		bytes, err := os.ReadFile(pathValue)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read file '%s': %w", pathValue, err)
+			return nil, fmt.Errorf("failed to read file '%s': %w", files[0], err)
 		}
 		return bytes, nil
 	}
+
+	// Sequence: newline-separated list of paths and/or globs.
+	var allFiles []string
+	for _, line := range splitNonEmptyLines(pathValue) {
+		files, err := expand(line)
+		if err != nil {
+			return nil, err
+		}
+		allFiles = append(allFiles, files...)
+	}
+
+	var filesData []interface{}
+	for _, path := range allFiles {
+		bytes, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read file '%s': %w", path, err)
+		}
+		filesData = append(filesData, bytes)
+	}
+	if filesData == nil {
+		filesData = []interface{}{}
+	}
+	cborBytes, err := cborlib.Marshal(filesData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode CBOR array: %w", err)
+	}
+	return cborBytes, nil
+}
+
+// splitNonEmptyLines splits `s` on newlines, trims each, and returns only
+// non-empty entries. Used by file-path sequence args to parse a
+// newline-separated list of paths/globs.
+func splitNonEmptyLines(s string) []string {
+	var out []string
+	start := 0
+	for i := 0; i <= len(s); i++ {
+		if i == len(s) || s[i] == '\n' {
+			line := s[start:i]
+			// trim spaces
+			a := 0
+			for a < len(line) && (line[a] == ' ' || line[a] == '\t' || line[a] == '\r') {
+				a++
+			}
+			b := len(line)
+			for b > a && (line[b-1] == ' ' || line[b-1] == '\t' || line[b-1] == '\r') {
+				b--
+			}
+			if a < b {
+				out = append(out, line[a:b])
+			}
+			start = i + 1
+		}
+	}
+	return out
 }
 
 // containsAny checks if string contains any of the given characters

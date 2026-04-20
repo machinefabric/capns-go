@@ -285,16 +285,6 @@ func Test998_file_path_type_fallback_subsequent_cap(t *testing.T) {
 	assert.Equal(t, ResolutionFromPreviousOutput, resolution)
 }
 
-// TEST999: Tests MEDIA_FILE_PATH_ARRAY argument type resolution for first and subsequent caps
-// Verifies that file-path array arguments follow the same resolution pattern as single file paths
-func Test999_file_path_array_fallback(t *testing.T) {
-	resolution := determineResolutionWithIOCheck(standard.MediaFilePathArray, "media:pdf", "media:png", 0, nil)
-	assert.Equal(t, ResolutionFromInputFile, resolution)
-
-	resolution = determineResolutionWithIOCheck(standard.MediaFilePathArray, "media:pdf", "media:png", 1, nil)
-	assert.Equal(t, ResolutionFromPreviousOutput, resolution)
-}
-
 // TEST1009: Tests required non-IO arguments with default values are marked as HasDefault
 // Verifies that arguments like integers with defaults don't require user input
 func Test1009_non_io_arg_with_default_has_default(t *testing.T) {

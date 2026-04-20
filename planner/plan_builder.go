@@ -82,7 +82,7 @@ func findFilePathArg(c *cap.Cap) *string {
 		if err != nil {
 			continue
 		}
-		if mediaUrn.IsAnyFilePath() {
+		if mediaUrn.IsFilePath() {
 			return &arg.MediaUrn
 		}
 	}
@@ -97,7 +97,7 @@ func isFilePathStdinChainable(c *cap.Cap) bool {
 		if err != nil {
 			continue
 		}
-		if !mediaUrn.IsAnyFilePath() {
+		if !mediaUrn.IsFilePath() {
 			continue
 		}
 		for _, source := range arg.Sources {
@@ -192,7 +192,7 @@ func (b *MachinePlanBuilder) BuildPlanFromPath(
 						continue
 					}
 					mu, err := urn.NewMediaUrnFromString(arg.MediaUrn)
-					if err == nil && mu.IsAnyFilePath() {
+					if err == nil && mu.IsFilePath() {
 						continue
 					}
 					if _, exists := bindings.Bindings[arg.MediaUrn]; exists {
@@ -436,7 +436,7 @@ func determineResolutionWithIOCheck(
 
 	// 3. File-path type
 	mu, err := urn.NewMediaUrnFromString(mediaUrnStr)
-	if err == nil && mu.IsAnyFilePath() {
+	if err == nil && mu.IsFilePath() {
 		if stepIndex == 0 {
 			return ResolutionFromInputFile
 		}

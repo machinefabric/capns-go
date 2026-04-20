@@ -983,7 +983,9 @@ func Test343_NonFilePathArgsUnaffected(t *testing.T) {
 	}
 }
 
-// TEST344: file-path-array with nonexistent path fails clearly
+// TEST344: A scalar file-path arg receiving a nonexistent path fails hard
+// with a clear error that names the path. The runtime refuses to silently
+// swallow user mistakes like typos or wrong directories.
 func Test344_FilePathArrayInvalidJSONFails(t *testing.T) {
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
@@ -991,7 +993,7 @@ func Test344_FilePathArrayInvalidJSONFails(t *testing.T) {
 		"batch",
 		[]cap.CapArg{
 			{
-				MediaUrn: "media:file-path;textable;list",
+				MediaUrn: "media:file-path;textable",
 				Required: true,
 				Sources: []cap.ArgSource{
 					stdinSource("media:"),
@@ -1007,18 +1009,18 @@ func Test344_FilePathArrayInvalidJSONFails(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	cliArgs := []string{"not a json array"}
+	cliArgs := []string{"/nonexistent/path/to/nothing"}
 	_, err = runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
 
 	if err == nil {
-		t.Fatal("Expected error for invalid JSON")
+		t.Fatal("Expected error for nonexistent file path")
 	}
 	errMsg := err.Error()
-	if !strings.Contains(errMsg, "failed to parse file-path-array") {
-		t.Errorf("Error should mention file-path-array: %s", errMsg)
+	if !strings.Contains(errMsg, "/nonexistent/path/to/nothing") {
+		t.Errorf("Error should mention the path: %s", errMsg)
 	}
-	if !strings.Contains(errMsg, "expected JSON array") {
-		t.Errorf("Error should explain expected format: %s", errMsg)
+	if !strings.Contains(errMsg, "file not found") && !strings.Contains(errMsg, "File not found") && !strings.Contains(errMsg, "failed to read") {
+		t.Errorf("Error should be clear about file access failure: %s", errMsg)
 	}
 }
 

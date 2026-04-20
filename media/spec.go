@@ -59,9 +59,8 @@ const (
 	// Semantic input types
 	MediaModelSpec = "media:model-spec;textable"
 	MediaModelRepo = "media:model-repo;textable;record"
-	// File path types
-	MediaFilePath      = "media:file-path;textable"
-	MediaFilePathArray = "media:file-path;textable;list"
+	// File path type — single URN; cardinality lives on is_sequence.
+	MediaFilePath = "media:file-path;textable"
 	// Semantic output types
 	MediaModelDim  = "media:model-dim;integer;textable;numeric"
 	MediaDecision  = "media:decision;json;record;textable"

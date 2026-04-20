@@ -352,18 +352,13 @@ func (m *MediaUrn) IsBool() bool {
 	return m.HasTag("bool")
 }
 
-// IsFilePath returns true if this has the "file-path" marker tag AND NOT IsList()
+// IsFilePath returns true if this URN specializes `media:file-path`.
+//
+// There is a single file-path media URN; cardinality (single file vs many
+// files) is carried on the wire via is_sequence, not via URN tags. Callers
+// deciding scalar-vs-sequence must look at the arg definition's is_sequence
+// flag instead.
 func (m *MediaUrn) IsFilePath() bool {
-	return m.HasTag("file-path") && !m.IsList()
-}
-
-// IsFilePathArray returns true if this has the "file-path" marker tag AND IsList()
-func (m *MediaUrn) IsFilePathArray() bool {
-	return m.HasTag("file-path") && m.IsList()
-}
-
-// IsAnyFilePath returns true if this has the "file-path" marker tag (single or array)
-func (m *MediaUrn) IsAnyFilePath() bool {
 	return m.HasTag("file-path")
 }
 

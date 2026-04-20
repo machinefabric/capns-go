@@ -282,7 +282,6 @@ func Test072_constants_parse(t *testing.T) {
 		standard.MediaEPUB,
 		standard.MediaJSON,
 		standard.MediaFilePath,
-		standard.MediaFilePathArray,
 		standard.MediaDecision,
 	}
 
@@ -545,18 +544,14 @@ func Test550_is_bool(t *testing.T) {
 	assert.False(t, binaryUrn.IsBool())
 }
 
-// TEST551: is_file_path returns true for scalar file-path, false for array
+// TEST551: IsFilePath returns true for the single file-path media URN,
+// false for everything else. There is no "array" variant — cardinality is
+// carried by is_sequence on the wire, not by URN tags.
 func Test551_is_file_path(t *testing.T) {
 	fpUrn, err := NewMediaUrnFromString(standard.MediaFilePath)
 	require.NoError(t, err)
 	assert.True(t, fpUrn.IsFilePath())
 
-	// Array file-path is NOT is_file_path (it's is_file_path_array)
-	fpArrayUrn, err := NewMediaUrnFromString(standard.MediaFilePathArray)
-	require.NoError(t, err)
-	assert.False(t, fpArrayUrn.IsFilePath())
-
-	// Non-file-path types
 	stringUrn, err := NewMediaUrnFromString(standard.MediaString)
 	require.NoError(t, err)
 	assert.False(t, stringUrn.IsFilePath())
@@ -564,43 +559,6 @@ func Test551_is_file_path(t *testing.T) {
 	binaryUrn, err := NewMediaUrnFromString(standard.MediaIdentity)
 	require.NoError(t, err)
 	assert.False(t, binaryUrn.IsFilePath())
-}
-
-// TEST552: is_file_path_array returns true for list file-path, false for scalar
-func Test552_is_file_path_array(t *testing.T) {
-	fpArrayUrn, err := NewMediaUrnFromString(standard.MediaFilePathArray)
-	require.NoError(t, err)
-	assert.True(t, fpArrayUrn.IsFilePathArray())
-
-	// Scalar file-path is NOT is_file_path_array
-	fpUrn, err := NewMediaUrnFromString(standard.MediaFilePath)
-	require.NoError(t, err)
-	assert.False(t, fpUrn.IsFilePathArray())
-
-	// Non-file-path types
-	strListUrn, err := NewMediaUrnFromString(standard.MediaStringList)
-	require.NoError(t, err)
-	assert.False(t, strListUrn.IsFilePathArray())
-}
-
-// TEST553: is_any_file_path returns true for both scalar and array file-path
-func Test553_is_any_file_path(t *testing.T) {
-	fpUrn, err := NewMediaUrnFromString(standard.MediaFilePath)
-	require.NoError(t, err)
-	assert.True(t, fpUrn.IsAnyFilePath())
-
-	fpArrayUrn, err := NewMediaUrnFromString(standard.MediaFilePathArray)
-	require.NoError(t, err)
-	assert.True(t, fpArrayUrn.IsAnyFilePath())
-
-	// Non-file-path types
-	stringUrn, err := NewMediaUrnFromString(standard.MediaString)
-	require.NoError(t, err)
-	assert.False(t, stringUrn.IsAnyFilePath())
-
-	strListUrn2, err := NewMediaUrnFromString(standard.MediaStringList)
-	require.NoError(t, err)
-	assert.False(t, strListUrn2.IsAnyFilePath())
 }
 
 

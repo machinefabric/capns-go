@@ -1,8 +1,8 @@
 # CapDag-Go Test Catalog
 
-**Total Tests:** 955
+**Total Tests:** 952
 
-**Numbered Tests:** 887
+**Numbered Tests:** 884
 
 **Unnumbered Tests:** 68
 
@@ -83,12 +83,12 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test068 | `Test068_is_void` | TEST068: Test is_void returns true when void flag or type=void tag is present | urn/media_urn_test.go:213 |
 | test071 | `Test071_to_string_roundtrip` | TEST071: Test to_string roundtrip ensures serialization and deserialization preserve URN structure | urn/media_urn_test.go:241 |
 | test072 | `Test072_constants_parse` | TEST072: Test all media URN constants parse successfully as valid media URNs | urn/media_urn_test.go:254 |
-| test073 | `Test073_extension_helpers` | TEST073: Test extension helper functions create media URNs with ext tag and correct format | urn/media_urn_test.go:296 |
-| test074 | `Test074_media_urn_matching` | TEST074: Test media URN conforms_to using tagged URN semantics with specific and generic requirements | urn/media_urn_test.go:305 |
-| test075 | `Test075_matching` | TEST075: Test accepts with implicit wildcards where handlers with fewer tags can handle more requests | urn/media_urn_test.go:326 |
-| test076 | `Test076_specificity` | TEST076: Test specificity increases with more tags for ranking conformance | urn/media_urn_test.go:338 |
-| test077 | `Test077_serde_roundtrip` | TEST077: Test serde roundtrip serializes to JSON string and deserializes back correctly | urn/media_urn_test.go:350 |
-| test078 | `Test078_object_does_not_conform_to_string` | TEST078: conforms_to behavior between MEDIA_OBJECT and MEDIA_STRING | urn/media_urn_test.go:367 |
+| test073 | `Test073_extension_helpers` | TEST073: Test extension helper functions create media URNs with ext tag and correct format | urn/media_urn_test.go:295 |
+| test074 | `Test074_media_urn_matching` | TEST074: Test media URN conforms_to using tagged URN semantics with specific and generic requirements | urn/media_urn_test.go:304 |
+| test075 | `Test075_matching` | TEST075: Test accepts with implicit wildcards where handlers with fewer tags can handle more requests | urn/media_urn_test.go:325 |
+| test076 | `Test076_specificity` | TEST076: Test specificity increases with more tags for ranking conformance | urn/media_urn_test.go:337 |
+| test077 | `Test077_serde_roundtrip` | TEST077: Test serde roundtrip serializes to JSON string and deserializes back correctly | urn/media_urn_test.go:349 |
+| test078 | `Test078_object_does_not_conform_to_string` | TEST078: conforms_to behavior between MEDIA_OBJECT and MEDIA_STRING | urn/media_urn_test.go:366 |
 | test088 | `Test088_resolve_from_registry_str` | TEST088: Test resolving string media URN from registry returns correct media type and profile | media/spec_test.go:26 |
 | test089 | `Test089_resolve_from_registry_obj` | TEST089: Test resolving JSON media URN from registry returns JSON media type | media/spec_test.go:35 |
 | test090 | `Test090_resolve_from_registry_binary` | TEST090: Test resolving binary media URN returns octet-stream and is_binary true | media/spec_test.go:43 |
@@ -287,9 +287,9 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test292 | `Test292_MessageIdUniqueness` | TEST292: Sequential requests get distinct MessageIds | bifaci/integration_test.go:954 |
 | test293 | `Test293_CartridgeRuntimeHandlerRegistration` | TEST293: Test CartridgeRuntime Op registration and lookup by exact and non-existent cap URN | bifaci/integration_test.go:1025 |
 | test299 | `Test299_EmptyPayloadRoundtrip` | TEST299: Empty payload request/response roundtrip | bifaci/integration_test.go:1361 |
-| test304 | `Test304_media_availability_output_constant` | TEST304: Test MEDIA_AVAILABILITY_OUTPUT constant parses as valid media URN with correct tags | urn/media_urn_test.go:379 |
-| test305 | `Test305_media_path_output_constant` | TEST305: Test MEDIA_PATH_OUTPUT constant parses as valid media URN with correct tags | urn/media_urn_test.go:388 |
-| test306 | `Test306_availability_and_path_output_distinct` | TEST306: Test MEDIA_AVAILABILITY_OUTPUT and MEDIA_PATH_OUTPUT are distinct URNs | urn/media_urn_test.go:397 |
+| test304 | `Test304_media_availability_output_constant` | TEST304: Test MEDIA_AVAILABILITY_OUTPUT constant parses as valid media URN with correct tags | urn/media_urn_test.go:378 |
+| test305 | `Test305_media_path_output_constant` | TEST305: Test MEDIA_PATH_OUTPUT constant parses as valid media URN with correct tags | urn/media_urn_test.go:387 |
+| test306 | `Test306_availability_and_path_output_distinct` | TEST306: Test MEDIA_AVAILABILITY_OUTPUT and MEDIA_PATH_OUTPUT are distinct URNs | urn/media_urn_test.go:396 |
 | test307 | `Test307_model_availability_urn` | TEST307: Test model_availability_urn builds valid cap URN with correct op and media specs | standard/caps_test.go:11 |
 | test308 | `Test308_model_path_urn` | TEST308: Test model_path_urn builds valid cap URN with correct op and media specs | standard/caps_test.go:19 |
 | test309 | `Test309_model_availability_and_path_are_distinct` | TEST309: Test model_availability_urn and model_path_urn produce distinct URNs | standard/caps_test.go:27 |
@@ -319,37 +319,37 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test341 | `Test341_StdinPrecedenceOverFilePath` | TEST341: stdin takes precedence over file-path in source order | bifaci/cartridge_runtime_test.go:868 |
 | test342 | `Test342_FilePathPositionZeroReadsFirstArg` | TEST342: file-path with position 0 reads first positional arg as file | bifaci/cartridge_runtime_test.go:911 |
 | test343 | `Test343_NonFilePathArgsUnaffected` | TEST343: Non-file-path args are not affected by file reading | bifaci/cartridge_runtime_test.go:951 |
-| test344 | `Test344_FilePathArrayInvalidJSONFails` | TEST344: file-path-array with nonexistent path fails clearly | bifaci/cartridge_runtime_test.go:987 |
-| test345 | `Test345_FilePathArrayOneFileMissingFailsHard` | TEST345: file-path-array with literal nonexistent path fails hard | bifaci/cartridge_runtime_test.go:1026 |
-| test346 | `Test346_LargeFileReadsSuccessfully` | TEST346: Large file (1MB) reads successfully | bifaci/cartridge_runtime_test.go:1074 |
-| test347 | `Test347_EmptyFileReadsAsEmptyBytes` | TEST347: Empty file reads as empty bytes | bifaci/cartridge_runtime_test.go:1118 |
-| test348 | `Test348_FilePathConversionRespectsSourceOrder` | TEST348: file-path conversion respects source order | bifaci/cartridge_runtime_test.go:1158 |
-| test349 | `Test349_FilePathMultipleSourcesFallback` | TEST349: file-path arg with multiple sources tries all in order | bifaci/cartridge_runtime_test.go:1201 |
-| test350 | `Test350_FullCLIModeWithFilePathIntegration` | TEST350: Integration test - full CLI mode invocation with file-path | bifaci/cartridge_runtime_test.go:1243 |
-| test351 | `Test351_FilePathArrayEmptyArray` | TEST351: file-path array with empty CBOR array returns empty (CBOR mode) | bifaci/cartridge_runtime_test.go:1319 |
-| test352 | `Test352_FilePermissionDeniedClearError` | TEST352: file permission denied error is clear (Unix-specific) | bifaci/cartridge_runtime_test.go:1360 |
-| test353 | `Test353_CBORPayloadFormatConsistency` | TEST353: CBOR payload format matches between CLI and CBOR mode | bifaci/cartridge_runtime_test.go:1410 |
-| test354 | `Test354_GlobPatternNoMatchesEmptyArray` | TEST354: Glob pattern with no matches fails hard (NO FALLBACK) | bifaci/cartridge_runtime_test.go:1468 |
-| test355 | `Test355_GlobPatternSkipsDirectories` | TEST355: Glob pattern skips directories | bifaci/cartridge_runtime_test.go:1515 |
-| test356 | `Test356_MultipleGlobPatternsCombined` | TEST356: Multiple glob patterns combined | bifaci/cartridge_runtime_test.go:1580 |
-| test357 | `Test357_SymlinksFollowed` | TEST357: Symlinks are followed when reading files | bifaci/cartridge_runtime_test.go:1650 |
-| test358 | `Test358_BinaryFileNonUTF8` | TEST358: Binary file with non-UTF8 data reads correctly | bifaci/cartridge_runtime_test.go:1703 |
-| test359 | `Test359_InvalidGlobPatternFails` | TEST359: Invalid glob pattern fails with clear error | bifaci/cartridge_runtime_test.go:1749 |
-| test360 | `Test360_ExtractEffectivePayloadWithFileData` | TEST360: Extract effective payload handles file-path data correctly | bifaci/cartridge_runtime_test.go:1787 |
-| test361 | `Test361_CLIModeFilePath` | TEST361: CLI mode with file path - pass file path as command-line argument | bifaci/cartridge_runtime_test.go:1837 |
-| test362 | `Test362_CLIModePipedBinary` | TEST362: CLI mode with binary piped in - pipe binary data via stdin This test simulates real-world conditions: - Pure binary data piped to stdin (NOT CBOR) - CLI mode detected (command arg present) - Cap accepts stdin source - Binary is chunked on-the-fly and accumulated - Handler receives complete CBOR payload | bifaci/cartridge_runtime_test.go:1886 |
-| test363 | `Test363_CBORModeChunkedContent` | TEST363: CBOR mode with chunked content - send file content streaming as chunks | bifaci/cartridge_runtime_test.go:1973 |
-| test364 | `Test364_CBORModeFilePath` | TEST364: CBOR mode with file path - send file path in CBOR arguments (auto-conversion) | bifaci/cartridge_runtime_test.go:2116 |
+| test344 | `Test344_FilePathArrayInvalidJSONFails` | TEST344: A scalar file-path arg receiving a nonexistent path fails hard with a clear error that names the path. The runtime refuses to silently swallow user mistakes like typos or wrong directories. | bifaci/cartridge_runtime_test.go:989 |
+| test345 | `Test345_FilePathArrayOneFileMissingFailsHard` | TEST345: file-path-array with literal nonexistent path fails hard | bifaci/cartridge_runtime_test.go:1028 |
+| test346 | `Test346_LargeFileReadsSuccessfully` | TEST346: Large file (1MB) reads successfully | bifaci/cartridge_runtime_test.go:1076 |
+| test347 | `Test347_EmptyFileReadsAsEmptyBytes` | TEST347: Empty file reads as empty bytes | bifaci/cartridge_runtime_test.go:1120 |
+| test348 | `Test348_FilePathConversionRespectsSourceOrder` | TEST348: file-path conversion respects source order | bifaci/cartridge_runtime_test.go:1160 |
+| test349 | `Test349_FilePathMultipleSourcesFallback` | TEST349: file-path arg with multiple sources tries all in order | bifaci/cartridge_runtime_test.go:1203 |
+| test350 | `Test350_FullCLIModeWithFilePathIntegration` | TEST350: Integration test - full CLI mode invocation with file-path | bifaci/cartridge_runtime_test.go:1245 |
+| test351 | `Test351_FilePathArrayEmptyArray` | TEST351: file-path array with empty CBOR array returns empty (CBOR mode) | bifaci/cartridge_runtime_test.go:1321 |
+| test352 | `Test352_FilePermissionDeniedClearError` | TEST352: file permission denied error is clear (Unix-specific) | bifaci/cartridge_runtime_test.go:1362 |
+| test353 | `Test353_CBORPayloadFormatConsistency` | TEST353: CBOR payload format matches between CLI and CBOR mode | bifaci/cartridge_runtime_test.go:1412 |
+| test354 | `Test354_GlobPatternNoMatchesEmptyArray` | TEST354: Glob pattern with no matches fails hard (NO FALLBACK) | bifaci/cartridge_runtime_test.go:1470 |
+| test355 | `Test355_GlobPatternSkipsDirectories` | TEST355: Glob pattern skips directories | bifaci/cartridge_runtime_test.go:1517 |
+| test356 | `Test356_MultipleGlobPatternsCombined` | TEST356: Multiple glob patterns combined | bifaci/cartridge_runtime_test.go:1582 |
+| test357 | `Test357_SymlinksFollowed` | TEST357: Symlinks are followed when reading files | bifaci/cartridge_runtime_test.go:1652 |
+| test358 | `Test358_BinaryFileNonUTF8` | TEST358: Binary file with non-UTF8 data reads correctly | bifaci/cartridge_runtime_test.go:1705 |
+| test359 | `Test359_InvalidGlobPatternFails` | TEST359: Invalid glob pattern fails with clear error | bifaci/cartridge_runtime_test.go:1751 |
+| test360 | `Test360_ExtractEffectivePayloadWithFileData` | TEST360: Extract effective payload handles file-path data correctly | bifaci/cartridge_runtime_test.go:1789 |
+| test361 | `Test361_CLIModeFilePath` | TEST361: CLI mode with file path - pass file path as command-line argument | bifaci/cartridge_runtime_test.go:1839 |
+| test362 | `Test362_CLIModePipedBinary` | TEST362: CLI mode with binary piped in - pipe binary data via stdin This test simulates real-world conditions: - Pure binary data piped to stdin (NOT CBOR) - CLI mode detected (command arg present) - Cap accepts stdin source - Binary is chunked on-the-fly and accumulated - Handler receives complete CBOR payload | bifaci/cartridge_runtime_test.go:1888 |
+| test363 | `Test363_CBORModeChunkedContent` | TEST363: CBOR mode with chunked content - send file content streaming as chunks | bifaci/cartridge_runtime_test.go:1975 |
+| test364 | `Test364_CBORModeFilePath` | TEST364: CBOR mode with file path - send file path in CBOR arguments (auto-conversion) | bifaci/cartridge_runtime_test.go:2118 |
 | test365 | `Test365_stream_start_frame` | TEST365: Frame::stream_start stores request_id, stream_id, and media_urn | bifaci/frame_test.go:652 |
 | test366 | `Test366_stream_end_frame` | TEST366: Frame::stream_end stores request_id and stream_id | bifaci/frame_test.go:674 |
 | test367 | `Test367_stream_start_with_empty_stream_id` | TEST367: StreamStart frame with empty stream_id still constructs (validation happens elsewhere) | bifaci/frame_test.go:695 |
 | test368 | `Test368_stream_start_with_empty_media_urn` | TEST368: StreamStart frame with empty media_urn still constructs (validation happens elsewhere) | bifaci/frame_test.go:714 |
 | test389 | `Test389_stream_start_roundtrip` | TEST389: StreamStart encode/decode roundtrip preserves stream_id and media_urn | bifaci/io_test.go:832 |
 | test390 | `Test390_stream_end_roundtrip` | TEST390: StreamEnd encode/decode roundtrip preserves stream_id, no media_urn | bifaci/io_test.go:860 |
-| test395 | `Test395_BuildPayloadSmall` | TEST395: Small payload (< max_chunk) produces correct CBOR arguments | bifaci/cartridge_runtime_test.go:2171 |
-| test396 | `Test396_BuildPayloadLarge` | TEST396: Large payload (> max_chunk) accumulates across chunks correctly | bifaci/cartridge_runtime_test.go:2220 |
-| test397 | `Test397_BuildPayloadEmpty` | TEST397: Empty reader produces valid empty CBOR arguments | bifaci/cartridge_runtime_test.go:2264 |
-| test398 | `Test398_BuildPayloadIOError` | TEST398: IO error from reader propagates as RuntimeError::Io | bifaci/cartridge_runtime_test.go:2307 |
+| test395 | `Test395_BuildPayloadSmall` | TEST395: Small payload (< max_chunk) produces correct CBOR arguments | bifaci/cartridge_runtime_test.go:2173 |
+| test396 | `Test396_BuildPayloadLarge` | TEST396: Large payload (> max_chunk) accumulates across chunks correctly | bifaci/cartridge_runtime_test.go:2222 |
+| test397 | `Test397_BuildPayloadEmpty` | TEST397: Empty reader produces valid empty CBOR arguments | bifaci/cartridge_runtime_test.go:2266 |
+| test398 | `Test398_BuildPayloadIOError` | TEST398: IO error from reader propagates as RuntimeError::Io | bifaci/cartridge_runtime_test.go:2309 |
 | test399 | `Test399_relay_notify_discriminant_roundtrip` | TEST399: Verify RelayNotify frame type discriminant roundtrips through u8 (value 10) | bifaci/frame_test.go:733 |
 | test400 | `Test400_relay_state_discriminant_roundtrip` | TEST400: Verify RelayState frame type discriminant roundtrips through u8 (value 11) | bifaci/frame_test.go:746 |
 | test401 | `Test401_relay_notify_factory_and_accessors` | TEST401: Verify relay_notify factory stores manifest and limits, and accessors extract them | bifaci/frame_test.go:759 |
@@ -456,20 +456,18 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test526 | `Test526_relay_state_empty_payload` | TEST526: RelayState with empty payload is valid | bifaci/frame_test.go:1941 |
 | test527 | `Test527_relay_notify_large_manifest` | TEST527: RelayNotify with large manifest roundtrips correctly | bifaci/frame_test.go:1948 |
 | test528 | `Test528_relay_frames_use_uint_zero_id` | TEST528: RelayNotify and RelayState use uint 0 as sentinel ID (not UUID) | bifaci/frame_test.go:1965 |
-| test544 | `Test544_peer_invoker_sends_end_frame` | TEST544: PeerCall::finish sends END frame | bifaci/cartridge_runtime_test.go:2337 |
-| test545 | `Test545_demux_peer_response_returns_data` | TEST545: PeerCall::finish returns PeerResponse with data | bifaci/cartridge_runtime_test.go:2370 |
-| test546 | `Test546_is_image` | TEST546: is_image returns true only when image marker tag is present | urn/media_urn_test.go:408 |
-| test547 | `Test547_is_audio` | TEST547: is_audio returns true only when audio marker tag is present | urn/media_urn_test.go:436 |
-| test548 | `Test548_is_video` | TEST548: is_video returns true only when video marker tag is present | urn/media_urn_test.go:464 |
-| test549 | `Test549_is_numeric` | TEST549: is_numeric returns true only when numeric marker tag is present | urn/media_urn_test.go:488 |
-| test550 | `Test550_is_bool` | TEST550: is_bool returns true only when bool marker tag is present | urn/media_urn_test.go:520 |
-| test551 | `Test551_is_file_path` | TEST551: is_file_path returns true for scalar file-path, false for array | urn/media_urn_test.go:549 |
-| test552 | `Test552_is_file_path_array` | TEST552: is_file_path_array returns true for list file-path, false for scalar | urn/media_urn_test.go:570 |
-| test553 | `Test553_is_any_file_path` | TEST553: is_any_file_path returns true for both scalar and array file-path | urn/media_urn_test.go:587 |
-| test555 | `Test555_with_tag_and_without_tag` | TEST555: with_tag adds a tag and without_tag removes it | urn/media_urn_test.go:742 |
-| test556 | `Test556_image_media_urn_for_ext` | TEST556: image_media_urn_for_ext creates valid image media URN | urn/media_urn_test.go:766 |
-| test557 | `Test557_audio_media_urn_for_ext` | TEST557: audio_media_urn_for_ext creates valid audio media URN | urn/media_urn_test.go:778 |
-| test558 | `Test558_predicate_constant_consistency` | TEST558: predicates are consistent with constants — every constant triggers exactly the expected predicates | urn/media_urn_test.go:608 |
+| test544 | `Test544_peer_invoker_sends_end_frame` | TEST544: PeerCall::finish sends END frame | bifaci/cartridge_runtime_test.go:2339 |
+| test545 | `Test545_demux_peer_response_returns_data` | TEST545: PeerCall::finish returns PeerResponse with data | bifaci/cartridge_runtime_test.go:2372 |
+| test546 | `Test546_is_image` | TEST546: is_image returns true only when image marker tag is present | urn/media_urn_test.go:407 |
+| test547 | `Test547_is_audio` | TEST547: is_audio returns true only when audio marker tag is present | urn/media_urn_test.go:435 |
+| test548 | `Test548_is_video` | TEST548: is_video returns true only when video marker tag is present | urn/media_urn_test.go:463 |
+| test549 | `Test549_is_numeric` | TEST549: is_numeric returns true only when numeric marker tag is present | urn/media_urn_test.go:487 |
+| test550 | `Test550_is_bool` | TEST550: is_bool returns true only when bool marker tag is present | urn/media_urn_test.go:519 |
+| test551 | `Test551_is_file_path` | TEST551: IsFilePath returns true for the single file-path media URN, false for everything else. There is no "array" variant — cardinality is carried by is_sequence on the wire, not by URN tags. | urn/media_urn_test.go:550 |
+| test555 | `Test555_with_tag_and_without_tag` | TEST555: with_tag adds a tag and without_tag removes it | urn/media_urn_test.go:700 |
+| test556 | `Test556_image_media_urn_for_ext` | TEST556: image_media_urn_for_ext creates valid image media URN | urn/media_urn_test.go:724 |
+| test557 | `Test557_audio_media_urn_for_ext` | TEST557: audio_media_urn_for_ext creates valid audio media URN | urn/media_urn_test.go:736 |
+| test558 | `Test558_predicate_constant_consistency` | TEST558: predicates are consistent with constants — every constant triggers exactly the expected predicates | urn/media_urn_test.go:566 |
 | test559 | `Test559_without_tag` | TEST559: without_tag removes tag, ignores in/out, case-insensitive for keys | urn/cap_urn_test.go:1012 |
 | test560 | `Test560_with_in_out_spec` | TEST560: with_in_spec and with_out_spec change direction specs | urn/cap_urn_test.go:1041 |
 | test561 | `Test561_in_out_media_urn` | TEST561: in_media_urn and out_media_urn parse direction specs into MediaUrn | urn/cap_urn_test.go:1428 |
@@ -538,7 +536,7 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test625 | `Test625_string_array_validation` | TEST625: Verify string array schema validates string arrays and rejects mixed arrays | media/profile_test.go:118 |
 | test626 | `Test626_unknown_profile_skips_validation` | TEST626: Verify unknown profile URL skips validation and returns Ok | media/profile_test.go:126 |
 | test627 | `Test627_is_embedded_profile` | TEST627: Verify is_embedded_profile recognizes standard and rejects custom URLs | media/profile_test.go:133 |
-| test628 | `Test628_media_urn_constants_format` | TEST628: Verify media URN constants all start with "media:" prefix | urn/media_urn_test.go:734 |
+| test628 | `Test628_media_urn_constants_format` | TEST628: Verify media URN constants all start with "media:" prefix | urn/media_urn_test.go:692 |
 | test629 | `Test629_profile_constants_format` | TEST629: Verify profile URL constants all start with capdag.com schema prefix | media/spec_test.go:719 |
 | test630 | `Test630_cartridge_repo_creation` | TEST630: Verify CartridgeRepo creation starts with empty cartridge list | bifaci/cartridge_repo_test.go:640 |
 | test631 | `Test631_needs_sync_empty_cache` | TEST631: Verify needs_sync returns true with empty cache and non-empty URLs | bifaci/cartridge_repo_test.go:648 |
@@ -563,12 +561,12 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test669 | `Test669_ResolveSlotFallsBackToDefault` | TEST669: resolve_binding falls back to cap default value when slot has no data | planner/argument_binding_test.go:48 |
 | test670 | `Test670_ResolveRequiredSlotNoValueReturnsErr` | TEST670: resolve_binding returns error when required slot has no value and no default | planner/argument_binding_test.go:69 |
 | test671 | `Test671_ResolveOptionalSlotNoValueReturnsNone` | TEST671: resolve_binding returns None when optional slot has no value and no default | planner/argument_binding_test.go:83 |
-| test678 | `Test678_find_stream_equivalent_urn` | TEST678: find_stream with exact equivalent URN (same tags, different order) succeeds | bifaci/cartridge_runtime_test.go:2545 |
-| test679 | `Test679_find_stream_base_vs_full_fails` | TEST679: find_stream with base URN vs full URN fails — is_equivalent is strict This is the root cause of the cartridge_client.rs bug. Sender sent "media:llm-generation-request" but receiver looked for "media:llm-generation-request;json;record". | bifaci/cartridge_runtime_test.go:2562 |
-| test680 | `Test680_require_stream_missing_fails` | TEST680: require_stream with missing URN returns hard StreamError | bifaci/cartridge_runtime_test.go:2573 |
-| test681 | `Test681_find_stream_multiple` | TEST681: find_stream with multiple streams returns the correct one | bifaci/cartridge_runtime_test.go:2587 |
-| test682 | `Test682_require_stream_returns_data` | TEST682: require_stream_str returns UTF-8 string for text data | bifaci/cartridge_runtime_test.go:2603 |
-| test683 | `Test683_find_stream_invalid_urn_returns_nil` | TEST683: find_stream returns None for invalid media URN string (not a parse error — just None) | bifaci/cartridge_runtime_test.go:2617 |
+| test678 | `Test678_find_stream_equivalent_urn` | TEST678: find_stream with exact equivalent URN (same tags, different order) succeeds | bifaci/cartridge_runtime_test.go:2547 |
+| test679 | `Test679_find_stream_base_vs_full_fails` | TEST679: find_stream with base URN vs full URN fails — is_equivalent is strict This is the root cause of the cartridge_client.rs bug. Sender sent "media:llm-generation-request" but receiver looked for "media:llm-generation-request;json;record". | bifaci/cartridge_runtime_test.go:2564 |
+| test680 | `Test680_require_stream_missing_fails` | TEST680: require_stream with missing URN returns hard StreamError | bifaci/cartridge_runtime_test.go:2575 |
+| test681 | `Test681_find_stream_multiple` | TEST681: find_stream with multiple streams returns the correct one | bifaci/cartridge_runtime_test.go:2589 |
+| test682 | `Test682_require_stream_returns_data` | TEST682: require_stream_str returns UTF-8 string for text data | bifaci/cartridge_runtime_test.go:2605 |
+| test683 | `Test683_find_stream_invalid_urn_returns_nil` | TEST683: find_stream returns None for invalid media URN string (not a parse error — just None) | bifaci/cartridge_runtime_test.go:2619 |
 | test688 | `Test688_is_multiple` | TEST688: Tests IsMultiple method correctly identifies multi-value cardinalities Verifies Single returns false while Sequence and AtLeastOne return true | planner/cardinality_test.go:12 |
 | test689 | `Test689_accepts_single` | TEST689: Tests AcceptsSingle method identifies cardinalities that accept single values Verifies Single and AtLeastOne accept singles while Sequence does not | planner/cardinality_test.go:20 |
 | test690 | `Test690_compatibility_single_to_single` | TEST690: Tests cardinality compatibility for single-to-single data flow Verifies Direct compatibility when both input and output are Single | planner/cardinality_test.go:28 |
@@ -705,27 +703,27 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test836 | `Test836_equivalent_non_equivalent` | TEST836: is_equivalent — non-equivalent comparable caps | urn/cap_urn_test.go:1384 |
 | test837 | `Test837_dispatch_op_mismatch` | TEST837: is_dispatchable — op tag mismatch rejects | urn/cap_urn_test.go:1394 |
 | test838 | `Test838_dispatch_request_wildcard_output` | TEST838: is_dispatchable — request with wildcard output accepts any provider output | urn/cap_urn_test.go:1403 |
-| test839 | `Test839_peer_response_delivers_logs_before_stream_start` | TEST839: LOG frames arriving BEFORE StreamStart are delivered immediately This tests the critical fix: during a peer call, the peer (e.g., modelcartridge) sends LOG frames for minutes during model download BEFORE sending any data (StreamStart + Chunk). The handler must receive these LOGs in real-time so it can re-emit progress and keep the engine's activity timer alive. Previously, demux_single_stream blocked on awaiting StreamStart before returning PeerResponse, which meant the handler couldn't call recv() until data arrived — causing 120s activity timeouts during long downloads. | bifaci/cartridge_runtime_test.go:2398 |
-| test840 | `Test840_peer_response_collect_bytes_discards_logs` | TEST840: PeerResponse::collect_bytes discards LOG frames | bifaci/cartridge_runtime_test.go:2466 |
-| test841 | `Test841_peer_response_collect_value_discards_logs` | TEST841: PeerResponse::collect_value discards LOG frames | bifaci/cartridge_runtime_test.go:2494 |
-| test842 | `Test842_progress_sender_emits_frames` | TEST842: run_with_keepalive returns closure result (fast operation, no keepalive frames) | bifaci/cartridge_runtime_test.go:2642 |
-| test843 | `Test843_progress_sender_from_goroutine` | TEST843: run_with_keepalive returns Ok/Err from closure | bifaci/cartridge_runtime_test.go:2688 |
-| test844 | `Test844_progress_sender_multiple_goroutines` | TEST844: run_with_keepalive propagates errors from closure | bifaci/cartridge_runtime_test.go:2721 |
-| test845 | `Test845_progress_sender_independent_of_emitter` | TEST845: ProgressSender emits progress and log frames independently of OutputStream | bifaci/cartridge_runtime_test.go:2766 |
+| test839 | `Test839_peer_response_delivers_logs_before_stream_start` | TEST839: LOG frames arriving BEFORE StreamStart are delivered immediately This tests the critical fix: during a peer call, the peer (e.g., modelcartridge) sends LOG frames for minutes during model download BEFORE sending any data (StreamStart + Chunk). The handler must receive these LOGs in real-time so it can re-emit progress and keep the engine's activity timer alive. Previously, demux_single_stream blocked on awaiting StreamStart before returning PeerResponse, which meant the handler couldn't call recv() until data arrived — causing 120s activity timeouts during long downloads. | bifaci/cartridge_runtime_test.go:2400 |
+| test840 | `Test840_peer_response_collect_bytes_discards_logs` | TEST840: PeerResponse::collect_bytes discards LOG frames | bifaci/cartridge_runtime_test.go:2468 |
+| test841 | `Test841_peer_response_collect_value_discards_logs` | TEST841: PeerResponse::collect_value discards LOG frames | bifaci/cartridge_runtime_test.go:2496 |
+| test842 | `Test842_progress_sender_emits_frames` | TEST842: run_with_keepalive returns closure result (fast operation, no keepalive frames) | bifaci/cartridge_runtime_test.go:2644 |
+| test843 | `Test843_progress_sender_from_goroutine` | TEST843: run_with_keepalive returns Ok/Err from closure | bifaci/cartridge_runtime_test.go:2690 |
+| test844 | `Test844_progress_sender_multiple_goroutines` | TEST844: run_with_keepalive propagates errors from closure | bifaci/cartridge_runtime_test.go:2723 |
+| test845 | `Test845_progress_sender_independent_of_emitter` | TEST845: ProgressSender emits progress and log frames independently of OutputStream | bifaci/cartridge_runtime_test.go:2768 |
 | test846 | `Test846_progress_frame_roundtrip` | TEST846: Test progress LOG frame encode/decode roundtrip preserves progress float | bifaci/io_test.go:1056 |
 | test847 | `Test847_progress_double_roundtrip` | TEST847: Double roundtrip (modelcartridge → relay → candlecartridge) | bifaci/io_test.go:1109 |
 | test848 | `Test848_relay_notify_roundtrip` | TEST848: RelayNotify encode/decode roundtrip preserves manifest and limits | bifaci/io_test.go:887 |
 | test849 | `Test849_relay_state_roundtrip` | TEST849: RelayState encode/decode roundtrip preserves resource payload | bifaci/io_test.go:928 |
 | test850 | `Test850_all_format_conversion_paths_build_valid_urns` | TEST850: all_format_conversion_paths each entry builds a valid parseable CapUrn | standard/caps_test.go:111 |
 | test851 | `Test851_format_conversion_urn_specs` | TEST851: format_conversion_urn in/out specs match the input constants | standard/caps_test.go:125 |
-| test852 | `Test852_lub_identical` | TEST852: LUB of identical URNs returns the same URN | urn/media_urn_test.go:648 |
-| test853 | `Test853_lub_no_common_tags` | TEST853: LUB of URNs with no common tags returns media: (universal) | urn/media_urn_test.go:656 |
-| test854 | `Test854_lub_partial_overlap` | TEST854: LUB keeps common tags, drops differing ones | urn/media_urn_test.go:668 |
-| test855 | `Test855_lub_list_vs_scalar` | TEST855: LUB of list and non-list drops list tag | urn/media_urn_test.go:680 |
-| test856 | `Test856_lub_empty` | TEST856: LUB of empty input returns universal type | urn/media_urn_test.go:692 |
-| test857 | `Test857_lub_single` | TEST857: LUB of single input returns that input | urn/media_urn_test.go:700 |
-| test858 | `Test858_lub_three_inputs` | TEST858: LUB with three+ inputs narrows correctly | urn/media_urn_test.go:708 |
-| test859 | `Test859_lub_valued_tags` | TEST859: LUB with valued tags (non-marker) that differ | urn/media_urn_test.go:722 |
+| test852 | `Test852_lub_identical` | TEST852: LUB of identical URNs returns the same URN | urn/media_urn_test.go:606 |
+| test853 | `Test853_lub_no_common_tags` | TEST853: LUB of URNs with no common tags returns media: (universal) | urn/media_urn_test.go:614 |
+| test854 | `Test854_lub_partial_overlap` | TEST854: LUB keeps common tags, drops differing ones | urn/media_urn_test.go:626 |
+| test855 | `Test855_lub_list_vs_scalar` | TEST855: LUB of list and non-list drops list tag | urn/media_urn_test.go:638 |
+| test856 | `Test856_lub_empty` | TEST856: LUB of empty input returns universal type | urn/media_urn_test.go:650 |
+| test857 | `Test857_lub_single` | TEST857: LUB of single input returns that input | urn/media_urn_test.go:658 |
+| test858 | `Test858_lub_three_inputs` | TEST858: LUB with three+ inputs narrows correctly | urn/media_urn_test.go:666 |
+| test859 | `Test859_lub_valued_tags` | TEST859: LUB with valued tags (non-marker) that differ | urn/media_urn_test.go:680 |
 | test860 | `Test860_seq_assigner_same_rid_different_xids_independent` | TEST860: Same RID with different XIDs get independent seq counters | bifaci/frame_test.go:1008 |
 | test886 | `Test886_optional_non_io_arg_with_default_has_default` | TEST886: Tests optional non-IO arguments with default values are marked as HasDefault Verifies that arguments with defaults return HasDefault regardless of step position | planner/plan_builder_test.go:188 |
 | test887 | `Test887_no_duplicates_with_unique_caps` | TEST887: Tests duplicate detection passes for caps with unique URN combinations Verifies that checkForDuplicateCaps() correctly accepts caps with different op/in/out combinations | planner/plan_builder_test.go:196 |
@@ -787,11 +785,10 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test996 | `Test996_output_arg_auto_resolved` | TEST996: Tests output arguments are automatically resolved from previous cap's output Verifies that arguments matching the output spec are always resolved as FromPreviousOutput | planner/plan_builder_test.go:269 |
 | test997 | `Test997_file_path_type_fallback_first_cap` | TEST997: Tests MEDIA_FILE_PATH argument type resolves to input file for first cap Verifies that generic file-path arguments are bound to input file in the first cap | planner/plan_builder_test.go:276 |
 | test998 | `Test998_file_path_type_fallback_subsequent_cap` | TEST998: Tests MEDIA_FILE_PATH argument type resolves to previous output for subsequent caps Verifies that generic file-path arguments are bound to previous cap's output after the first cap | planner/plan_builder_test.go:283 |
-| test999 | `Test999_file_path_array_fallback` | TEST999: Tests MEDIA_FILE_PATH_ARRAY argument type resolution for first and subsequent caps Verifies that file-path array arguments follow the same resolution pattern as single file paths | planner/plan_builder_test.go:290 |
-| test1009 | `Test1009_non_io_arg_with_default_has_default` | TEST1009: Tests required non-IO arguments with default values are marked as HasDefault Verifies that arguments like integers with defaults don't require user input | planner/plan_builder_test.go:300 |
-| test1012 | `Test1012_non_io_arg_without_default_requires_user_input` | TEST1012: Tests required non-IO arguments without defaults require user input Verifies that arguments like strings without defaults are marked as RequiresUserInput | planner/plan_builder_test.go:308 |
-| test1015 | `Test1015_optional_non_io_arg_without_default_requires_user_input` | TEST1015: Tests optional non-IO arguments without defaults still require user input Verifies that optional arguments without defaults must be explicitly provided or skipped | planner/plan_builder_test.go:315 |
-| test1019 | `Test1019_validation_to_json_nil` | TEST1019: Tests ValidationToJSON() returns nil for nil input Verifies that missing validation metadata is converted to nil | planner/plan_builder_test.go:322 |
+| test1009 | `Test1009_non_io_arg_with_default_has_default` | TEST1009: Tests required non-IO arguments with default values are marked as HasDefault Verifies that arguments like integers with defaults don't require user input | planner/plan_builder_test.go:290 |
+| test1012 | `Test1012_non_io_arg_without_default_requires_user_input` | TEST1012: Tests required non-IO arguments without defaults require user input Verifies that arguments like strings without defaults are marked as RequiresUserInput | planner/plan_builder_test.go:298 |
+| test1015 | `Test1015_optional_non_io_arg_without_default_requires_user_input` | TEST1015: Tests optional non-IO arguments without defaults still require user input Verifies that optional arguments without defaults must be explicitly provided or skipped | planner/plan_builder_test.go:305 |
+| test1019 | `Test1019_validation_to_json_nil` | TEST1019: Tests ValidationToJSON() returns nil for nil input Verifies that missing validation metadata is converted to nil | planner/plan_builder_test.go:312 |
 | test1020 | `Test1020_ds_store_excluded` | TEST1020: macOS .DS_Store is excluded | input_resolver/os_filter_test.go:10 |
 | test1021 | `Test1021_thumbs_db_excluded` | TEST1021: Windows Thumbs.db is excluded | input_resolver/os_filter_test.go:16 |
 | test1022 | `Test1022_resource_fork_excluded` | TEST1022: macOS resource fork files are excluded | input_resolver/os_filter_test.go:22 |
@@ -802,9 +799,9 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test1027 | `Test1027_localized_excluded` | TEST1027: .localized is excluded | input_resolver/os_filter_test.go:54 |
 | test1028 | `Test1028_desktop_ini_excluded` | TEST1028: desktop.ini is excluded | input_resolver/os_filter_test.go:59 |
 | test1029 | `Test1029_normal_files_not_excluded` | TEST1029: Normal files are NOT excluded | input_resolver/os_filter_test.go:64 |
-| test1100 | `Test1100_cap_urn_normalizes_media_urn_tag_order` | TEST1100: Tests that CapUrn normalizes media URN tags to canonical order Two CapUrns with different tag ordering in out spec must produce the same canonical string. | planner/plan_builder_test.go:329 |
-| test1103 | `Test1103_is_dispatchable_uses_correct_directionality` | TEST1103: Tests that IsDispatchable has correct directionality A specific provider is dispatchable for a general request; the reverse is false. | planner/plan_builder_test.go:346 |
-| test1104 | `Test1104_is_dispatchable_rejects_non_dispatchable` | TEST1104: Tests that IsDispatchable rejects when provider is missing a required cap tag Provider without required=yes cannot handle a request that demands required=yes. | planner/plan_builder_test.go:361 |
+| test1100 | `Test1100_cap_urn_normalizes_media_urn_tag_order` | TEST1100: Tests that CapUrn normalizes media URN tags to canonical order Two CapUrns with different tag ordering in out spec must produce the same canonical string. | planner/plan_builder_test.go:319 |
+| test1103 | `Test1103_is_dispatchable_uses_correct_directionality` | TEST1103: Tests that IsDispatchable has correct directionality A specific provider is dispatchable for a general request; the reverse is false. | planner/plan_builder_test.go:336 |
+| test1104 | `Test1104_is_dispatchable_rejects_non_dispatchable` | TEST1104: Tests that IsDispatchable rejects when provider is missing a required cap tag Provider without required=yes cannot handle a request that demands required=yes. | planner/plan_builder_test.go:351 |
 | test1105 | `Test1105_TwoStepsSameCapUrnDifferentSlotValues` | TEST1105: Two steps with the same cap_urn get distinct slot values via different node_ids. This is the core disambiguation scenario that step-index keying was designed to solve. | planner/argument_binding_test.go:96 |
 | test1106 | `Test1106_SlotFallsThroughToCapSettingsShared` | TEST1106: Slot resolution falls through to cap_settings when no slot_value exists. cap_settings are keyed by cap_urn (shared across steps), so both steps get the same value. | planner/argument_binding_test.go:138 |
 | test1107 | `Test1107_SlotValueOverridesCapSettingsPerStep` | TEST1107: step_0 has a slot_value override, step_1 falls through to cap_settings. Proves per-step override works while shared settings remain as fallback. | planner/argument_binding_test.go:174 |
@@ -891,8 +888,8 @@ This catalog lists all tests in the CapDag-Go codebase.
 | test1272 | `Test1272_adapter_cap_constant_parses` | TEST1272: CAP_ADAPTER_SELECTION constant parses as a valid CapUrn | standard/caps_test.go:146 |
 | test1273 | `Test1273_adapter_selection_urn_builder` | TEST1273: CapAdapterSelection has correct in/out specs (in=media: out=media:adapter-selection;json;record) | standard/caps_test.go:156 |
 | test1275 | `Test1275_adapter_selection_dispatchable_by_specific_provider` | TEST1275: A cap whose output is adapter-selection can dispatch adapter-selection requests; identity (wildcard output) cannot, because wildcard output cannot satisfy a specific output requirement. | standard/caps_test.go:171 |
-| test1282 | `Test1282_adapter_selection_auto_registered` | TEST1282: AdapterSelectionOp is auto-registered by CartridgeRuntime | bifaci/cartridge_runtime_test.go:2809 |
-| test1283 | `Test1283_adapter_selection_custom_override` | TEST1283: Custom adapter selection handler overrides the default | bifaci/cartridge_runtime_test.go:2823 |
+| test1282 | `Test1282_adapter_selection_auto_registered` | TEST1282: AdapterSelectionOp is auto-registered by CartridgeRuntime | bifaci/cartridge_runtime_test.go:2811 |
+| test1283 | `Test1283_adapter_selection_custom_override` | TEST1283: Custom adapter selection handler overrides the default | bifaci/cartridge_runtime_test.go:2825 |
 | test1284 | `Test1284_cap_group_with_adapter_urns` | TEST1284: Cap group with adapter URNs serializes and deserializes correctly | bifaci/manifest_test.go:327 |
 | test1289 | `Test1289_bfs_reachable_includes_source_roundtrip` | TEST1289: BFS reachable targets includes the source itself when round-trip paths exist. A→B and B→A means A is reachable from A (via A→B→A). | planner/live_cap_graph_test.go:447 |
 | test1290 | `Test1290_iddfs_finds_roundtrip_paths` | TEST1290: IDDFS find_paths_to_exact_target finds round-trip paths when source == target. | planner/live_cap_graph_test.go:481 |
@@ -1050,8 +1047,8 @@ The following tests are cataloged but do not currently participate in numeric te
 ---
 
 *Generated from CapDag-Go source tree*
-*Total tests: 955*
-*Total numbered tests: 887*
+*Total tests: 952*
+*Total numbered tests: 884*
 *Total unnumbered tests: 68*
 *Total numbered tests missing descriptions: 0*
 *Total numbering mismatches: 0*
