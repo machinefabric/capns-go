@@ -2,6 +2,7 @@ package bifaci
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"sort"
@@ -47,14 +48,52 @@ func (e *RelaySwitchError) Error() string {
 }
 
 // InstalledCartridgeIdentity represents the identity of an installed
-// cartridge. `(Id, Channel, Version)` is the cartridge's full
-// identity — release v1.0.0 and nightly v1.0.0 are distinct
-// installs.
+// cartridge. `(RegistryURL, Channel, Id, Version)` is the
+// cartridge's full identity — installs of the same id from
+// different registries × channels are distinct artifacts that
+// coexist on disk under different top-level slug folders.
+//
+// RegistryURL is `*string` (Go's nullable form). nil ⇔ dev install
+// (cartridge built locally without MFR_REGISTRY_URL); non-nil ⇔
+// the verbatim URL the cartridge was published from. Compared
+// byte-wise; never normalized. The JSON field is required-but-
+// nullable: missing key is a parse error so old-schema payloads
+// surface immediately.
 type InstalledCartridgeIdentity struct {
-	Id      string `json:"id"`
-	Channel string `json:"channel"`
-	Version string `json:"version"`
-	Sha256  string `json:"sha256"`
+	RegistryURL *string `json:"registry_url"`
+	Id          string  `json:"id"`
+	Channel     string  `json:"channel"`
+	Version     string  `json:"version"`
+	Sha256      string  `json:"sha256"`
+}
+
+// UnmarshalJSON enforces "required-but-nullable" for RegistryURL
+// (see CartridgeJson.UnmarshalJSON for the same pattern). Missing
+// key is rejected.
+func (i *InstalledCartridgeIdentity) UnmarshalJSON(data []byte) error {
+	type rawIdentity InstalledCartridgeIdentity
+	var raw rawIdentity
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	var asMap map[string]json.RawMessage
+	if err := json.Unmarshal(data, &asMap); err != nil {
+		return err
+	}
+	if _, present := asMap["registry_url"]; !present {
+		return errors.New(
+			"InstalledCartridgeIdentity is missing required `registry_url` field. " +
+				"It must be present, with value null for dev installs or " +
+				"a URL string for registry installs.")
+	}
+	*i = InstalledCartridgeIdentity(raw)
+	return nil
+}
+
+// RegistrySlug returns the on-disk slug derived from RegistryURL.
+// nil → DevSlug; non-nil → SlugFor(*RegistryURL).
+func (i *InstalledCartridgeIdentity) RegistrySlug() string {
+	return SlugFor(i.RegistryURL)
 }
 
 // RelayNotifyCapabilitiesPayload is the parsed payload from RelayNotify frames

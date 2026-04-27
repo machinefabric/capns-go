@@ -36,11 +36,20 @@ const (
 // CartridgeJson holds install-context metadata stored in cartridge.json inside
 // each cartridge version directory.
 //
-// `(Name, Version, Channel)` is the install's full identity. The
-// installer (.pkg) writes Channel based on which channel the
-// cartridge was published to. Channels are independent namespaces:
-// release v1.0.0 and nightly v1.0.0 of the same cartridge id are
-// different artifacts.
+// `(RegistryURL, Channel, Name, Version)` is the install's full
+// identity. The installer (.pkg or `dx cartridge --install`) writes
+// these fields based on which (registry × channel) the cartridge
+// was published / built for. Each (registry, channel) is an
+// independent namespace: install of the same id+version from
+// different registries or channels are different artifacts that
+// coexist on disk under different top-level slug folders.
+//
+// RegistryURL is `*string` (Go's nullable string) — present-but-nil
+// means dev install (cartridge built locally without
+// MFR_REGISTRY_URL); present-and-non-nil means a registry URL the
+// cartridge was published from. The on-disk top-level folder is
+// the SHA-256-prefix slug of the URL (or the literal "dev" when
+// nil); the host validates folder ⇔ provenance at scan time.
 type CartridgeJson struct {
 	// Name is the cartridge name (e.g., "pdfcartridge").
 	Name string `json:"name"`
@@ -48,6 +57,12 @@ type CartridgeJson struct {
 	Version string `json:"version"`
 	// Channel is "release" or "nightly". Required.
 	Channel string `json:"channel"`
+	// RegistryURL is the verbatim URL of the registry the cartridge
+	// was published from. Required-but-nullable: present-but-null
+	// means dev install. The JSON field is always emitted (never
+	// elided for null) so a missing field is a parse error — that's
+	// how we surface old-schema cartridge.json files.
+	RegistryURL *string `json:"registry_url"`
 	// Entry is the relative path from the version directory to the executable entry point.
 	// For single-binary cartridges this is just the binary filename.
 	// For directory cartridges it may be a nested path.
@@ -62,6 +77,65 @@ type CartridgeJson struct {
 	PackageSha256 string `json:"package_sha256,omitempty"`
 	// PackageSize is the size in bytes of the original package.
 	PackageSize uint64 `json:"package_size,omitempty"`
+}
+
+// UnmarshalJSON enforces "required-but-nullable" for RegistryURL:
+// the key MUST be present, the value MAY be null. Encoding/json's
+// default Unmarshal treats absence and explicit null identically,
+// so we re-check the raw object map. This forces older
+// cartridge.json files (without the field) to surface as parse
+// errors rather than silently being treated as dev installs.
+func (c *CartridgeJson) UnmarshalJSON(data []byte) error {
+	type rawCartridgeJson CartridgeJson
+	var raw rawCartridgeJson
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	// Check for the literal presence of `registry_url` — `nil` here
+	// could mean either "absent" or "explicit null"; the raw map
+	// disambiguates.
+	var asMap map[string]json.RawMessage
+	if err := json.Unmarshal(data, &asMap); err != nil {
+		return err
+	}
+	if _, present := asMap["registry_url"]; !present {
+		return errors.New(
+			"cartridge.json is missing required `registry_url` field. " +
+				"It must be present, with value null for dev installs or " +
+				"a URL string for registry installs.")
+	}
+	*c = CartridgeJson(raw)
+	return nil
+}
+
+// MarshalJSON ensures `registry_url` is always present in the
+// output even when nil. The default Go encoder with `,omitempty`
+// would elide it, but the consumer requires presence.
+func (c CartridgeJson) MarshalJSON() ([]byte, error) {
+	type withReg struct {
+		Name          string                 `json:"name"`
+		Version       string                 `json:"version"`
+		Channel       string                 `json:"channel"`
+		RegistryURL   *string                `json:"registry_url"`
+		Entry         string                 `json:"entry"`
+		InstalledAt   string                 `json:"installed_at"`
+		InstalledFrom CartridgeInstallSource `json:"installed_from"`
+		SourceURL     string                 `json:"source_url,omitempty"`
+		PackageSha256 string                 `json:"package_sha256,omitempty"`
+		PackageSize   uint64                 `json:"package_size,omitempty"`
+	}
+	return json.Marshal(withReg{
+		Name:          c.Name,
+		Version:       c.Version,
+		Channel:       c.Channel,
+		RegistryURL:   c.RegistryURL,
+		Entry:         c.Entry,
+		InstalledAt:   c.InstalledAt,
+		InstalledFrom: c.InstalledFrom,
+		SourceURL:     c.SourceURL,
+		PackageSha256: c.PackageSha256,
+		PackageSize:   c.PackageSize,
+	})
 }
 
 // CartridgeJsonError is returned when reading or validating a cartridge.json fails.
@@ -84,6 +158,10 @@ const (
 	CartridgeJsonErrorEntryPointNotExecutable
 	CartridgeJsonErrorEntryPathEscape
 	CartridgeJsonErrorWriteFailed
+	// CartridgeJsonErrorRegistrySlugMismatch surfaces a violation
+	// of the three-place rule: the on-disk slug folder doesn't
+	// match the slug derived from cartridge.json:registry_url.
+	CartridgeJsonErrorRegistrySlugMismatch
 )
 
 func (e *CartridgeJsonError) Error() string {
@@ -102,6 +180,8 @@ func (e *CartridgeJsonError) Error() string {
 		return fmt.Sprintf("cartridge.json at %s: entry path '%s' escapes version directory", e.Path, e.Entry)
 	case CartridgeJsonErrorWriteFailed:
 		return fmt.Sprintf("failed to write cartridge.json at %s: %v", e.Path, e.Err)
+	case CartridgeJsonErrorRegistrySlugMismatch:
+		return fmt.Sprintf("cartridge.json at %s: registry slug mismatch — %s", e.Path, e.Message)
 	default:
 		return fmt.Sprintf("cartridge.json error at %s: %s", e.Path, e.Message)
 	}
@@ -111,13 +191,20 @@ func (e *CartridgeJsonError) Unwrap() error {
 	return e.Err
 }
 
-// ReadCartridgeJsonFromDir reads and validates a cartridge.json from a version directory.
+// ReadCartridgeJsonFromDir reads and validates a cartridge.json
+// from a version directory. `expectedSlug` is the on-disk registry
+// slug folder the host reached the version directory through;
+// passing it in lets the parser enforce the three-place rule
+// (folder slug ⇔ provenance registry_url) without leaving it to
+// every caller to remember.
 //
 // Validates:
 //   - File exists and is valid JSON
+//   - cartridge.json includes required `registry_url` field
+//   - SlugFor(RegistryURL) == expectedSlug
 //   - Entry point path does not escape the version directory
 //   - Entry point binary exists and is executable
-func ReadCartridgeJsonFromDir(versionDir string) (*CartridgeJson, error) {
+func ReadCartridgeJsonFromDir(versionDir, expectedSlug string) (*CartridgeJson, error) {
 	jsonPath := filepath.Join(versionDir, "cartridge.json")
 
 	if _, err := os.Stat(jsonPath); errors.Is(err, os.ErrNotExist) {
@@ -139,6 +226,28 @@ func ReadCartridgeJsonFromDir(versionDir string) (*CartridgeJson, error) {
 			Kind: CartridgeJsonErrorInvalidJson,
 			Path: jsonPath,
 			Err:  err,
+		}
+	}
+
+	// Three-place rule (places 1+2): folder slug must match the
+	// slug derived from cartridge.json's registry_url. None+`dev`
+	// and Some(url)+SlugFor(url) are the only valid pairings; any
+	// other combination — including a null registry_url under a
+	// non-dev folder, or a non-null registry_url under the dev
+	// folder — is an installer bug or a tampered tree.
+	derivedSlug := SlugFor(cj.RegistryURL)
+	if derivedSlug != expectedSlug {
+		regStr := "null"
+		if cj.RegistryURL != nil {
+			regStr = *cj.RegistryURL
+		}
+		return nil, &CartridgeJsonError{
+			Kind: CartridgeJsonErrorRegistrySlugMismatch,
+			Path: jsonPath,
+			Message: fmt.Sprintf(
+				"registry_url=%s hashes to slug='%s' but the directory tree placed it under '%s'",
+				regStr, derivedSlug, expectedSlug,
+			),
 		}
 	}
 

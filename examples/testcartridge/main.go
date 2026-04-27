@@ -16,6 +16,14 @@ import (
 // loudly at startup rather than ship a binary with no channel.
 var cartridgeChannel string
 
+// cartridgeRegistryURL is set at link time via
+//   go build -ldflags='-X main.cartridgeRegistryURL=https://...'
+// when the cartridge is being built for a specific registry. Empty
+// (the default) ⇔ dev build; the cartridge can only be installed
+// under the on-disk `dev/` slot. Mirror of Rust's
+// `option_env!("MFR_REGISTRY_URL")`.
+var cartridgeRegistryURL string
+
 func main() {
 	if cartridgeChannel != "release" && cartridgeChannel != "nightly" {
 		fmt.Fprintf(os.Stderr,
@@ -27,11 +35,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Convert empty registry URL to nil pointer (dev install).
+	var registryURL *string
+	if cartridgeRegistryURL != "" {
+		registryURL = &cartridgeRegistryURL
+	}
+
 	// Create manifest
 	manifest := capdag.NewCapManifest(
 		"testcartridge",
 		"1.0.0",
 		cartridgeChannel,
+		registryURL,
 		"Test cartridge for Go",
 		[]capdag.CapGroup{capdag.DefaultGroup([]capdag.Cap{
 			{

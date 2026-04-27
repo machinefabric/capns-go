@@ -711,7 +711,7 @@ func createTestManifest(name, version, description string, caps []*cap.Cap) *Cap
 	for i, cap := range caps {
 		capSlice[i] = *cap
 	}
-	return NewCapManifest(name, version, "release", description, []CapGroup{DefaultGroup(capSlice)})
+	return NewCapManifest(name, version, "release", nil, description, []CapGroup{DefaultGroup(capSlice)})
 }
 
 // firstCap returns the first cap from the manifest's cap groups (for test convenience).

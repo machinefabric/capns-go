@@ -28,10 +28,12 @@ type CapGroup struct {
 
 // CapManifest represents unified cap manifest for --manifest output.
 //
-// `(Name, Version, Channel)` is the cartridge's full identity. Channel
-// is part of the cartridge's identity and is baked in at compile time
-// (Go cartridges read it from the `MFR_CARTRIDGE_CHANNEL` env var via
-// build-time codegen, mirroring the Rust SDK's `env!()` pattern).
+// `(Name, Version, Channel, RegistryURL)` is the cartridge's full
+// identity. Channel and RegistryURL are baked in at compile time
+// — channel via -ldflags '-X main.cartridgeChannel=…' and
+// registry URL via -ldflags '-X main.cartridgeRegistryURL=…'.
+// RegistryURL is `*string` (nullable): nil ⇔ dev build (the
+// cartridge can only be installed under the `dev/` slot).
 type CapManifest struct {
 	// Component name
 	Name string `json:"name"`
@@ -44,6 +46,13 @@ type CapManifest struct {
 	// nightly v1.0.0 are distinct artifacts that share id+version
 	// strings.
 	Channel string `json:"channel"`
+
+	// RegistryURL — verbatim URL of the registry the cartridge
+	// was built for. nil ⇔ dev build. The JSON field is required-
+	// but-nullable: the encoder always emits it (never elides for
+	// nil) and the decoder rejects missing keys, surfacing
+	// old-schema cartridges as parse errors.
+	RegistryURL *string `json:"registry_url"`
 
 	// Component description
 	Description string `json:"description"`
@@ -64,11 +73,15 @@ type CapManifest struct {
 // `channel` is required — every cartridge declares which channel it
 // was built for so the host can verify the install context
 // (cartridge.json) matches the cartridge's self-report.
-func NewCapManifest(name, version, channel, description string, capGroups []CapGroup) *CapManifest {
+// `registryURL` is `*string` — pass nil for dev builds; pass a
+// pointer to the URL string for cartridges built for a specific
+// registry (mirror of Rust's `option_env!("MFR_REGISTRY_URL")`).
+func NewCapManifest(name, version, channel string, registryURL *string, description string, capGroups []CapGroup) *CapManifest {
 	return &CapManifest{
 		Name:        name,
 		Version:     version,
 		Channel:     channel,
+		RegistryURL: registryURL,
 		Description: description,
 		CapGroups:   capGroups,
 	}
