@@ -35,11 +35,19 @@ const (
 
 // CartridgeJson holds install-context metadata stored in cartridge.json inside
 // each cartridge version directory.
+//
+// `(Name, Version, Channel)` is the install's full identity. The
+// installer (.pkg) writes Channel based on which channel the
+// cartridge was published to. Channels are independent namespaces:
+// release v1.0.0 and nightly v1.0.0 of the same cartridge id are
+// different artifacts.
 type CartridgeJson struct {
 	// Name is the cartridge name (e.g., "pdfcartridge").
 	Name string `json:"name"`
 	// Version is the version string (e.g., "0.168.411").
 	Version string `json:"version"`
+	// Channel is "release" or "nightly". Required.
+	Channel string `json:"channel"`
 	// Entry is the relative path from the version directory to the executable entry point.
 	// For single-binary cartridges this is just the binary filename.
 	// For directory cartridges it may be a nested path.

@@ -19,7 +19,7 @@ import (
 	"github.com/machinefabric/capdag-go/urn"
 )
 
-const testManifest = `{"name":"TestCartridge","version":"1.0.0","description":"Test cartridge","cap_groups":[{"name":"default","caps":[{"urn":"cap:","title":"Identity","command":"identity"},{"urn":"cap:in=\"media:void\";op=test;out=\"media:void\"","title":"Test","command":"test"}]}]}`
+const testManifest = `{"name":"TestCartridge","version":"1.0.0","channel":"release","description":"Test cartridge","cap_groups":[{"name":"default","caps":[{"urn":"cap:","title":"Identity","command":"identity"},{"urn":"cap:in=\"media:void\";op=test;out=\"media:void\"","title":"Test","command":"test"}]}]}`
 
 // Mock emitter that captures emitted data for testing
 type mockStreamEmitter struct {
@@ -348,8 +348,9 @@ func Test258_new_cartridge_runtime_with_manifest_struct(t *testing.T) {
 
 // TEST259: Test extract_effective_payload with non-CBOR content_type returns raw payload unchanged
 func Test259_extract_effective_payload_non_cbor(t *testing.T) {
+	capDef := createTestCap(`cap:in="media:void";op=test;out="media:void"`, "Test", "test", nil)
 	payload := []byte("raw data")
-	result, err := extractEffectivePayload(payload, "application/json", `cap:in="media:void";op=test;out="media:void"`)
+	result, err := extractEffectivePayload(payload, "application/json", capDef, true)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -358,10 +359,11 @@ func Test259_extract_effective_payload_non_cbor(t *testing.T) {
 	}
 }
 
-// TEST260: Test extract_effective_payload with None content_type returns raw payload unchanged
+// TEST260: Test extract_effective_payload with empty content_type returns raw payload unchanged
 func Test260_extract_effective_payload_no_content_type(t *testing.T) {
+	capDef := createTestCap(`cap:in="media:void";op=test;out="media:void"`, "Test", "test", nil)
 	payload := []byte("raw data")
-	result, err := extractEffectivePayload(payload, "", `cap:in="media:void";op=test;out="media:void"`)
+	result, err := extractEffectivePayload(payload, "", capDef, true)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -372,59 +374,92 @@ func Test260_extract_effective_payload_no_content_type(t *testing.T) {
 
 // TEST261: Test extract_effective_payload with CBOR content extracts matching argument value
 func Test261_extract_effective_payload_cbor_match(t *testing.T) {
-	// For now, simplified implementation returns raw payload
-	// Full CBOR argument extraction will be implemented when needed
-	payload := []byte("test payload")
-	result, err := extractEffectivePayload(payload, "application/cbor", `cap:in="media:string;textable";op=test;out="media:void"`)
+	// Build CBOR arguments: [{media_urn: "media:string;textable", value: bytes("hello")}]
+	args := []interface{}{
+		map[string]interface{}{
+			"media_urn": "media:string;textable",
+			"value":     []byte("hello"),
+		},
+	}
+	payload, err := cborlib.Marshal(args)
+	if err != nil {
+		t.Fatalf("Failed to encode payload: %v", err)
+	}
+
+	// The cap URN has in=media:string;textable
+	capDef := createTestCap(`cap:in="media:string;textable";op=test;out="media:void"`, "Test", "test", nil)
+	result, err := extractEffectivePayload(payload, "application/cbor", capDef, false)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	// Currently returns raw payload - this will be enhanced
-	if string(result) != string(payload) {
-		t.Errorf("Expected payload to be returned")
+
+	// NEW REGIME: result is full CBOR array; extract value from matching argument
+	var resultArr []interface{}
+	if err := cborlib.Unmarshal(result, &resultArr); err != nil {
+		t.Fatalf("Failed to decode result CBOR: %v", err)
+	}
+	var foundValue []byte
+	for _, arg := range resultArr {
+		argMap, ok := arg.(map[interface{}]interface{})
+		if !ok {
+			continue
+		}
+		for k, v := range argMap {
+			if key, ok := k.(string); ok && key == "value" {
+				if b, ok := v.([]byte); ok {
+					foundValue = b
+				}
+			}
+		}
+	}
+	if string(foundValue) != "hello" {
+		t.Errorf("Expected handler to receive 'hello', got %q", string(foundValue))
 	}
 }
 
 // TEST262: Test extract_effective_payload with CBOR content fails when no argument matches expected input
 func Test262_extract_effective_payload_cbor_no_match(t *testing.T) {
-	// This test will be meaningful when full CBOR decoding is implemented
-	// For now, simplified version returns raw payload
-	payload := []byte("test")
-	_, err := extractEffectivePayload(payload, "application/cbor", `cap:in="media:string;textable";op=test;out="media:void"`)
-	// Currently doesn't fail - will when CBOR parsing is added
+	args := []interface{}{
+		map[string]interface{}{
+			"media_urn": "media:other-type",
+			"value":     []byte("data"),
+		},
+	}
+	payload, err := cborlib.Marshal(args)
 	if err != nil {
-		t.Logf("Note: Error handling to be enhanced with full CBOR support: %v", err)
+		t.Fatalf("Failed to encode payload: %v", err)
+	}
+
+	capDef := createTestCap(`cap:in="media:string;textable";op=test;out="media:void"`, "Test", "test", nil)
+	_, err = extractEffectivePayload(payload, "application/cbor", capDef, false)
+	if err == nil {
+		t.Fatal("Expected error when no argument matches expected input")
+	}
+	if !strings.Contains(err.Error(), "No argument found matching") {
+		t.Errorf("Expected error containing 'No argument found matching', got: %v", err)
 	}
 }
 
 // TEST263: Test extract_effective_payload with invalid CBOR bytes returns deserialization error
 func Test263_extract_effective_payload_invalid_cbor(t *testing.T) {
-	// Will be meaningful when CBOR decoding is implemented
-	payload := []byte("not cbor")
-	_, err := extractEffectivePayload(payload, "application/cbor", `cap:in="media:void";op=test;out="media:void"`)
-	// Currently returns raw payload - will fail when CBOR parsing added
-	if err != nil {
-		t.Logf("Note: Will properly validate CBOR when parsing is added: %v", err)
+	capDef := createTestCap(`cap:in="media:void";op=test;out="media:void"`, "Test", "test", nil)
+	_, err := extractEffectivePayload([]byte("not cbor"), "application/cbor", capDef, false)
+	if err == nil {
+		t.Fatal("Expected error for invalid CBOR bytes")
 	}
 }
 
 // TEST264: Test extract_effective_payload with CBOR non-array (e.g. map) returns error
 func Test264_extract_effective_payload_cbor_not_array(t *testing.T) {
-	// Will be meaningful when CBOR decoding is implemented
-	payload := []byte("{}")
-	_, err := extractEffectivePayload(payload, "application/cbor", `cap:in="media:void";op=test;out="media:void"`)
-	// Currently returns raw - will validate structure when parsing added
+	// Encode a CBOR map (not array)
+	payload, err := cborlib.Marshal(map[string]interface{}{})
 	if err != nil {
-		t.Logf("Note: Structure validation to be added: %v", err)
+		t.Fatalf("Failed to encode payload: %v", err)
 	}
-}
-
-// Mirror-specific coverage: Test extract_effective_payload with invalid cap URN returns CapUrn error
-func TestExtractEffectivePayloadInvalidCapUrn(t *testing.T) {
-	payload := []byte("test")
-	_, err := extractEffectivePayload(payload, "application/cbor", "not-a-cap-urn")
+	capDef := createTestCap(`cap:in="media:void";op=test;out="media:void"`, "Test", "test", nil)
+	_, err = extractEffectivePayload(payload, "application/cbor", capDef, false)
 	if err == nil {
-		t.Fatal("Expected error for invalid cap URN")
+		t.Fatal("Expected error for CBOR non-array payload")
 	}
 }
 
@@ -507,32 +542,120 @@ func Test271_handler_replacement(t *testing.T) {
 
 // TEST272: Test extract_effective_payload CBOR with multiple arguments selects the correct one
 func Test272_extract_effective_payload_multiple_args(t *testing.T) {
-	// Will be meaningful when full CBOR argument parsing is implemented
-	payload := []byte("test payload")
-	result, err := extractEffectivePayload(payload, "application/cbor", `cap:in="media:model-spec;textable";op=infer;out="media:void"`)
+	args := []interface{}{
+		map[string]interface{}{
+			"media_urn": "media:other-type;textable",
+			"value":     []byte("wrong"),
+		},
+		map[string]interface{}{
+			"media_urn": "media:model-spec;textable",
+			"value":     []byte("correct"),
+		},
+	}
+	payload, err := cborlib.Marshal(args)
+	if err != nil {
+		t.Fatalf("Failed to encode payload: %v", err)
+	}
+
+	capDef := createTestCap(`cap:in="media:model-spec;textable";op=infer;out="media:void"`, "Test", "infer", nil)
+	result, err := extractEffectivePayload(payload, "application/cbor", capDef, false)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	// Currently returns raw - will select correct argument when CBOR parsing added
-	if len(result) == 0 {
-		t.Error("Expected non-empty result")
+
+	// NEW REGIME: handler receives full CBOR array with BOTH arguments;
+	// handler matches against in_spec to find main input.
+	var resultArr []interface{}
+	if err := cborlib.Unmarshal(result, &resultArr); err != nil {
+		t.Fatalf("Failed to decode result CBOR: %v", err)
+	}
+	if len(resultArr) != 2 {
+		t.Errorf("Expected both arguments present, got %d", len(resultArr))
+	}
+
+	inSpec, _ := urn.NewMediaUrnFromString("media:model-spec;textable")
+	var foundValue []byte
+	for _, arg := range resultArr {
+		argMap, ok := arg.(map[interface{}]interface{})
+		if !ok {
+			continue
+		}
+		var urnStr string
+		var val []byte
+		for k, v := range argMap {
+			if key, ok := k.(string); ok {
+				if key == "media_urn" {
+					if s, ok := v.(string); ok {
+						urnStr = s
+					}
+				} else if key == "value" {
+					if b, ok := v.([]byte); ok {
+						val = b
+					}
+				}
+			}
+		}
+		if urnStr != "" && val != nil {
+			argUrn, perr := urn.NewMediaUrnFromString(urnStr)
+			if perr == nil && inSpec.IsComparable(argUrn) {
+				foundValue = val
+				break
+			}
+		}
+	}
+
+	if string(foundValue) != "correct" {
+		t.Errorf("Expected 'correct' value to be selected, got %q", string(foundValue))
 	}
 }
 
 // TEST273: Test extract_effective_payload with binary data in CBOR value (not just text)
 func Test273_ExtractEffectivePayloadBinaryValue(t *testing.T) {
-	// Will be meaningful when CBOR binary handling is implemented
 	binaryData := make([]byte, 256)
 	for i := 0; i < 256; i++ {
 		binaryData[i] = byte(i)
 	}
-	result, err := extractEffectivePayload(binaryData, "application/cbor", `cap:in="media:pdf";op=process;out="media:void"`)
+	args := []interface{}{
+		map[string]interface{}{
+			"media_urn": "media:pdf",
+			"value":     binaryData,
+		},
+	}
+	payload, err := cborlib.Marshal(args)
+	if err != nil {
+		t.Fatalf("Failed to encode payload: %v", err)
+	}
+
+	capDef := createTestCap(`cap:in="media:pdf";op=process;out="media:void"`, "Test", "process", nil)
+	result, err := extractEffectivePayload(payload, "application/cbor", capDef, false)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	// Binary data should roundtrip
-	if len(result) != len(binaryData) {
-		t.Errorf("Expected binary data length %d, got %d", len(binaryData), len(result))
+
+	// Decode result and verify binary roundtrip
+	var resultArr []interface{}
+	if err := cborlib.Unmarshal(result, &resultArr); err != nil {
+		t.Fatalf("Failed to decode result CBOR: %v", err)
+	}
+	if len(resultArr) != 1 {
+		t.Fatalf("Expected 1 arg in result, got %d", len(resultArr))
+	}
+	argMap, ok := resultArr[0].(map[interface{}]interface{})
+	if !ok {
+		t.Fatalf("Expected map for arg, got %T", resultArr[0])
+	}
+	val, ok := argMap["value"].([]byte)
+	if !ok {
+		t.Fatalf("Expected []byte value, got %T", argMap["value"])
+	}
+	if len(val) != 256 {
+		t.Errorf("Expected binary data length 256, got %d", len(val))
+	}
+	for i := range val {
+		if val[i] != byte(i) {
+			t.Errorf("Byte at index %d: expected %d got %d", i, i, val[i])
+			break
+		}
 	}
 }
 
@@ -588,7 +711,7 @@ func createTestManifest(name, version, description string, caps []*cap.Cap) *Cap
 	for i, cap := range caps {
 		capSlice[i] = *cap
 	}
-	return NewCapManifest(name, version, description, []CapGroup{DefaultGroup(capSlice)})
+	return NewCapManifest(name, version, "release", description, []CapGroup{DefaultGroup(capSlice)})
 }
 
 // firstCap returns the first cap from the manifest's cap groups (for test convenience).
@@ -599,6 +722,119 @@ func firstCap(m *CapManifest) *cap.Cap {
 		}
 	}
 	return nil
+}
+
+// effectiveCborToFrameChannel converts the CBOR-args-array payload returned
+// by extractEffectivePayload into a frame stream that mirrors what
+// dispatchCliPayload sends to the handler: one STREAM_START / CHUNK /
+// STREAM_END group per argument, then a single END.
+func effectiveCborToFrameChannel(t *testing.T, payload []byte) <-chan Frame {
+	t.Helper()
+	ch := make(chan Frame, 32)
+	go func() {
+		defer close(ch)
+		requestID := NewMessageIdDefault()
+		var arguments []interface{}
+		if len(payload) > 0 {
+			if err := cborlib.Unmarshal(payload, &arguments); err != nil {
+				return
+			}
+		}
+		for i, arg := range arguments {
+			argMap, ok := arg.(map[interface{}]interface{})
+			if !ok {
+				continue
+			}
+			var mediaUrn string
+			var value interface{}
+			for k, v := range argMap {
+				if key, ok := k.(string); ok {
+					if key == "media_urn" {
+						if s, ok := v.(string); ok {
+							mediaUrn = s
+						}
+					} else if key == "value" {
+						value = v
+					}
+				}
+			}
+			if mediaUrn == "" || value == nil {
+				continue
+			}
+			streamID := fmt.Sprintf("arg-%d", i)
+			ch <- *NewStreamStart(requestID, streamID, mediaUrn, nil)
+			cborValue, err := cborlib.Marshal(value)
+			if err != nil {
+				continue
+			}
+			checksum := ComputeChecksum(cborValue)
+			ch <- *NewChunk(requestID, streamID, 0, cborValue, 0, checksum)
+			ch <- *NewStreamEnd(requestID, streamID, 1)
+		}
+		ch <- *NewEnd(requestID, nil)
+	}()
+	return ch
+}
+
+// mustExtractFirstArgValueBytes decodes the post-extractEffectivePayload
+// CBOR array and returns the first arg's `value` as []byte. Test helper.
+func mustExtractFirstArgValueBytes(t *testing.T, payload []byte) []byte {
+	t.Helper()
+	var argsArr []interface{}
+	if err := cborlib.Unmarshal(payload, &argsArr); err != nil {
+		t.Fatalf("Failed to decode result CBOR: %v", err)
+	}
+	if len(argsArr) == 0 {
+		t.Fatalf("Expected at least 1 arg, got 0")
+	}
+	argMap, ok := argsArr[0].(map[interface{}]interface{})
+	if !ok {
+		t.Fatalf("Expected map for arg, got %T", argsArr[0])
+	}
+	val, ok := argMap["value"].([]byte)
+	if !ok {
+		t.Fatalf("Expected []byte value, got %T", argMap["value"])
+	}
+	return val
+}
+
+// buildPayloadFromCLIWithStdin constructs the raw CBOR arguments payload
+// from CLI args and explicit stdin data. Used by tests that need to drive
+// stdin without going through the runtime's non-blocking stdin probe.
+func buildPayloadFromCLIWithStdin(pr *CartridgeRuntime, capDef *cap.Cap, cliArgs []string, stdinData []byte) ([]byte, error) {
+	var arguments []cap.CapArgumentValue
+	for i := range capDef.Args {
+		argDef := &capDef.Args[i]
+		value, cameFromStdin, err := pr.extractArgValue(argDef, cliArgs, stdinData)
+		if err != nil {
+			return nil, err
+		}
+		if value != nil {
+			mediaUrn := argDef.MediaUrn
+			if cameFromStdin {
+				for j := range argDef.Sources {
+					if argDef.Sources[j].Stdin != nil {
+						mediaUrn = *argDef.Sources[j].Stdin
+						break
+					}
+				}
+			}
+			arguments = append(arguments, cap.CapArgumentValue{MediaUrn: mediaUrn, Value: value})
+		} else if argDef.Required {
+			return nil, fmt.Errorf("Required argument '%s' not provided", argDef.MediaUrn)
+		}
+	}
+	if len(arguments) == 0 {
+		return []byte{}, nil
+	}
+	cborArgs := make([]interface{}, len(arguments))
+	for i, arg := range arguments {
+		cborArgs[i] = map[string]interface{}{
+			"media_urn": arg.MediaUrn,
+			"value":     arg.Value,
+		}
+	}
+	return cborlib.Marshal(cborArgs)
 }
 
 // TEST336: Single file-path arg with stdin source reads file and passes bytes to handler
@@ -630,7 +866,9 @@ func Test336_FilePathReadsFilePassesBytes(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	// Track what handler receives
+	// Track what handler receives. Wire chunks are CBOR-encoded individual
+	// values (per dispatch_cli_payload), so the handler decodes the CBOR
+	// wrapper to recover the raw file bytes.
 	var receivedPayload []byte
 	runtime.Register(
 		`cap:in="media:pdf";op=process;out="media:void"`,
@@ -639,7 +877,11 @@ func Test336_FilePathReadsFilePassesBytes(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			receivedPayload = payload
+			var fileBytes []byte
+			if err := cborlib.Unmarshal(payload, &fileBytes); err != nil {
+				return err
+			}
+			receivedPayload = fileBytes
 			return emitter.EmitCbor("processed")
 		},
 	)
@@ -650,9 +892,7 @@ func Test336_FilePathReadsFilePassesBytes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to build payload: %v", err)
 	}
-
-	// Extract effective payload
-	payload, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest).UrnString())
+	payload, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
 	if err != nil {
 		t.Fatalf("Failed to extract payload: %v", err)
 	}
@@ -660,7 +900,7 @@ func Test336_FilePathReadsFilePassesBytes(t *testing.T) {
 	handler := runtime.FindHandler(firstCap(manifest).UrnString())
 	emitter := &mockStreamEmitter{}
 	peerInvoker := &noPeerInvoker{}
-	err = handler(bytesToFrameChannel(payload), emitter, peerInvoker)
+	err = handler(effectiveCborToFrameChannel(t, payload), emitter, peerInvoker)
 	if err != nil {
 		t.Fatalf("Handler failed: %v", err)
 	}
@@ -705,7 +945,7 @@ func Test337_FilePathWithoutStdinPassesString(t *testing.T) {
 	}
 
 	cliArgs := []string{tempFile}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	result, _, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
 	if err != nil {
 		t.Fatalf("Failed to extract arg: %v", err)
 	}
@@ -747,17 +987,24 @@ func Test338_FilePathViaCliFlag(t *testing.T) {
 	}
 
 	cliArgs := []string{"--file", tempFile}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to build payload: %v", err)
 	}
-
-	if string(result) != "PDF via flag 338" {
-		t.Errorf("Expected 'PDF via flag 338', got: %s", string(result))
+	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
+	if err != nil {
+		t.Fatalf("Failed to extract payload: %v", err)
+	}
+	val := mustExtractFirstArgValueBytes(t, effective)
+	if string(val) != "PDF via flag 338" {
+		t.Errorf("Expected 'PDF via flag 338', got: %s", string(val))
 	}
 }
 
-// TEST339: file-path-array reads multiple files with glob pattern
+// TEST339: file-path arg with is_sequence=true expands a glob to N files
+// and the runtime delivers them as a CBOR Array of Bytes — one array item
+// per matched file. List-ness comes from the arg declaration, not from any
+// `;list` URN tag. Mirrors Rust test339_file_path_array_glob_expansion.
 func Test339_FilePathArrayGlobExpansion(t *testing.T) {
 	tempDir := filepath.Join(t.TempDir(), "test339")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
@@ -773,20 +1020,20 @@ func Test339_FilePathArrayGlobExpansion(t *testing.T) {
 		t.Fatalf("Failed to create file2: %v", err)
 	}
 
+	batchArg := cap.CapArg{
+		MediaUrn:   "media:file-path;textable",
+		Required:   true,
+		IsSequence: true,
+		Sources: []cap.ArgSource{
+			stdinSource("media:"),
+			positionSource(0),
+		},
+	}
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
 		"Batch",
 		"batch",
-		[]cap.CapArg{
-			{
-				MediaUrn: "media:file-path;textable;list",
-				Required: true,
-				Sources: []cap.ArgSource{
-					stdinSource("media:"),
-					positionSource(0),
-				},
-			},
-		},
+		[]cap.CapArg{batchArg},
 	)
 
 	manifest := createTestManifest("TestCartridge", "1.0.0", "Test", []*cap.Cap{capDef})
@@ -795,30 +1042,46 @@ func Test339_FilePathArrayGlobExpansion(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	// Pass glob pattern as JSON array
+	// CLI: bare glob pattern — no JSON, no array.
 	pattern := filepath.Join(tempDir, "*.txt")
-	pathsJSON, _ := json.Marshal([]string{pattern})
+	cliArgs := []string{pattern}
 
-	cliArgs := []string{string(pathsJSON)}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to build payload: %v", err)
+	}
+	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
+	if err != nil {
+		t.Fatalf("Failed to extract payload: %v", err)
 	}
 
-	// Decode CBOR array
-	var filesArray [][]byte
-	if err := cborlib.Unmarshal(result, &filesArray); err != nil {
-		t.Fatalf("Failed to decode CBOR array: %v", err)
+	// Decode the result and pull out the value array
+	var argsArr []interface{}
+	if err := cborlib.Unmarshal(effective, &argsArr); err != nil {
+		t.Fatalf("Failed to decode result CBOR: %v", err)
 	}
-
-	if len(filesArray) != 2 {
-		t.Errorf("Expected 2 files, got %d", len(filesArray))
+	if len(argsArr) != 1 {
+		t.Fatalf("Expected 1 arg, got %d", len(argsArr))
 	}
-
-	// Verify contents (order may vary, so check both are present)
+	argMap, ok := argsArr[0].(map[interface{}]interface{})
+	if !ok {
+		t.Fatalf("Expected map, got %T", argsArr[0])
+	}
+	rawValue := argMap["value"]
+	rawArr, ok := rawValue.([]interface{})
+	if !ok {
+		t.Fatalf("Expected value to be array, got %T", rawValue)
+	}
+	if len(rawArr) != 2 {
+		t.Errorf("Expected 2 files, got %d", len(rawArr))
+	}
 	contents := make(map[string]bool)
-	for _, data := range filesArray {
-		contents[string(data)] = true
+	for _, item := range rawArr {
+		b, ok := item.([]byte)
+		if !ok {
+			t.Fatalf("Expected []byte item, got %T", item)
+		}
+		contents[string(b)] = true
 	}
 	if !contents["content1"] || !contents["content2"] {
 		t.Error("Expected both content1 and content2 in results")
@@ -850,8 +1113,11 @@ func Test340_FileNotFoundClearError(t *testing.T) {
 	}
 
 	cliArgs := []string{"/nonexistent/file.pdf"}
-	_, err = runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
-
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
+	if err != nil {
+		t.Fatalf("Failed to build payload: %v", err)
+	}
+	_, err = extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
 	if err == nil {
 		t.Fatal("Expected error when file doesn't exist")
 	}
@@ -859,7 +1125,7 @@ func Test340_FileNotFoundClearError(t *testing.T) {
 	if !strings.Contains(errMsg, "/nonexistent/file.pdf") {
 		t.Errorf("Error should mention file path: %s", errMsg)
 	}
-	if !strings.Contains(errMsg, "failed to read file") {
+	if !strings.Contains(errMsg, "File not found") {
 		t.Errorf("Error should be clear about read failure: %s", errMsg)
 	}
 }
@@ -896,7 +1162,7 @@ func Test341_StdinPrecedenceOverFilePath(t *testing.T) {
 
 	cliArgs := []string{tempFile}
 	stdinData := []byte("stdin content 341")
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, stdinData)
+	result, _, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, stdinData)
 	if err != nil {
 		t.Fatalf("Failed to extract arg: %v", err)
 	}
@@ -937,13 +1203,30 @@ func Test342_FilePathPositionZeroReadsFirstArg(t *testing.T) {
 	}
 
 	cliArgs := []string{tempFile}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to build payload: %v", err)
+	}
+	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
+	if err != nil {
+		t.Fatalf("Failed to extract payload: %v", err)
 	}
 
-	if string(result) != "binary data 342" {
-		t.Errorf("Expected file content, got: %s", string(result))
+	// The effective payload is a CBOR array; pull out the value bytes.
+	var argsArr []interface{}
+	if err := cborlib.Unmarshal(effective, &argsArr); err != nil {
+		t.Fatalf("Failed to decode result CBOR: %v", err)
+	}
+	argMap, ok := argsArr[0].(map[interface{}]interface{})
+	if !ok {
+		t.Fatalf("Expected map, got %T", argsArr[0])
+	}
+	val, ok := argMap["value"].([]byte)
+	if !ok {
+		t.Fatalf("Expected []byte value, got %T", argMap["value"])
+	}
+	if string(val) != "binary data 342" {
+		t.Errorf("Expected file content, got: %s", string(val))
 	}
 }
 
@@ -972,7 +1255,7 @@ func Test343_NonFilePathArgsUnaffected(t *testing.T) {
 	}
 
 	cliArgs := []string{"mlx-community/Llama-3.2-3B-Instruct-4bit"}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	result, _, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
 	if err != nil {
 		t.Fatalf("Failed to extract arg: %v", err)
 	}
@@ -1010,8 +1293,11 @@ func Test344_FilePathArrayInvalidJSONFails(t *testing.T) {
 	}
 
 	cliArgs := []string{"/nonexistent/path/to/nothing"}
-	_, err = runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
-
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
+	if err != nil {
+		t.Fatalf("Failed to build payload: %v", err)
+	}
+	_, err = extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
 	if err == nil {
 		t.Fatal("Expected error for nonexistent file path")
 	}
@@ -1019,19 +1305,16 @@ func Test344_FilePathArrayInvalidJSONFails(t *testing.T) {
 	if !strings.Contains(errMsg, "/nonexistent/path/to/nothing") {
 		t.Errorf("Error should mention the path: %s", errMsg)
 	}
-	if !strings.Contains(errMsg, "file not found") && !strings.Contains(errMsg, "File not found") && !strings.Contains(errMsg, "failed to read") {
+	if !strings.Contains(errMsg, "File not found") {
 		t.Errorf("Error should be clear about file access failure: %s", errMsg)
 	}
 }
 
-// TEST345: file-path-array with literal nonexistent path fails hard
+// TEST345: file-path arg with literal nonexistent path fails hard.
+// Mirrors Rust test345_file_path_array_one_file_missing_fails_hard.
 func Test345_FilePathArrayOneFileMissingFailsHard(t *testing.T) {
 	tempDir := t.TempDir()
-	file1 := filepath.Join(tempDir, "test345_exists.txt")
-	if err := os.WriteFile(file1, []byte("exists"), 0644); err != nil {
-		t.Fatalf("Failed to create file1: %v", err)
-	}
-	file2Path := filepath.Join(tempDir, "test345_missing.txt")
+	missingPath := filepath.Join(tempDir, "test345_missing.txt")
 
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
@@ -1039,7 +1322,7 @@ func Test345_FilePathArrayOneFileMissingFailsHard(t *testing.T) {
 		"batch",
 		[]cap.CapArg{
 			{
-				MediaUrn: "media:file-path;textable;list",
+				MediaUrn: "media:file-path;textable",
 				Required: true,
 				Sources: []cap.ArgSource{
 					stdinSource("media:"),
@@ -1055,20 +1338,21 @@ func Test345_FilePathArrayOneFileMissingFailsHard(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	// Explicitly list both files (one exists, one doesn't)
-	pathsJSON, _ := json.Marshal([]string{file1, file2Path})
-	cliArgs := []string{string(pathsJSON)}
-	_, err = runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
-
+	cliArgs := []string{missingPath}
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
+	if err != nil {
+		t.Fatalf("Failed to build payload: %v", err)
+	}
+	_, err = extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
 	if err == nil {
-		t.Fatal("Expected error when any file in array is missing")
+		t.Fatal("Expected error when literal path doesn't exist")
 	}
 	errMsg := err.Error()
 	if !strings.Contains(errMsg, "test345_missing.txt") {
 		t.Errorf("Error should mention the missing file: %s", errMsg)
 	}
-	if !strings.Contains(errMsg, "failed to read file") {
-		t.Errorf("Error should be clear about read failure: %s", errMsg)
+	if !strings.Contains(errMsg, "File not found") {
+		t.Errorf("Error should be clear about missing file: %s", errMsg)
 	}
 }
 
@@ -1106,13 +1390,17 @@ func Test346_LargeFileReadsSuccessfully(t *testing.T) {
 	}
 
 	cliArgs := []string{tempFile}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to build payload: %v", err)
 	}
-
-	if len(result) != 1_000_000 {
-		t.Errorf("Expected 1MB file, got %d bytes", len(result))
+	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
+	if err != nil {
+		t.Fatalf("Failed to extract payload: %v", err)
+	}
+	val := mustExtractFirstArgValueBytes(t, effective)
+	if len(val) != 1_000_000 {
+		t.Errorf("Expected 1MB file, got %d bytes", len(val))
 	}
 }
 
@@ -1146,13 +1434,17 @@ func Test347_EmptyFileReadsAsEmptyBytes(t *testing.T) {
 	}
 
 	cliArgs := []string{tempFile}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to build payload: %v", err)
 	}
-
-	if len(result) != 0 {
-		t.Errorf("Expected empty bytes, got %d bytes", len(result))
+	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
+	if err != nil {
+		t.Fatalf("Failed to extract payload: %v", err)
+	}
+	val := mustExtractFirstArgValueBytes(t, effective)
+	if len(val) != 0 {
+		t.Errorf("Expected empty bytes, got %d bytes", len(val))
 	}
 }
 
@@ -1188,14 +1480,18 @@ func Test348_FilePathConversionRespectsSourceOrder(t *testing.T) {
 
 	cliArgs := []string{tempFile}
 	stdinData := []byte("stdin content 348")
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, stdinData)
+	rawPayload, err := buildPayloadFromCLIWithStdin(runtime, firstCap(manifest), cliArgs, stdinData)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to build payload: %v", err)
 	}
-
+	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
+	if err != nil {
+		t.Fatalf("Failed to extract payload: %v", err)
+	}
+	val := mustExtractFirstArgValueBytes(t, effective)
 	// Position source tried first, so file is read
-	if string(result) != "file content 348" {
-		t.Errorf("Expected file content (position first), got: %s", string(result))
+	if string(val) != "file content 348" {
+		t.Errorf("Expected file content (position first), got: %s", string(val))
 	}
 }
 
@@ -1231,13 +1527,17 @@ func Test349_FilePathMultipleSourcesFallback(t *testing.T) {
 
 	// Only provide position arg, no --file flag
 	cliArgs := []string{tempFile}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to build payload: %v", err)
 	}
-
-	if string(result) != "content 349" {
-		t.Errorf("Expected to fall back to position source, got: %s", string(result))
+	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
+	if err != nil {
+		t.Fatalf("Failed to extract payload: %v", err)
+	}
+	val := mustExtractFirstArgValueBytes(t, effective)
+	if string(val) != "content 349" {
+		t.Errorf("Expected to fall back to position source, got: %s", string(val))
 	}
 }
 
@@ -1271,7 +1571,9 @@ func Test350_FullCLIModeWithFilePathIntegration(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	// Track what handler receives
+	// Track what handler receives. Wire chunks are CBOR-encoded individual
+	// values (per dispatch_cli_payload), so the handler decodes the CBOR
+	// wrapper to recover the raw file bytes.
 	var receivedPayload []byte
 	runtime.Register(
 		`cap:in="media:pdf";op=process;out="media:result;textable"`,
@@ -1280,20 +1582,21 @@ func Test350_FullCLIModeWithFilePathIntegration(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			receivedPayload = payload
+			var fileBytes []byte
+			if err := cborlib.Unmarshal(payload, &fileBytes); err != nil {
+				return err
+			}
+			receivedPayload = fileBytes
 			return emitter.EmitCbor("processed")
 		},
 	)
 
-	// Simulate full CLI invocation
 	cliArgs := []string{tempFile}
 	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
 		t.Fatalf("Failed to build payload: %v", err)
 	}
-
-	// Extract effective payload
-	payload, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest).UrnString())
+	payload, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
 	if err != nil {
 		t.Fatalf("Failed to extract payload: %v", err)
 	}
@@ -1301,12 +1604,11 @@ func Test350_FullCLIModeWithFilePathIntegration(t *testing.T) {
 	handler := runtime.FindHandler(firstCap(manifest).UrnString())
 	emitter := &mockStreamEmitter{}
 	peerInvoker := &noPeerInvoker{}
-	err = handler(bytesToFrameChannel(payload), emitter, peerInvoker)
+	err = handler(effectiveCborToFrameChannel(t, payload), emitter, peerInvoker)
 	if err != nil {
 		t.Fatalf("Handler failed: %v", err)
 	}
 
-	// Verify handler received file bytes
 	if string(receivedPayload) != string(testContent) {
 		t.Errorf("Handler should receive file bytes, not path")
 	}
@@ -1317,44 +1619,59 @@ func Test350_FullCLIModeWithFilePathIntegration(t *testing.T) {
 	}
 }
 
-// TEST351: file-path array with empty CBOR array returns empty (CBOR mode)
+// TEST351: file-path arg in CBOR mode with empty Array returns empty.
+// CBOR Array (not JSON-encoded) is the multi-input wire form for sequence
+// args. Mirrors Rust test351_file_path_array_empty_array.
 func Test351_FilePathArrayEmptyArray(t *testing.T) {
+	batchArg := cap.CapArg{
+		MediaUrn:   "media:file-path;textable",
+		Required:   false,
+		IsSequence: true,
+		Sources: []cap.ArgSource{
+			stdinSource("media:"),
+		},
+	}
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
 		"Test",
 		"batch",
-		[]cap.CapArg{
-			{
-				MediaUrn: "media:file-path;textable;list",
-				Required: false, // Not required
-				Sources: []cap.ArgSource{
-					stdinSource("media:"),
-					positionSource(0),
-				},
-			},
-		},
+		[]cap.CapArg{batchArg},
 	)
 
-	manifest := createTestManifest("TestCartridge", "1.0.0", "Test", []*cap.Cap{capDef})
-	runtime, err := NewCartridgeRuntimeWithManifest(manifest)
+	// CBOR-mode payload: value is an empty Array
+	args := []interface{}{
+		map[string]interface{}{
+			"media_urn": "media:file-path;textable",
+			"value":     []interface{}{},
+		},
+	}
+	payload, err := cborlib.Marshal(args)
 	if err != nil {
-		t.Fatalf("Failed to create runtime: %v", err)
+		t.Fatalf("Failed to encode payload: %v", err)
 	}
 
-	cliArgs := []string{"[]"}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	result, err := extractEffectivePayload(payload, "application/cbor", capDef, false)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	// Decode CBOR array
-	var filesArray [][]byte
-	if err := cborlib.Unmarshal(result, &filesArray); err != nil {
-		t.Fatalf("Failed to decode CBOR array: %v", err)
+	var resultArr []interface{}
+	if err := cborlib.Unmarshal(result, &resultArr); err != nil {
+		t.Fatalf("Failed to decode result CBOR: %v", err)
 	}
-
-	if len(filesArray) != 0 {
-		t.Errorf("Expected empty array, got %d elements", len(filesArray))
+	if len(resultArr) != 1 {
+		t.Fatalf("Expected 1 arg, got %d", len(resultArr))
+	}
+	argMap, ok := resultArr[0].(map[interface{}]interface{})
+	if !ok {
+		t.Fatalf("Expected map, got %T", resultArr[0])
+	}
+	val, ok := argMap["value"].([]interface{})
+	if !ok {
+		t.Fatalf("Expected value to be array, got %T", argMap["value"])
+	}
+	if len(val) != 0 {
+		t.Errorf("Expected empty array, got %d elements", len(val))
 	}
 }
 
@@ -1398,8 +1715,11 @@ func Test352_FilePermissionDeniedClearError(t *testing.T) {
 	}
 
 	cliArgs := []string{tempFile}
-	_, err = runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
-
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
+	if err != nil {
+		t.Fatalf("Failed to build payload: %v", err)
+	}
+	_, err = extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
 	if err == nil {
 		t.Fatal("Expected error for permission denied")
 	}
@@ -1466,7 +1786,8 @@ func Test353_CBORPayloadFormatConsistency(t *testing.T) {
 	}
 }
 
-// TEST354: Glob pattern with no matches fails hard (NO FALLBACK)
+// TEST354: Glob pattern with no matches fails hard (NO FALLBACK).
+// Mirrors Rust test354_glob_pattern_no_matches_empty_array.
 func Test354_GlobPatternNoMatchesEmptyArray(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -1476,7 +1797,7 @@ func Test354_GlobPatternNoMatchesEmptyArray(t *testing.T) {
 		"batch",
 		[]cap.CapArg{
 			{
-				MediaUrn: "media:file-path;textable;list",
+				MediaUrn: "media:file-path;textable",
 				Required: true,
 				Sources: []cap.ArgSource{
 					stdinSource("media:"),
@@ -1492,28 +1813,26 @@ func Test354_GlobPatternNoMatchesEmptyArray(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	// Glob pattern that matches nothing
+	// CLI: bare glob that matches nothing — must fail hard.
 	pattern := filepath.Join(tempDir, "nonexistent_*.xyz")
-	pathsJSON, _ := json.Marshal([]string{pattern})
+	cliArgs := []string{pattern}
 
-	cliArgs := []string{string(pathsJSON)}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to build payload: %v", err)
 	}
-
-	// Decode CBOR array
-	var filesArray [][]byte
-	if err := cborlib.Unmarshal(result, &filesArray); err != nil {
-		t.Fatalf("Failed to decode CBOR array: %v", err)
+	_, err = extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
+	if err == nil {
+		t.Fatal("Should fail hard when glob matches nothing — NO FALLBACK")
 	}
-
-	if len(filesArray) != 0 {
-		t.Errorf("Expected empty array for no matches, got %d elements", len(filesArray))
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "No files matched") && !strings.Contains(errMsg, "nonexistent") {
+		t.Errorf("Error should explain glob matched nothing: %s", errMsg)
 	}
 }
 
-// TEST355: Glob pattern skips directories
+// TEST355: Glob pattern skips directories.
+// Mirrors Rust test355_glob_pattern_skips_directories.
 func Test355_GlobPatternSkipsDirectories(t *testing.T) {
 	tempDir := filepath.Join(t.TempDir(), "test355")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
@@ -1530,20 +1849,20 @@ func Test355_GlobPatternSkipsDirectories(t *testing.T) {
 		t.Fatalf("Failed to create file: %v", err)
 	}
 
+	batchArg := cap.CapArg{
+		MediaUrn:   "media:file-path;textable",
+		Required:   true,
+		IsSequence: true,
+		Sources: []cap.ArgSource{
+			stdinSource("media:"),
+			positionSource(0),
+		},
+	}
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
 		"Test",
 		"batch",
-		[]cap.CapArg{
-			{
-				MediaUrn: "media:file-path;textable;list",
-				Required: true,
-				Sources: []cap.ArgSource{
-					stdinSource("media:"),
-					positionSource(0),
-				},
-			},
-		},
+		[]cap.CapArg{batchArg},
 	)
 
 	manifest := createTestManifest("TestCartridge", "1.0.0", "Test", []*cap.Cap{capDef})
@@ -1552,29 +1871,36 @@ func Test355_GlobPatternSkipsDirectories(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	// Glob that matches both file and directory
+	// CLI: bare glob matching both file and directory.
 	pattern := filepath.Join(tempDir, "*")
-	pathsJSON, _ := json.Marshal([]string{pattern})
+	cliArgs := []string{pattern}
 
-	cliArgs := []string{string(pathsJSON)}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to build payload: %v", err)
+	}
+	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
+	if err != nil {
+		t.Fatalf("Failed to extract payload: %v", err)
 	}
 
-	// Decode CBOR array
-	var filesArray [][]byte
-	if err := cborlib.Unmarshal(result, &filesArray); err != nil {
-		t.Fatalf("Failed to decode CBOR array: %v", err)
+	var argsArr []interface{}
+	if err := cborlib.Unmarshal(effective, &argsArr); err != nil {
+		t.Fatalf("Failed to decode result CBOR: %v", err)
 	}
-
-	// Should only include the file, not the directory
-	if len(filesArray) != 1 {
-		t.Errorf("Expected 1 file (not directory), got %d", len(filesArray))
+	argMap, ok := argsArr[0].(map[interface{}]interface{})
+	if !ok {
+		t.Fatalf("Expected map, got %T", argsArr[0])
 	}
-
-	if string(filesArray[0]) != "content1" {
-		t.Errorf("Expected 'content1', got: %s", string(filesArray[0]))
+	val, ok := argMap["value"].([]interface{})
+	if !ok {
+		t.Fatalf("Expected value to be array, got %T", argMap["value"])
+	}
+	if len(val) != 1 {
+		t.Errorf("Should only include files, not directories: got %d items", len(val))
+	}
+	if b, ok := val[0].([]byte); !ok || string(b) != "content1" {
+		t.Errorf("Expected 'content1', got: %v", val[0])
 	}
 }
 
@@ -1594,55 +1920,64 @@ func Test356_MultipleGlobPatternsCombined(t *testing.T) {
 		t.Fatalf("Failed to create file2: %v", err)
 	}
 
+	batchArg := cap.CapArg{
+		MediaUrn:   "media:file-path;textable",
+		Required:   true,
+		IsSequence: true,
+		Sources: []cap.ArgSource{
+			stdinSource("media:"),
+			positionSource(0),
+		},
+	}
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
 		"Test",
 		"batch",
-		[]cap.CapArg{
-			{
-				MediaUrn: "media:file-path;textable;list",
-				Required: true,
-				Sources: []cap.ArgSource{
-					stdinSource("media:"),
-					positionSource(0),
-				},
-			},
-		},
+		[]cap.CapArg{batchArg},
 	)
 
-	manifest := createTestManifest("TestCartridge", "1.0.0", "Test", []*cap.Cap{capDef})
-	runtime, err := NewCartridgeRuntimeWithManifest(manifest)
-	if err != nil {
-		t.Fatalf("Failed to create runtime: %v", err)
-	}
-
-	// Multiple patterns
+	// Multiple patterns as CBOR Array (CBOR mode allows arrays of patterns).
 	pattern1 := filepath.Join(tempDir, "*.txt")
 	pattern2 := filepath.Join(tempDir, "*.json")
-	pathsJSON, _ := json.Marshal([]string{pattern1, pattern2})
-
-	cliArgs := []string{string(pathsJSON)}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	args := []interface{}{
+		map[string]interface{}{
+			"media_urn": "media:file-path;textable",
+			"value":     []interface{}{pattern1, pattern2},
+		},
+	}
+	payload, err := cborlib.Marshal(args)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to encode payload: %v", err)
 	}
 
-	// Decode CBOR array
-	var filesArray [][]byte
-	if err := cborlib.Unmarshal(result, &filesArray); err != nil {
-		t.Fatalf("Failed to decode CBOR array: %v", err)
+	result, err := extractEffectivePayload(payload, "application/cbor", capDef, false)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if len(filesArray) != 2 {
-		t.Errorf("Expected 2 files from different patterns, got %d", len(filesArray))
+	var resultArr []interface{}
+	if err := cborlib.Unmarshal(result, &resultArr); err != nil {
+		t.Fatalf("Failed to decode result CBOR: %v", err)
 	}
-
-	// Collect contents (order may vary)
+	argMap, ok := resultArr[0].(map[interface{}]interface{})
+	if !ok {
+		t.Fatalf("Expected map, got %T", resultArr[0])
+	}
+	val, ok := argMap["value"].([]interface{})
+	if !ok {
+		t.Fatalf("Expected value to be array, got %T", argMap["value"])
+	}
+	if len(val) != 2 {
+		t.Errorf("Expected 2 files from different patterns, got %d", len(val))
+	}
 	contents := make(map[string]bool)
-	for _, data := range filesArray {
-		contents[string(data)] = true
+	for _, item := range val {
+		b, ok := item.([]byte)
+		if !ok {
+			t.Fatalf("Expected []byte item, got %T", item)
+		}
+		contents[string(b)] = true
 	}
-
 	if !contents["text"] || !contents["json"] {
 		t.Error("Expected both 'text' and 'json' in results")
 	}
@@ -1691,13 +2026,17 @@ func Test357_SymlinksFollowed(t *testing.T) {
 	}
 
 	cliArgs := []string{linkFile}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to build payload: %v", err)
 	}
-
-	if string(result) != "real content" {
-		t.Errorf("Expected symlink to be followed, got: %s", string(result))
+	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
+	if err != nil {
+		t.Fatalf("Failed to extract payload: %v", err)
+	}
+	val := mustExtractFirstArgValueBytes(t, effective)
+	if string(val) != "real content" {
+		t.Errorf("Expected symlink to be followed, got: %s", string(val))
 	}
 }
 
@@ -1732,55 +2071,61 @@ func Test358_BinaryFileNonUTF8(t *testing.T) {
 	}
 
 	cliArgs := []string{tempFile}
-	result, err := runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
+	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
-		t.Fatalf("Failed to extract arg: %v", err)
+		t.Fatalf("Failed to build payload: %v", err)
 	}
-
-	if len(result) != len(binaryData) {
-		t.Errorf("Expected %d bytes, got %d", len(binaryData), len(result))
+	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
+	if err != nil {
+		t.Fatalf("Failed to extract payload: %v", err)
+	}
+	val := mustExtractFirstArgValueBytes(t, effective)
+	if len(val) != len(binaryData) {
+		t.Errorf("Expected %d bytes, got %d", len(binaryData), len(val))
 	}
 	for i := range binaryData {
-		if result[i] != binaryData[i] {
-			t.Errorf("Binary data mismatch at index %d: expected %d, got %d", i, binaryData[i], result[i])
+		if val[i] != binaryData[i] {
+			t.Errorf("Binary data mismatch at index %d: expected %d, got %d", i, binaryData[i], val[i])
 		}
 	}
 }
 
-// TEST359: Invalid glob pattern fails with clear error
+// TEST359: Invalid glob pattern fails with clear error.
+// Mirrors Rust test359_invalid_glob_pattern_fails.
 func Test359_InvalidGlobPatternFails(t *testing.T) {
+	batchArg := cap.CapArg{
+		MediaUrn:   "media:file-path;textable",
+		Required:   true,
+		IsSequence: true,
+		Sources: []cap.ArgSource{
+			stdinSource("media:"),
+			positionSource(0),
+		},
+	}
 	capDef := createTestCap(
 		`cap:in="media:";op=batch;out="media:void"`,
 		"Test",
 		"batch",
-		[]cap.CapArg{
-			{
-				MediaUrn: "media:file-path;textable;list",
-				Required: true,
-				Sources: []cap.ArgSource{
-					stdinSource("media:"),
-					positionSource(0),
-				},
-			},
-		},
+		[]cap.CapArg{batchArg},
 	)
 
-	manifest := createTestManifest("TestCartridge", "1.0.0", "Test", []*cap.Cap{capDef})
-	runtime, err := NewCartridgeRuntimeWithManifest(manifest)
+	// Invalid glob pattern (unclosed bracket) sent in CBOR mode.
+	args := []interface{}{
+		map[string]interface{}{
+			"media_urn": "media:file-path;textable",
+			"value":     "[invalid",
+		},
+	}
+	payload, err := cborlib.Marshal(args)
 	if err != nil {
-		t.Fatalf("Failed to create runtime: %v", err)
+		t.Fatalf("Failed to encode payload: %v", err)
 	}
 
-	// Invalid glob pattern (unclosed bracket)
-	pathsJSON, _ := json.Marshal([]string{"[invalid"})
-
-	cliArgs := []string{string(pathsJSON)}
-	_, err = runtime.extractArgValue(&firstCap(manifest).Args[0], cliArgs, nil)
-
+	_, err = extractEffectivePayload(payload, "application/cbor", capDef, false)
 	if err == nil {
 		t.Fatal("Expected error for invalid glob pattern")
 	}
-	if !strings.Contains(err.Error(), "invalid glob pattern") {
+	if !strings.Contains(err.Error(), "Invalid glob pattern") && !strings.Contains(err.Error(), "Pattern") {
 		t.Errorf("Error should mention invalid glob: %s", err.Error())
 	}
 }
@@ -1817,21 +2162,53 @@ func Test360_ExtractEffectivePayloadWithFileData(t *testing.T) {
 
 	cliArgs := []string{tempFile}
 
-	// Build CBOR payload (what buildPayloadFromCLI does)
 	rawPayload, err := runtime.buildPayloadFromCLI(firstCap(manifest), cliArgs)
 	if err != nil {
 		t.Fatalf("Failed to build payload: %v", err)
 	}
-
-	// Extract effective payload (what runCLIMode does)
-	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest).UrnString())
+	effective, err := extractEffectivePayload(rawPayload, "application/cbor", firstCap(manifest), true)
 	if err != nil {
 		t.Fatalf("Failed to extract effective payload: %v", err)
 	}
 
-	// The effective payload should be the raw PDF bytes
-	if string(effective) != string(pdfContent) {
-		t.Errorf("extract_effective_payload should extract file bytes, got: %s", string(effective))
+	// NEW REGIME: effective is the full CBOR args array. Pull out the value
+	// of the argument matching the cap's in_spec via parsed-URN comparison.
+	var resultArr []interface{}
+	if err := cborlib.Unmarshal(effective, &resultArr); err != nil {
+		t.Fatalf("Failed to decode result CBOR: %v", err)
+	}
+	inSpec, _ := urn.NewMediaUrnFromString("media:pdf")
+	var foundValue []byte
+	for _, arg := range resultArr {
+		argMap, ok := arg.(map[interface{}]interface{})
+		if !ok {
+			continue
+		}
+		var urnStr string
+		var val []byte
+		for k, v := range argMap {
+			if key, ok := k.(string); ok {
+				if key == "media_urn" {
+					if s, ok := v.(string); ok {
+						urnStr = s
+					}
+				} else if key == "value" {
+					if b, ok := v.([]byte); ok {
+						val = b
+					}
+				}
+			}
+		}
+		if urnStr != "" && val != nil {
+			argUrn, perr := urn.NewMediaUrnFromString(urnStr)
+			if perr == nil && inSpec.IsComparable(argUrn) {
+				foundValue = val
+				break
+			}
+		}
+	}
+	if string(foundValue) != string(pdfContent) {
+		t.Errorf("File-path auto-converted to bytes; got: %q", string(foundValue))
 	}
 }
 

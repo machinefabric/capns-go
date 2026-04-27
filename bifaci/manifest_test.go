@@ -29,12 +29,14 @@ func Test148_cap_manifest_creation(t *testing.T) {
 	manifest := NewCapManifest(
 		"TestComponent",
 		"0.1.0",
+		"release",
 		"A test component for validation",
 		[]CapGroup{DefaultGroup([]cap.Cap{*capDef})},
 	)
 
 	assert.Equal(t, "TestComponent", manifest.Name)
 	assert.Equal(t, "0.1.0", manifest.Version)
+	assert.Equal(t, "release", manifest.Channel)
 	assert.Equal(t, "A test component for validation", manifest.Description)
 	assert.Len(t, manifest.CapGroups, 1)
 	assert.Len(t, manifest.AllCaps(), 1)
@@ -51,6 +53,7 @@ func Test149_cap_manifest_with_author(t *testing.T) {
 	manifest := NewCapManifest(
 		"TestComponent",
 		"0.1.0",
+		"release",
 		"A test component",
 		[]CapGroup{DefaultGroup([]cap.Cap{*capDef})},
 	).WithAuthor("Test Author")
@@ -68,6 +71,7 @@ func TestCapManifestWithPageURL(t *testing.T) {
 	manifest := NewCapManifest(
 		"TestComponent",
 		"0.1.0",
+		"release",
 		"A test component for validation",
 		[]CapGroup{DefaultGroup([]cap.Cap{*capDef})},
 	).WithAuthor("Test Author").WithPageUrl("https://github.com/example/test")
@@ -98,6 +102,7 @@ func Test150_cap_manifest_json_serialization(t *testing.T) {
 	manifest := NewCapManifest(
 		"TestComponent",
 		"0.1.0",
+		"release",
 		"A test component",
 		[]CapGroup{DefaultGroup([]cap.Cap{*capDef})},
 	).WithAuthor("Test Author")
@@ -141,6 +146,7 @@ func Test152_cap_manifest_with_multiple_caps(t *testing.T) {
 	manifest := NewCapManifest(
 		"MultiCapComponent",
 		"1.0.0",
+		"release",
 		"Component with multiple caps",
 		[]CapGroup{DefaultGroup([]cap.Cap{*cap1, *cap2})},
 	)
@@ -157,6 +163,7 @@ func Test153_cap_manifest_empty_cap_groups(t *testing.T) {
 	manifest := NewCapManifest(
 		"EmptyComponent",
 		"1.0.0",
+		"release",
 		"Component with no caps",
 		[]CapGroup{},
 	)
@@ -181,6 +188,7 @@ func Test154_cap_manifest_optional_fields(t *testing.T) {
 	manifest := NewCapManifest(
 		"ValidatorComponent",
 		"1.0.0",
+		"release",
 		"File validation component",
 		[]CapGroup{DefaultGroup([]cap.Cap{*capDef})},
 	)
@@ -204,6 +212,7 @@ func (tc *testComponent) ComponentManifest() *CapManifest {
 	return NewCapManifest(
 		tc.name,
 		"1.0.0",
+		"release",
 		"Test component",
 		tc.capGroups,
 	)
@@ -244,6 +253,7 @@ func TestCapManifestValidation(t *testing.T) {
 	manifest := NewCapManifest(
 		"ValidComponent",
 		"1.0.0",
+		"release",
 		"Valid component for testing",
 		[]CapGroup{DefaultGroup([]cap.Cap{*capDef})},
 	)
@@ -267,6 +277,7 @@ func TestCapManifestCompatibility(t *testing.T) {
 	cartridgeStyleManifest := NewCapManifest(
 		"CartridgeComponent",
 		"0.1.0",
+		"release",
 		"Cartridge-style component",
 		[]CapGroup{DefaultGroup([]cap.Cap{*capDef})},
 	)
@@ -274,6 +285,7 @@ func TestCapManifestCompatibility(t *testing.T) {
 	providerStyleManifest := NewCapManifest(
 		"ProviderComponent",
 		"0.1.0",
+		"release",
 		"Provider-style component",
 		[]CapGroup{DefaultGroup([]cap.Cap{*capDef})},
 	)
@@ -306,7 +318,7 @@ func Test475_validate_passes_with_identity(t *testing.T) {
 	require.NoError(t, err)
 	identityCap := cap.NewCap(identityUrn, "Identity", "identity")
 
-	manifest := NewCapManifest("TestCartridge", "1.0.0", "Test", []CapGroup{DefaultGroup([]cap.Cap{*identityCap})})
+	manifest := NewCapManifest("TestCartridge", "1.0.0", "release", "Test", []CapGroup{DefaultGroup([]cap.Cap{*identityCap})})
 	err = manifest.Validate()
 	assert.NoError(t, err, "Manifest with CAP_IDENTITY must validate")
 }
@@ -317,7 +329,7 @@ func Test476_validate_fails_without_identity(t *testing.T) {
 	require.NoError(t, err)
 	specificCap := cap.NewCap(specificUrn, "Convert", "convert")
 
-	manifest := NewCapManifest("TestCartridge", "1.0.0", "Test", []CapGroup{DefaultGroup([]cap.Cap{*specificCap})})
+	manifest := NewCapManifest("TestCartridge", "1.0.0", "release", "Test", []CapGroup{DefaultGroup([]cap.Cap{*specificCap})})
 	err = manifest.Validate()
 	require.Error(t, err, "Manifest without CAP_IDENTITY must fail validation")
 	assert.Contains(t, err.Error(), "CAP_IDENTITY")
@@ -335,7 +347,7 @@ func Test1284_cap_group_with_adapter_urns(t *testing.T) {
 		AdapterUrns: []string{"media:json", "media:csv"},
 	}
 
-	manifest := NewCapManifest("TestCartridge", "1.0.0", "Test", []CapGroup{group})
+	manifest := NewCapManifest("TestCartridge", "1.0.0", "release", "Test", []CapGroup{group})
 
 	jsonData, err := json.Marshal(manifest)
 	require.NoError(t, err)

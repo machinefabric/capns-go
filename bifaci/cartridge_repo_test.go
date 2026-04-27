@@ -20,6 +20,7 @@ func makeTestVersions(platform string) map[string]CartridgeVersionData {
 						Name:   "test-1.0.0.pkg",
 						Sha256: "abc123",
 						Size:   1000,
+						Url:    "https://cartridges.machinefabric.com/test-1.0.0.pkg",
 					},
 				},
 			},
@@ -27,13 +28,32 @@ func makeTestVersions(platform string) map[string]CartridgeVersionData {
 	}
 }
 
-// makeTestRegistry builds a v4.0 registry with one cartridge for testing
+// makeTestRegistry builds a v5.0 registry with one cartridge under
+// the release channel — most legacy tests don't care about channel
+// semantics, only that an entry exists. Tests that need both channels
+// populated use makeTestRegistryChannels.
 func makeTestRegistry(id string, entry CartridgeRegistryEntry) CartridgeRegistry {
+	return makeTestRegistryChannels(map[string]CartridgeRegistryEntry{id: entry}, nil)
+}
+
+// makeTestRegistryChannels builds a v5.0 registry with explicit
+// per-channel maps. Either map can be nil to leave that channel empty.
+func makeTestRegistryChannels(
+	release map[string]CartridgeRegistryEntry,
+	nightly map[string]CartridgeRegistryEntry,
+) CartridgeRegistry {
+	if release == nil {
+		release = map[string]CartridgeRegistryEntry{}
+	}
+	if nightly == nil {
+		nightly = map[string]CartridgeRegistryEntry{}
+	}
 	return CartridgeRegistry{
-		SchemaVersion: "4.0",
+		SchemaVersion: "5.0",
 		LastUpdated:   "2026-02-07",
-		Cartridges: map[string]CartridgeRegistryEntry{
-			id: entry,
+		Channels: CartridgeRegistryChannels{
+			Release: CartridgeChannelEntries{Cartridges: release},
+			Nightly: CartridgeChannelEntries{Cartridges: nightly},
 		},
 	}
 }
@@ -112,6 +132,7 @@ func Test322_cartridge_info_build_for_platform(t *testing.T) {
 							Name:   "test-1.0.0.pkg",
 							Sha256: "abc123",
 							Size:   1000,
+							Url:    "https://cartridges.machinefabric.com/test-1.0.0.pkg",
 						},
 					},
 					{
@@ -120,6 +141,7 @@ func Test322_cartridge_info_build_for_platform(t *testing.T) {
 							Name:   "test-1.0.0-linux.pkg",
 							Sha256: "def456",
 							Size:   2000,
+							Url:    "https://cartridges.machinefabric.com/test-1.0.0-linux.pkg",
 						},
 					},
 				},
@@ -149,34 +171,31 @@ func Test322_cartridge_info_build_for_platform(t *testing.T) {
 	}
 }
 
-// TEST323: CartridgeRepoServer validates registry JSON schema version
+// TEST323: CartridgeRepoServer requires schema 5.0 and rejects older.
 func Test323_cartridge_repo_server_validate_registry(t *testing.T) {
-	registry := CartridgeRegistry{
-		SchemaVersion: "4.0",
-		LastUpdated:   "2026-02-07",
-		Cartridges:    make(map[string]CartridgeRegistryEntry),
-	}
-
+	registry := makeTestRegistryChannels(nil, nil)
 	server, err := NewCartridgeRepoServer(registry)
 	if err != nil {
-		t.Errorf("Expected no error for v4.0, got %v", err)
+		t.Errorf("Expected no error for v5.0, got %v", err)
 	}
 	if server == nil {
 		t.Error("Expected server to be created")
 	}
 
-	// Test wrong schema version rejection
 	oldRegistry := CartridgeRegistry{
-		SchemaVersion: "3.0",
+		SchemaVersion: "4.0",
 		LastUpdated:   "2026-02-07",
-		Cartridges:    make(map[string]CartridgeRegistryEntry),
+		Channels: CartridgeRegistryChannels{
+			Release: CartridgeChannelEntries{Cartridges: map[string]CartridgeRegistryEntry{}},
+			Nightly: CartridgeChannelEntries{Cartridges: map[string]CartridgeRegistryEntry{}},
+		},
 	}
 	server, err = NewCartridgeRepoServer(oldRegistry)
 	if err == nil {
-		t.Error("Expected error for v3.0 schema")
+		t.Error("Expected error for v4.0 schema")
 	}
 	if server != nil {
-		t.Error("Expected no server to be created for v3.0")
+		t.Error("Expected no server to be created for v4.0")
 	}
 }
 
@@ -277,18 +296,31 @@ func Test326_cartridge_repo_server_get_cartridge_by_id(t *testing.T) {
 		t.Fatalf("Failed to create server: %v", err)
 	}
 
-	result, err := server.GetCartridgeById("testcartridge")
+	result, err := server.GetCartridgeById(CartridgeChannelRelease, "testcartridge")
 	if err != nil {
 		t.Fatalf("Failed to get cartridge: %v", err)
 	}
 	if result == nil {
-		t.Fatal("Expected cartridge to be found")
+		t.Fatal("Expected cartridge to be found in release channel")
 	}
 	if result.Id != "testcartridge" {
 		t.Errorf("Expected id 'testcartridge', got '%s'", result.Id)
 	}
+	if result.Channel != CartridgeChannelRelease {
+		t.Errorf("Expected channel 'release', got '%s'", result.Channel)
+	}
 
-	notFound, err := server.GetCartridgeById("nonexistent")
+	// Same id in the wrong channel must not be found — channels are
+	// independent namespaces.
+	wrongChannel, err := server.GetCartridgeById(CartridgeChannelNightly, "testcartridge")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if wrongChannel != nil {
+		t.Error("Expected cartridge not to be found in nightly channel")
+	}
+
+	notFound, err := server.GetCartridgeById(CartridgeChannelRelease, "nonexistent")
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -434,20 +466,23 @@ func Test329_cartridge_repo_server_get_by_cap(t *testing.T) {
 	}
 }
 
-// TEST330: CartridgeRepoClient updates its local cache from server response
+// TEST330: CartridgeRepoClient updates its local cache, keyed by
+// (channel, id) so the same id can independently coexist in both
+// channels.
 func Test330_cartridge_repo_client_update_cache(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
 	registry := &CartridgeRegistryResponse{
 		Cartridges: []CartridgeInfo{
 			{
-				Id:       "testcartridge",
-				Name:     "Test Cartridge",
-				Version:  "1.0.0",
-				TeamId:   "TEAM123",
-				SignedAt: "2026-02-07",
+				Id:        "testcartridge",
+				Name:      "Test Cartridge",
+				Version:   "1.0.0",
+				TeamId:    "TEAM123",
+				SignedAt:  "2026-02-07",
 				CapGroups: []RegistryCapGroup{},
-				Versions: makeTestVersions("darwin-arm64"),
+				Versions:  makeTestVersions("darwin-arm64"),
+				Channel:   CartridgeChannelRelease,
 			},
 		},
 	}
@@ -456,16 +491,21 @@ func Test330_cartridge_repo_client_update_cache(t *testing.T) {
 		t.Fatalf("updateCache must succeed for a well-formed registry: %v", err)
 	}
 
-	cartridge := repo.GetCartridge("testcartridge")
+	cartridge := repo.GetCartridge(CartridgeChannelRelease, "testcartridge")
 	if cartridge == nil {
-		t.Fatal("Expected cartridge to be found")
+		t.Fatal("Expected cartridge to be found in release channel")
 	}
 	if cartridge.Id != "testcartridge" {
 		t.Errorf("Expected id 'testcartridge', got '%s'", cartridge.Id)
 	}
+	// Same id in nightly is absent — channels are independent.
+	if repo.GetCartridge(CartridgeChannelNightly, "testcartridge") != nil {
+		t.Error("Expected cartridge not to be found in nightly channel")
+	}
 }
 
-// TEST331: CartridgeRepoClient.get_suggestions_for_cap() returns cartridge suggestions for a cap URN
+// TEST331: CartridgeRepoClient.GetSuggestionsForCap() returns cartridge
+// suggestions and propagates the source channel onto each suggestion.
 func Test331_cartridge_repo_client_get_suggestions(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
@@ -487,6 +527,7 @@ func Test331_cartridge_repo_client_get_suggestions(t *testing.T) {
 					},
 				},
 				Versions: makeTestVersions("darwin-arm64"),
+				Channel:  CartridgeChannelNightly,
 			},
 		},
 	}
@@ -501,6 +542,9 @@ func Test331_cartridge_repo_client_get_suggestions(t *testing.T) {
 	}
 	if suggestions[0].CartridgeId != "pdfcartridge" {
 		t.Errorf("Expected cartridge_id 'pdfcartridge', got '%s'", suggestions[0].CartridgeId)
+	}
+	if suggestions[0].Channel != CartridgeChannelNightly {
+		t.Errorf("Expected channel 'nightly', got '%s'", suggestions[0].Channel)
 	}
 	// suggestions[0].CapUrn is the canonical (normalized) form. Compare
 	// via tagged-URN equivalence rather than string equality so a
@@ -518,18 +562,19 @@ func Test331_cartridge_repo_client_get_suggestions(t *testing.T) {
 	}
 }
 
-// TEST332: CartridgeRepoClient.get_cartridge() retrieves a specific cartridge by ID from cache
+// TEST332: CartridgeRepoClient.GetCartridge() retrieves by (channel, id).
 func Test332_cartridge_repo_client_get_cartridge(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
 	registry := &CartridgeRegistryResponse{
 		Cartridges: []CartridgeInfo{
 			{
-				Id:       "testcartridge",
-				Name:     "Test Cartridge",
-				Version:  "1.0.0",
+				Id:        "testcartridge",
+				Name:      "Test Cartridge",
+				Version:   "1.0.0",
 				CapGroups: []RegistryCapGroup{},
-				Versions: makeTestVersions("darwin-arm64"),
+				Versions:  makeTestVersions("darwin-arm64"),
+				Channel:   CartridgeChannelRelease,
 			},
 		},
 	}
@@ -538,7 +583,7 @@ func Test332_cartridge_repo_client_get_cartridge(t *testing.T) {
 		t.Fatalf("updateCache must succeed for a well-formed registry: %v", err)
 	}
 
-	cartridge := repo.GetCartridge("testcartridge")
+	cartridge := repo.GetCartridge(CartridgeChannelRelease, "testcartridge")
 	if cartridge == nil {
 		t.Fatal("Expected cartridge to be found")
 	}
@@ -546,7 +591,7 @@ func Test332_cartridge_repo_client_get_cartridge(t *testing.T) {
 		t.Errorf("Expected id 'testcartridge', got '%s'", cartridge.Id)
 	}
 
-	notFound := repo.GetCartridge("nonexistent")
+	notFound := repo.GetCartridge(CartridgeChannelRelease, "nonexistent")
 	if notFound != nil {
 		t.Error("Expected cartridge not to be found")
 	}
@@ -569,6 +614,7 @@ func Test333_cartridge_repo_client_get_all_caps(t *testing.T) {
 					{Name: "g", Caps: []RegistryCap{{Urn: cap1, Title: "Cap 1", Command: "x"}}},
 				},
 				Versions: makeTestVersions("darwin-arm64"),
+				Channel:  CartridgeChannelRelease,
 			},
 			{
 				Id:      "cartridge2",
@@ -578,6 +624,7 @@ func Test333_cartridge_repo_client_get_all_caps(t *testing.T) {
 					{Name: "g", Caps: []RegistryCap{{Urn: cap2, Title: "Cap 2", Command: "x"}}},
 				},
 				Versions: makeTestVersions("darwin-arm64"),
+				Channel:  CartridgeChannelRelease,
 			},
 		},
 	}
@@ -586,17 +633,24 @@ func Test333_cartridge_repo_client_get_all_caps(t *testing.T) {
 		t.Fatalf("updateCache must succeed for a well-formed registry: %v", err)
 	}
 
+	// URNs are opaque: caps are stored in normalized form, so we compare
+	// using parsed-URN equivalence rather than string equality.
 	caps := repo.GetAllAvailableCaps()
 	if len(caps) != 2 {
-		t.Fatalf("Expected 2 caps, got %d", len(caps))
+		t.Fatalf("Expected 2 distinct caps, got %d: %v", len(caps), caps)
 	}
-
+	cap1Parsed, _ := urn.NewCapUrnFromString(cap1)
+	cap2Parsed, _ := urn.NewCapUrnFromString(cap2)
 	capFound1, capFound2 := false, false
-	for _, cap := range caps {
-		if cap == cap1 {
+	for _, c := range caps {
+		parsed, err := urn.NewCapUrnFromString(c)
+		if err != nil {
+			t.Fatalf("returned cap is not a valid URN: %s: %v", c, err)
+		}
+		if parsed.IsEquivalent(cap1Parsed) {
 			capFound1 = true
 		}
-		if cap == cap2 {
+		if parsed.IsEquivalent(cap2Parsed) {
 			capFound2 = true
 		}
 	}
@@ -729,6 +783,7 @@ func Test336_update_cache_rejects_malformed_cap_urn(t *testing.T) {
 					},
 				},
 				Versions: makeTestVersions("darwin-arm64"),
+				Channel:  CartridgeChannelRelease,
 			},
 		},
 	}

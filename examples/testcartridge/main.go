@@ -8,11 +8,30 @@ import (
 	capdag "github.com/machinefabric/capdag-go"
 )
 
+// cartridgeChannel is set at link time via
+//   go build -ldflags='-X main.cartridgeChannel=release'
+// (or "nightly"). The build wrapper (`dx cartridge`) injects this
+// from $MFR_CARTRIDGE_CHANNEL. An empty value here means the build
+// path didn't set the flag, which is a build-system bug — fail
+// loudly at startup rather than ship a binary with no channel.
+var cartridgeChannel string
+
 func main() {
+	if cartridgeChannel != "release" && cartridgeChannel != "nightly" {
+		fmt.Fprintf(os.Stderr,
+			"FATAL: cartridgeChannel link-time var is %q; expected \"release\" or \"nightly\". "+
+				"Build with `dx cartridge --release` or `--nightly` to inject the channel via "+
+				"-ldflags '-X main.cartridgeChannel=…'.\n",
+			cartridgeChannel,
+		)
+		os.Exit(1)
+	}
+
 	// Create manifest
 	manifest := capdag.NewCapManifest(
 		"testcartridge",
 		"1.0.0",
+		cartridgeChannel,
 		"Test cartridge for Go",
 		[]capdag.CapGroup{capdag.DefaultGroup([]capdag.Cap{
 			{

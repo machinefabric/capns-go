@@ -15,13 +15,13 @@ import (
 
 	"github.com/machinefabric/capdag-go/cap"
 	"github.com/machinefabric/capdag-go/urn"
-	taggedurn "github.com/machinefabric/tagged-urn-go"
 )
 
-// Media URN pattern used to detect file-path args. There is a single
+// MediaFilePath is the canonical file-path media URN. There is a single
 // file-path media URN; cardinality (single file vs many) lives on the arg
-// definition's is_sequence flag, not on URN tags.
-const MediaFilePath = "media:file-path"
+// definition's is_sequence flag, not on URN tags. Matches Rust's
+// MEDIA_FILE_PATH constant.
+const MediaFilePath = "media:file-path;textable"
 
 // StreamEmitter allows handlers to emit CBOR values and logs.
 // Handlers emit CBOR values via EmitCbor() or logs via EmitLog().
@@ -1014,31 +1014,51 @@ func (pr *CartridgeRuntime) runCLIMode(args []string) error {
 		return fmt.Errorf("no handler registered for cap '%s'", cap.UrnString())
 	}
 
-	// Build CBOR payload from CLI args
+	// Build raw CBOR arguments payload (file-path values still raw strings).
 	rawPayload, err := pr.buildPayloadFromCLI(cap, args[2:])
 	if err != nil {
 		return fmt.Errorf("failed to build payload: %w", err)
 	}
 
-	// Create CLI-mode frame channel
-	// CLI mode: each argument as separate stream (STREAM_START → CHUNK → STREAM_END per arg, then END)
+	// CLI-mode foreach iteration. If any file-path arg with is_sequence=false
+	// resolved to multiple files, this returns one per-iteration payload per
+	// resolved file. Otherwise it returns the single original payload.
+	iterations, err := buildCliForeachIterations(rawPayload, cap)
+	if err != nil {
+		return err
+	}
+	for _, perIter := range iterations {
+		payload, err := extractEffectivePayload(perIter, "application/cbor", cap, true)
+		if err != nil {
+			return err
+		}
+		if err := pr.dispatchCliPayload(cap, handler, payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// dispatchCliPayload delivers one CLI-mode invocation: takes the (already
+// file-path-resolved) CBOR arguments payload, builds simulated input frames,
+// and runs the handler to completion.
+//
+// Mirrors capdag/src/bifaci/cartridge_runtime.rs::dispatch_cli_payload.
+func (pr *CartridgeRuntime) dispatchCliPayload(capDef *cap.Cap, handler HandlerFunc, payload []byte) error {
 	framesChan := make(chan Frame, 32)
 	requestID := NewMessageIdDefault()
 
-	// Send frames in a goroutine
 	go func() {
 		defer close(framesChan)
 
-		// Decode CBOR arguments array
 		var arguments []interface{}
-		if len(rawPayload) > 0 {
-			if err := cborlib.Unmarshal(rawPayload, &arguments); err != nil {
+		if len(payload) > 0 {
+			if err := cborlib.Unmarshal(payload, &arguments); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to decode CBOR arguments: %v\n", err)
 				return
 			}
 		}
 
-		// Send each argument as a separate stream
 		for i, arg := range arguments {
 			argMap, ok := arg.(map[interface{}]interface{})
 			if !ok {
@@ -1047,61 +1067,49 @@ func (pr *CartridgeRuntime) runCLIMode(args []string) error {
 
 			var mediaUrn string
 			var value interface{}
-
-			// Extract media_urn and value from arg map
 			for k, v := range argMap {
 				key, ok := k.(string)
 				if !ok {
 					continue
 				}
 				if key == "media_urn" {
-					if urnStr, ok := v.(string); ok {
-						mediaUrn = urnStr
+					if s, ok := v.(string); ok {
+						mediaUrn = s
 					}
 				} else if key == "value" {
 					value = v
 				}
 			}
-
 			if mediaUrn == "" || value == nil {
 				continue
 			}
 
 			streamID := fmt.Sprintf("arg-%d", i)
 
-			// STREAM_START
 			startFrame := NewStreamStart(requestID, streamID, mediaUrn, nil)
 			framesChan <- *startFrame
 
-			// CHUNK: CBOR-encode the value before sending
-			// Protocol: ALL values must be CBOR-encoded (encode once, no double-wrapping)
 			cborValue, err := cborlib.Marshal(value)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to encode argument value: %v\n", err)
 				continue
 			}
-
 			checksum := ComputeChecksum(cborValue)
 			chunkFrame := NewChunk(requestID, streamID, 0, cborValue, 0, checksum)
 			framesChan <- *chunkFrame
 
-			// STREAM_END
 			endStreamFrame := NewStreamEnd(requestID, streamID, 1)
 			framesChan <- *endStreamFrame
 		}
 
-		// END
 		endFrame := NewEnd(requestID, nil)
 		framesChan <- *endFrame
 	}()
 
-	// Create CLI-mode emitter and no-op peer invoker
 	emitter := &cliStreamEmitter{}
 	peer := &noPeerInvoker{}
 
-	// Invoke handler with frame channel
-	err = handler(framesChan, emitter, peer)
-	if err != nil {
+	if err := handler(framesChan, emitter, peer); err != nil {
 		errorJSON, _ := json.Marshal(map[string]string{
 			"error": err.Error(),
 			"code":  "HANDLER_ERROR",
@@ -1109,7 +1117,6 @@ func (pr *CartridgeRuntime) runCLIMode(args []string) error {
 		fmt.Fprintln(os.Stderr, string(errorJSON))
 		return err
 	}
-
 	return nil
 }
 
@@ -1163,79 +1170,502 @@ func (pr *CartridgeRuntime) printCapHelp(capDef *cap.Cap) {
 }
 
 // extractEffectivePayload extracts the effective payload from a REQ frame.
-// When content_type is "application/cbor", decodes the CBOR arguments
-// and finds the argument whose media_urn semantically matches the cap's input spec.
-func extractEffectivePayload(payload []byte, contentType string, capUrn string) ([]byte, error) {
+//
+// Mirrors capdag/src/bifaci/cartridge_runtime.rs::extract_effective_payload.
+//
+// When content_type is "application/cbor", decodes the CBOR arguments,
+// performs file-path auto-conversion (reading file bytes and relabeling
+// the arg's media_urn to the stdin source's target URN), validates that
+// at least one argument matches the cap's declared in= spec (unless the
+// cap takes media:void), and returns the re-serialized CBOR array.
+func extractEffectivePayload(payload []byte, contentType string, capDef *cap.Cap, isCliMode bool) ([]byte, error) {
 	// Not CBOR arguments - return raw payload
 	if contentType != "application/cbor" {
 		return payload, nil
 	}
 
-	// Empty payload with CBOR content type — no arguments
-	if len(payload) == 0 {
-		return payload, nil
-	}
-
-	// Parse the cap URN to get the expected input media URN
-	capUrnParsed, err := urn.NewCapUrnFromString(capUrn)
+	// Parse cap URN to get expected input media URN
+	capUrnParsed, err := urn.NewCapUrnFromString(capDef.UrnString())
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse cap URN '%s': %w", capUrn, err)
+		return nil, fmt.Errorf("Invalid cap URN: %w", err)
 	}
 	expectedInSpec := capUrnParsed.InSpec()
+	var expectedMediaUrn *urn.MediaUrn
+	if parsed, parseErr := urn.NewMediaUrnFromString(expectedInSpec); parseErr == nil {
+		expectedMediaUrn = parsed
+	}
 
-	// Parse expected input as a TaggedUrn for semantic matching
-	var expectedUrn *taggedurn.TaggedUrn
-	if expectedInSpec != "*" {
-		expectedUrn, err = taggedurn.NewTaggedUrnFromString(expectedInSpec)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse expected in_spec '%s': %w", expectedInSpec, err)
+	// Build an arg-definition lookup: parsed MediaUrn → (stdin target URN,
+	// is_sequence flag). File-path conversion consults this to decide whether
+	// to emit a single file's bytes or a sequence of files, and what URN to
+	// relabel the stream with so downstream handlers see the target media
+	// type rather than the raw `media:file-path` input.
+	type argDefInfo struct {
+		stdinTarget *string
+		isSequence  bool
+	}
+	type argDefEntry struct {
+		urn  *urn.MediaUrn
+		info argDefInfo
+	}
+	var argDefs []argDefEntry
+	for _, a := range capDef.GetArgs() {
+		parsed, perr := urn.NewMediaUrnFromString(a.MediaUrn)
+		if perr != nil {
+			continue
 		}
+		var stdinTarget *string
+		for i := range a.Sources {
+			if a.Sources[i].Stdin != nil {
+				s := *a.Sources[i].Stdin
+				stdinTarget = &s
+				break
+			}
+		}
+		argDefs = append(argDefs, argDefEntry{
+			urn: parsed,
+			info: argDefInfo{
+				stdinTarget: stdinTarget,
+				isSequence:  a.IsSequence,
+			},
+		})
 	}
 
-	// Decode CBOR payload as array of argument maps
-	var args []map[string]interface{}
-	if err := cborlib.Unmarshal(payload, &args); err != nil {
-		// Not a valid CBOR arguments array - fall back to raw payload
-		return payload, nil
+	// Parse the CBOR payload as an array of argument maps
+	var arguments []interface{}
+	if err := cborlib.Unmarshal(payload, &arguments); err != nil {
+		return nil, fmt.Errorf("Failed to parse CBOR arguments: %w", err)
 	}
 
-	// Search for the argument matching the expected input media URN
-	for _, arg := range args {
-		mediaUrnStr, ok := arg["media_urn"].(string)
+	// File-path auto-conversion.
+	//
+	// When an arg's media URN is a specialization of `media:file-path`, the
+	// incoming value is treated as one or more filesystem paths (literal or
+	// glob) that the runtime reads and turns into file-bytes.
+	//
+	// Cardinality is driven exclusively by the arg definition's `is_sequence`
+	// flag — URN tags carry semantic shape only.
+	//
+	// - is_sequence = true  → emit a CBOR Array of file bytes.
+	// - is_sequence = false → expand to exactly one file and emit a single
+	//   CBOR Bytes. More than one resolved file is a configuration error
+	//   at this layer — CLI-mode dispatch is responsible for iterating the
+	//   handler when it detects a glob-to-many against a scalar arg.
+	filePathBase, err := urn.NewMediaUrnFromString("media:file-path")
+	if err != nil {
+		return nil, fmt.Errorf("Invalid file-path base pattern: %w", err)
+	}
+
+	for argIdx, arg := range arguments {
+		argMap, ok := arg.(map[interface{}]interface{})
 		if !ok {
 			continue
 		}
-		value, hasValue := arg["value"]
-		if !hasValue {
+		var urnStr string
+		var value interface{}
+		hasUrn := false
+		hasValue := false
+		for k, v := range argMap {
+			key, ok := k.(string)
+			if !ok {
+				continue
+			}
+			switch key {
+			case "media_urn":
+				if s, ok := v.(string); ok {
+					urnStr = s
+					hasUrn = true
+				}
+			case "value":
+				value = v
+				hasValue = true
+			}
+		}
+		if !hasUrn || !hasValue {
 			continue
 		}
 
-		// If wildcard input, take the first argument
-		if expectedUrn == nil {
-			return toBytes(value), nil
-		}
-
-		// Semantic match: try both directions of conforms_to
-		argUrn, parseErr := taggedurn.NewTaggedUrnFromString(mediaUrnStr)
+		argUrn, parseErr := urn.NewMediaUrnFromString(urnStr)
 		if parseErr != nil {
+			return nil, fmt.Errorf("Invalid argument media URN '%s': %w", urnStr, parseErr)
+		}
+
+		if !filePathBase.Accepts(argUrn) {
 			continue
 		}
 
-		fwd, _ := argUrn.ConformsTo(expectedUrn)
-		rev, _ := expectedUrn.ConformsTo(argUrn)
-		if fwd || rev {
-			return toBytes(value), nil
+		// Look up the cap's arg definition by URN equivalence (NOT string
+		// compare) — the arg we received may carry the same tags in a
+		// different textual order.
+		var matchedInfo *argDefInfo
+		for i := range argDefs {
+			if argDefs[i].urn.IsEquivalent(argUrn) {
+				matchedInfo = &argDefs[i].info
+				break
+			}
+		}
+		if matchedInfo == nil {
+			// File-path arg with no matching definition: leave it alone.
+			continue
+		}
+
+		// Args without a stdin source pass the path bytes through verbatim
+		// — the handler reads them itself (rare but legal).
+		if matchedInfo.stdinTarget == nil {
+			continue
+		}
+		stdinTarget := *matchedInfo.stdinTarget
+
+		paths, err := expandFilePathValue(value, urnStr, isCliMode)
+		if err != nil {
+			return nil, err
+		}
+
+		if !matchedInfo.isSequence {
+			if len(paths) != 1 {
+				return nil, fmt.Errorf(
+					"File-path arg '%s' declared is_sequence=false resolved to %d files; "+
+						"expected exactly 1. CLI-mode dispatch should have iterated the "+
+						"handler across the expanded files before calling the runtime.",
+					urnStr, len(paths))
+			}
+			fileBytes, err := os.ReadFile(paths[0])
+			if err != nil {
+				return nil, fmt.Errorf("Failed to read file '%s': %w", paths[0], err)
+			}
+			replaceArgValue(argMap, fileBytes, stdinTarget)
+		} else {
+			items := make([]interface{}, 0, len(paths))
+			for _, p := range paths {
+				fileBytes, err := os.ReadFile(p)
+				if err != nil {
+					return nil, fmt.Errorf("Failed to read file '%s': %w", p, err)
+				}
+				items = append(items, fileBytes)
+			}
+			replaceArgValue(argMap, items, stdinTarget)
+		}
+
+		_ = argIdx
+	}
+
+	// Validate: at least ONE argument must match the cap's declared in=spec,
+	// unless the cap takes no input (in=media:void). After file-path
+	// auto-conversion, an arg's media_urn may have been relabeled to the
+	// arg-def's stdin-source target rather than the original
+	// `media:file-path;...`, so we also accept any stdin-source target URN
+	// as a valid match.
+	voidUrn, err := urn.NewMediaUrnFromString("media:void")
+	if err != nil {
+		return nil, fmt.Errorf("Invalid void URN literal: %w", err)
+	}
+	isVoidInput := expectedMediaUrn != nil && expectedMediaUrn.IsEquivalent(voidUrn)
+
+	if !isVoidInput {
+		// Collect all valid target URNs: in_spec + every arg-def's stdin
+		// source target.
+		var validTargets []*urn.MediaUrn
+		if expectedMediaUrn != nil {
+			validTargets = append(validTargets, expectedMediaUrn)
+		}
+		for _, ad := range argDefs {
+			if ad.info.stdinTarget != nil {
+				if t, perr := urn.NewMediaUrnFromString(*ad.info.stdinTarget); perr == nil {
+					validTargets = append(validTargets, t)
+				}
+			}
+		}
+
+		foundMatchingArg := false
+		for _, arg := range arguments {
+			argMap, ok := arg.(map[interface{}]interface{})
+			if !ok {
+				continue
+			}
+			for k, v := range argMap {
+				key, ok := k.(string)
+				if !ok || key != "media_urn" {
+					continue
+				}
+				urnStr, ok := v.(string)
+				if !ok {
+					continue
+				}
+				argUrn, perr := urn.NewMediaUrnFromString(urnStr)
+				if perr != nil {
+					continue
+				}
+				for _, target := range validTargets {
+					// Use is_comparable for discovery: are they on the same chain?
+					if argUrn.IsComparable(target) {
+						foundMatchingArg = true
+						break
+					}
+				}
+				if foundMatchingArg {
+					break
+				}
+			}
+			if foundMatchingArg {
+				break
+			}
+		}
+
+		if !foundMatchingArg {
+			return nil, fmt.Errorf(
+				"No argument found matching expected input media type '%s' in CBOR arguments",
+				expectedInSpec)
 		}
 	}
 
-	// No matching argument found - if there's exactly one argument, use it
-	if len(args) == 1 {
-		if value, ok := args[0]["value"]; ok {
-			return toBytes(value), nil
+	// After file-path conversion and validation, return the full CBOR array.
+	// Handler will parse it and extract arguments by matching against in_spec.
+	serialized, err := cborlib.Marshal(arguments)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to serialize modified CBOR: %w", err)
+	}
+	return serialized, nil
+}
+
+// replaceArgValue replaces an argument map's "value" and "media_urn" entries
+// in place. Used by extractEffectivePayload after reading file bytes so the
+// downstream handler sees the post-conversion URN, not the original
+// `media:file-path`. Mirrors Rust replace_arg_value.
+func replaceArgValue(argMap map[interface{}]interface{}, newValue interface{}, newUrn string) {
+	argMap["value"] = newValue
+	argMap["media_urn"] = newUrn
+}
+
+// expandFilePathValue expands a file-path arg value into a concrete list of
+// filesystem paths.
+//
+// Mirrors capdag/src/bifaci/cartridge_runtime.rs::expand_file_path_value.
+//
+// The incoming value may be:
+//   - bytes/string containing a single path or a single glob pattern
+//   - array of bytes/strings, each a path or a glob (CBOR mode only)
+//
+// Globs (detected via `*`, `?`, or `[`) are expanded and the results filtered
+// to regular files. Literal paths must exist and point at a regular file.
+// Returns at least one path on success; empty matches fail hard so the caller
+// never has to guard against a silently-empty list.
+func expandFilePathValue(value interface{}, urnStr string, isCliMode bool) ([]string, error) {
+	var rawPaths []string
+	switch v := value.(type) {
+	case []byte:
+		rawPaths = []string{string(v)}
+	case string:
+		rawPaths = []string{v}
+	case []interface{}:
+		if isCliMode {
+			return nil, fmt.Errorf(
+				"File-path arg '%s' received a CBOR Array value in CLI mode; CLI "+
+					"dispatch must expand globs before calling into the runtime",
+				urnStr)
+		}
+		rawPaths = make([]string, 0, len(v))
+		for _, item := range v {
+			switch s := item.(type) {
+			case string:
+				rawPaths = append(rawPaths, s)
+			case []byte:
+				rawPaths = append(rawPaths, string(s))
+			default:
+				return nil, fmt.Errorf(
+					"File-path arg '%s' array contained an unsupported CBOR item: %T",
+					urnStr, item)
+			}
+		}
+	default:
+		return nil, fmt.Errorf(
+			"File-path arg '%s' value must be Bytes, Text, or (CBOR mode) Array — got %T",
+			urnStr, value)
+	}
+
+	var resolved []string
+	for _, raw := range rawPaths {
+		isGlob := containsAny(raw, "*?[")
+		if isGlob {
+			matches, err := filepath.Glob(raw)
+			if err != nil {
+				return nil, fmt.Errorf("Invalid glob pattern '%s': %w", raw, err)
+			}
+			before := len(resolved)
+			for _, p := range matches {
+				info, err := os.Stat(p)
+				if err != nil {
+					continue
+				}
+				if info.Mode().IsRegular() {
+					resolved = append(resolved, p)
+				}
+			}
+			if len(resolved) == before {
+				return nil, fmt.Errorf("No files matched glob pattern '%s'", raw)
+			}
+		} else {
+			info, err := os.Stat(raw)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return nil, fmt.Errorf("File not found: '%s'", raw)
+				}
+				return nil, fmt.Errorf("Failed to stat '%s': %w", raw, err)
+			}
+			if !info.Mode().IsRegular() {
+				return nil, fmt.Errorf("Path is not a regular file: '%s'", raw)
+			}
+			resolved = append(resolved, raw)
 		}
 	}
 
-	return nil, fmt.Errorf("no argument matching in_spec '%s' found in CBOR arguments", expectedInSpec)
+	return resolved, nil
+}
+
+// buildCliForeachIterations computes the per-iteration CBOR argument payloads
+// for a CLI invocation.
+//
+// Mirrors capdag/src/bifaci/cartridge_runtime.rs::build_cli_foreach_iterations.
+//
+// The input is the raw payload produced by buildPayloadFromCLI — a CBOR array
+// of {media_urn, value} maps where file-path values are still raw path or glob
+// strings.
+//
+// Rules:
+//   - An arg whose media URN specializes `media:file-path` is iterable iff its
+//     arg-definition declares is_sequence = false AND its raw value expands to
+//     more than one concrete file.
+//   - Zero iterable args → return the payload unchanged (single iteration).
+//   - One iterable arg → return one payload per expanded file, each with the
+//     iterable arg's value replaced by that single path as a string value.
+//     extractEffectivePayload then reads the single file and emits bytes.
+//   - Two or more iterable args → hard error: the ForEach axis is ambiguous
+//     and there is no user-specified policy for a cartesian product.
+func buildCliForeachIterations(rawPayload []byte, capDef *cap.Cap) ([][]byte, error) {
+	filePathBase, err := urn.NewMediaUrnFromString("media:file-path")
+	if err != nil {
+		return nil, fmt.Errorf("Invalid file-path base pattern: %w", err)
+	}
+
+	var arguments []interface{}
+	if err := cborlib.Unmarshal(rawPayload, &arguments); err != nil {
+		return nil, fmt.Errorf("Failed to parse CBOR arguments: %w", err)
+	}
+
+	type argDefEntry struct {
+		urn        *urn.MediaUrn
+		isSequence bool
+	}
+	var argDefs []argDefEntry
+	for _, a := range capDef.GetArgs() {
+		parsed, perr := urn.NewMediaUrnFromString(a.MediaUrn)
+		if perr != nil {
+			continue
+		}
+		argDefs = append(argDefs, argDefEntry{urn: parsed, isSequence: a.IsSequence})
+	}
+
+	type iterableEntry struct {
+		idx   int
+		paths []string
+	}
+	var iterable *iterableEntry
+
+	for idx, arg := range arguments {
+		argMap, ok := arg.(map[interface{}]interface{})
+		if !ok {
+			continue
+		}
+		var urnStr string
+		var value interface{}
+		hasUrn, hasValue := false, false
+		for k, v := range argMap {
+			key, ok := k.(string)
+			if !ok {
+				continue
+			}
+			switch key {
+			case "media_urn":
+				if s, ok := v.(string); ok {
+					urnStr = s
+					hasUrn = true
+				}
+			case "value":
+				value = v
+				hasValue = true
+			}
+		}
+		if !hasUrn || !hasValue {
+			continue
+		}
+
+		argUrn, parseErr := urn.NewMediaUrnFromString(urnStr)
+		if parseErr != nil {
+			return nil, fmt.Errorf("Invalid argument media URN '%s': %w", urnStr, parseErr)
+		}
+		if !filePathBase.Accepts(argUrn) {
+			continue
+		}
+
+		isSequenceArg := false
+		for _, ad := range argDefs {
+			if ad.urn.IsEquivalent(argUrn) {
+				isSequenceArg = ad.isSequence
+				break
+			}
+		}
+		if isSequenceArg {
+			// Sequence args take multiple files as-is; no ForEach iteration.
+			continue
+		}
+
+		paths, err := expandFilePathValue(value, urnStr, true)
+		if err != nil {
+			return nil, err
+		}
+		if len(paths) <= 1 {
+			continue
+		}
+
+		if iterable != nil {
+			return nil, fmt.Errorf(
+				"Multiple file-path arguments with is_sequence=false each resolved " +
+					"to more than one file; the ForEach axis is ambiguous. Declare at " +
+					"most one such arg as scalar, or mark additional args as " +
+					"is_sequence=true.")
+		}
+		iterable = &iterableEntry{idx: idx, paths: paths}
+	}
+
+	if iterable == nil {
+		return [][]byte{rawPayload}, nil
+	}
+
+	out := make([][]byte, 0, len(iterable.paths))
+	for _, path := range iterable.paths {
+		// Deep-clone the arguments slice and replace value at idx
+		argsForIter := make([]interface{}, len(arguments))
+		for i, a := range arguments {
+			if i == iterable.idx {
+				if origMap, ok := a.(map[interface{}]interface{}); ok {
+					newMap := make(map[interface{}]interface{}, len(origMap))
+					for k, v := range origMap {
+						newMap[k] = v
+					}
+					newMap["value"] = path
+					argsForIter[i] = newMap
+					continue
+				}
+			}
+			argsForIter[i] = a
+		}
+		buf, err := cborlib.Marshal(argsForIter)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to re-encode iter payload: %w", err)
+		}
+		out = append(out, buf)
+	}
+
+	return out, nil
 }
 
 // toBytes converts a CBOR-decoded value to []byte
@@ -1857,73 +2287,67 @@ func (pr *CartridgeRuntime) buildPayloadFromStreamingReader(capDef *cap.Cap, rea
 	return payload, nil
 }
 
-// buildPayloadFromCLI builds CBOR payload from CLI arguments based on cap's arg definitions.
-// Returns CBOR-encoded array of cap.CapArgumentValue objects.
+// buildPayloadFromCLI builds the raw CBOR arguments payload from CLI args.
+//
+// Mirrors capdag/src/bifaci/cartridge_runtime.rs::build_payload_from_cli.
+//
+// File-path values stay as raw path/glob strings here — file reading and
+// glob expansion happen later in extractEffectivePayload (after CLI-mode
+// foreach iteration via buildCliForeachIterations).
 func (pr *CartridgeRuntime) buildPayloadFromCLI(capDef *cap.Cap, cliArgs []string) ([]byte, error) {
-	// Read stdin if available (non-blocking check)
-	stdinData, err := pr.readStdinIfAvailable()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read stdin: %w", err)
-	}
-
-	// If no args defined, check for stdin data
-	if len(capDef.Args) == 0 {
-		if stdinData != nil {
-			return stdinData, nil
+	// Check for stdin data if cap accepts stdin.
+	// Non-blocking check - if no data ready immediately, returns nil.
+	var stdinData []byte
+	if capDef.AcceptsStdin() {
+		var err error
+		stdinData, err = pr.readStdinIfAvailable()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read stdin: %w", err)
 		}
-		// No args and no stdin - return empty payload
-		return []byte{}, nil
 	}
 
-	// Build CBOR arguments array (same format as CBOR mode)
 	var arguments []cap.CapArgumentValue
 
+	// Process each cap argument
 	for i := range capDef.Args {
 		argDef := &capDef.Args[i]
 
-		// Extract argument value (handles file-path conversion)
-		value, err := pr.extractArgValue(argDef, cliArgs, stdinData)
+		value, cameFromStdin, err := pr.extractArgValue(argDef, cliArgs, stdinData)
 		if err != nil {
 			return nil, err
 		}
 
 		if value != nil {
-			// Determine media URN for this argument value
-			// If file-path with stdin source, use stdin source's media URN (the target type)
+			// Determine media_urn: if value came from stdin source, use stdin's media_urn.
+			// Otherwise use arg's media_urn as-is (file-path conversion happens later).
 			mediaUrn := argDef.MediaUrn
-
-			// Check if this is a file-path arg using pattern matching.
-			// A single base pattern covers the file-path URN; cardinality is
-			// driven by the arg definition's IsSequence flag.
-			argMediaUrn, parseErr := urn.NewMediaUrnFromString(argDef.MediaUrn)
-			if parseErr == nil {
-				filePathPattern, _ := urn.NewMediaUrnFromString(MediaFilePath)
-
-				isFilePath := filePathPattern != nil && filePathPattern.Accepts(argMediaUrn)
-
-				// If file-path type, check for stdin source and use its media URN
-				if isFilePath {
-					for i := range argDef.Sources {
-						source := &argDef.Sources[i]
-						if source.Stdin != nil {
-							mediaUrn = *source.Stdin
-							break
-						}
+			if cameFromStdin {
+				for j := range argDef.Sources {
+					if argDef.Sources[j].Stdin != nil {
+						mediaUrn = *argDef.Sources[j].Stdin
+						break
 					}
 				}
 			}
-
 			arguments = append(arguments, cap.CapArgumentValue{
 				MediaUrn: mediaUrn,
 				Value:    value,
 			})
 		} else if argDef.Required {
-			return nil, fmt.Errorf("required argument missing: %s", argDef.MediaUrn)
+			return nil, fmt.Errorf("Required argument '%s' not provided", argDef.MediaUrn)
 		}
 	}
 
+	// If no arguments are defined but stdin data exists, use it as raw payload.
+	if len(capDef.Args) == 0 {
+		if stdinData != nil {
+			return stdinData, nil
+		}
+		return []byte{}, nil
+	}
+
+	// Build CBOR arguments array (same format as CBOR mode)
 	if len(arguments) > 0 {
-		// Encode as CBOR array
 		cborArgs := make([]interface{}, len(arguments))
 		for i, arg := range arguments {
 			cborArgs[i] = map[string]interface{}{
@@ -1931,71 +2355,41 @@ func (pr *CartridgeRuntime) buildPayloadFromCLI(capDef *cap.Cap, cliArgs []strin
 				"value":     arg.Value,
 			}
 		}
-
 		payload, err := cborlib.Marshal(cborArgs)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encode CBOR payload: %w", err)
+			return nil, fmt.Errorf("Failed to encode CBOR payload: %w", err)
 		}
 		return payload, nil
 	}
 
-	// No arguments and no stdin
 	return []byte{}, nil
 }
 
 // extractArgValue extracts a single argument value from CLI args or stdin.
 // Handles automatic file-path to bytes conversion when appropriate.
-func (pr *CartridgeRuntime) extractArgValue(argDef *cap.CapArg, cliArgs []string, stdinData []byte) ([]byte, error) {
-	// Check if this arg requires file-path to bytes conversion using pattern matching
-	argMediaUrn, err := urn.NewMediaUrnFromString(argDef.MediaUrn)
-	if err != nil {
-		return nil, fmt.Errorf("invalid media URN '%s': %w", argDef.MediaUrn, err)
-	}
-
-	filePathPattern, err := urn.NewMediaUrnFromString(MediaFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse MediaFilePath constant: %w", err)
-	}
-
-	// A single file-path base pattern covers both scalar and sequence args;
-	// cardinality is driven by the arg's IsSequence declaration, not the URN.
-	isFilePath := filePathPattern.Accepts(argMediaUrn)
-
-	// Get stdin source media URN if it exists (tells us target type)
-	hasStdinSource := false
-	for i := range argDef.Sources {
-		if argDef.Sources[i].Stdin != nil {
-			hasStdinSource = true
-			break
-		}
-	}
-
-	// Try each source in order
+// extractArgValue extracts a single argument value from CLI args or stdin.
+//
+// Mirrors capdag/src/bifaci/cartridge_runtime.rs::extract_arg_value.
+//
+// Returns (value, cameFromStdin, error). RAW values only — file-path
+// auto-conversion happens later in extractEffectivePayload, after CLI-mode
+// foreach iteration.
+func (pr *CartridgeRuntime) extractArgValue(argDef *cap.CapArg, cliArgs []string, stdinData []byte) ([]byte, bool, error) {
 	for i := range argDef.Sources {
 		source := &argDef.Sources[i]
 
 		if source.CliFlag != nil {
 			if value, found := pr.getCliFlagValue(cliArgs, *source.CliFlag); found {
-				// If file-path type with stdin source, read file(s)
-				if isFilePath && hasStdinSource {
-					return pr.readFilePathToBytes(value, argDef.IsSequence)
-				}
-				return []byte(value), nil
+				return []byte(value), false, nil
 			}
 		} else if source.Position != nil {
-			// Positional args: filter out flags and their values
 			positional := pr.getPositionalArgs(cliArgs)
 			if *source.Position < len(positional) {
-				value := positional[*source.Position]
-				// If file-path type with stdin source, read file(s)
-				if isFilePath && hasStdinSource {
-					return pr.readFilePathToBytes(value, argDef.IsSequence)
-				}
-				return []byte(value), nil
+				return []byte(positional[*source.Position]), false, nil
 			}
 		} else if source.Stdin != nil {
 			if stdinData != nil && len(stdinData) > 0 {
-				return stdinData, nil
+				return stdinData, true, nil
 			}
 		}
 	}
@@ -2004,12 +2398,12 @@ func (pr *CartridgeRuntime) extractArgValue(argDef *cap.CapArg, cliArgs []string
 	if argDef.DefaultValue != nil {
 		bytes, err := json.Marshal(argDef.DefaultValue)
 		if err != nil {
-			return nil, fmt.Errorf("failed to serialize default value: %w", err)
+			return nil, false, fmt.Errorf("failed to serialize default value: %w", err)
 		}
-		return bytes, nil
+		return bytes, false, nil
 	}
 
-	return nil, nil
+	return nil, false, nil
 }
 
 // getCliFlagValue gets the value for a CLI flag (e.g., --model "value")
@@ -2102,130 +2496,6 @@ func (pr *CartridgeRuntime) readStdinIfAvailable() ([]byte, error) {
 		// No data ready - return nil immediately
 		return nil, nil
 	}
-}
-
-// readFilePathToBytes reads file(s) for a file-path argument and returns the
-// CLI-wire bytes.
-//
-// The single media:file-path URN covers both shapes; cardinality is driven
-// by the arg definition's IsSequence flag:
-//
-// - isSequence == false — treat pathValue as exactly one file path. Returns
-//   the file's raw bytes. Any glob metacharacter is an error here because
-//   CLI dispatch is responsible for iterating the handler per-file when the
-//   declared arg is scalar.
-// - isSequence == true  — treat pathValue as a newline-separated list of
-//   paths and/or globs. Expand, read every resolved file, and return a CBOR
-//   array of bytes (one entry per file).
-func (pr *CartridgeRuntime) readFilePathToBytes(pathValue string, isSequence bool) ([]byte, error) {
-	expand := func(raw string) ([]string, error) {
-		isGlob := containsAny(raw, "*?[")
-		if !isGlob {
-			info, err := os.Stat(raw)
-			if err != nil {
-				if os.IsNotExist(err) {
-					return nil, fmt.Errorf("file not found: '%s'", raw)
-				}
-				return nil, fmt.Errorf("failed to stat '%s': %w", raw, err)
-			}
-			if !info.Mode().IsRegular() {
-				return nil, fmt.Errorf("path is not a regular file: '%s'", raw)
-			}
-			return []string{raw}, nil
-		}
-		matches, err := filepath.Glob(raw)
-		if err != nil {
-			return nil, fmt.Errorf("invalid glob pattern '%s': %w", raw, err)
-		}
-		var files []string
-		for _, p := range matches {
-			info, err := os.Stat(p)
-			if err != nil {
-				continue
-			}
-			if info.Mode().IsRegular() {
-				files = append(files, p)
-			}
-		}
-		if len(files) == 0 {
-			return nil, fmt.Errorf("no files matched glob pattern '%s'", raw)
-		}
-		return files, nil
-	}
-
-	if !isSequence {
-		files, err := expand(pathValue)
-		if err != nil {
-			return nil, err
-		}
-		if len(files) != 1 {
-			return nil, fmt.Errorf(
-				"file-path arg declared is_sequence=false resolved to %d files; "+
-					"expected exactly 1. CLI dispatch must iterate the handler "+
-					"across the expanded files.",
-				len(files),
-			)
-		}
-		bytes, err := os.ReadFile(files[0])
-		if err != nil {
-			return nil, fmt.Errorf("failed to read file '%s': %w", files[0], err)
-		}
-		return bytes, nil
-	}
-
-	// Sequence: newline-separated list of paths and/or globs.
-	var allFiles []string
-	for _, line := range splitNonEmptyLines(pathValue) {
-		files, err := expand(line)
-		if err != nil {
-			return nil, err
-		}
-		allFiles = append(allFiles, files...)
-	}
-
-	var filesData []interface{}
-	for _, path := range allFiles {
-		bytes, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read file '%s': %w", path, err)
-		}
-		filesData = append(filesData, bytes)
-	}
-	if filesData == nil {
-		filesData = []interface{}{}
-	}
-	cborBytes, err := cborlib.Marshal(filesData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode CBOR array: %w", err)
-	}
-	return cborBytes, nil
-}
-
-// splitNonEmptyLines splits `s` on newlines, trims each, and returns only
-// non-empty entries. Used by file-path sequence args to parse a
-// newline-separated list of paths/globs.
-func splitNonEmptyLines(s string) []string {
-	var out []string
-	start := 0
-	for i := 0; i <= len(s); i++ {
-		if i == len(s) || s[i] == '\n' {
-			line := s[start:i]
-			// trim spaces
-			a := 0
-			for a < len(line) && (line[a] == ' ' || line[a] == '\t' || line[a] == '\r') {
-				a++
-			}
-			b := len(line)
-			for b > a && (line[b-1] == ' ' || line[b-1] == '\t' || line[b-1] == '\r') {
-				b--
-			}
-			if a < b {
-				out = append(out, line[a:b])
-			}
-			start = i + 1
-		}
-	}
-	return out
 }
 
 // containsAny checks if string contains any of the given characters

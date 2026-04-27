@@ -95,11 +95,14 @@ type RegistryCapGroup struct {
 	AdapterUrns []string      `json:"adapter_urns,omitempty"`
 }
 
-// CartridgeDistributionInfo represents package distribution data
+// CartridgeDistributionInfo represents package distribution data.
+// `Url` is the absolute R2 URL of the package — every consumer downloads
+// from that URL directly. There is no derived URL pattern any more.
 type CartridgeDistributionInfo struct {
 	Name   string `json:"name"`
 	Sha256 string `json:"sha256"`
 	Size   uint64 `json:"size"`
+	Url    string `json:"url"`
 }
 
 // CartridgeBuild represents a platform-specific build within a version.
@@ -108,13 +111,18 @@ type CartridgeBuild struct {
 	Package  CartridgeDistributionInfo `json:"package"`
 }
 
-// CartridgeVersionData represents a cartridge version's data (v4.0 schema).
+// CartridgeVersionData represents a cartridge version's data (v5.0 schema).
 // Each version has one or more platform-specific builds.
+//
+// `NotesUrl` is the absolute R2 URL of the version's release-notes
+// Markdown file, when one was uploaded at publish time. Optional —
+// cartridges historically did not ship per-version notes.
 type CartridgeVersionData struct {
 	ReleaseDate   string           `json:"releaseDate"`
 	Changelog     []string         `json:"changelog,omitempty"`
 	MinAppVersion string           `json:"minAppVersion,omitempty"`
 	Builds        []CartridgeBuild `json:"builds"`
+	NotesUrl      string           `json:"notesUrl,omitempty"`
 }
 
 // CartridgeRegistryEntry represents a cartridge entry in the v4.0
@@ -134,11 +142,40 @@ type CartridgeRegistryEntry struct {
 	Versions      map[string]CartridgeVersionData `json:"versions"`
 }
 
-// CartridgeRegistry represents the v4.0 cartridge registry (nested schema)
+// CartridgeChannel is the distribution channel for a cartridge entry.
+// Mirrors capdag's CartridgeChannel and the registry's
+// channels.<channel> keys.
+type CartridgeChannel string
+
+const (
+	// User-facing builds. Promoted via the publish script's --release.
+	CartridgeChannelRelease CartridgeChannel = "release"
+	// In-flight builds. Default for the publish scripts.
+	CartridgeChannelNightly CartridgeChannel = "nightly"
+)
+
+// CartridgeChannelEntries is one channel's cartridges map. Always
+// present in the parent registry, possibly empty.
+type CartridgeChannelEntries struct {
+	Cartridges map[string]CartridgeRegistryEntry `json:"cartridges"`
+}
+
+// CartridgeRegistryChannels is the per-channel partitioning of the
+// registry. Each channel is a distinct namespace — a cartridge id can
+// exist independently in release and nightly with different versions
+// and metadata.
+type CartridgeRegistryChannels struct {
+	Release CartridgeChannelEntries `json:"release"`
+	Nightly CartridgeChannelEntries `json:"nightly"`
+}
+
+// CartridgeRegistry represents the v5.0 channel-partitioned cartridge
+// registry. Both `release` and `nightly` are always present (possibly
+// empty) so consumers never need conditional fallbacks.
 type CartridgeRegistry struct {
-	SchemaVersion string                            `json:"schemaVersion"`
-	LastUpdated   string                            `json:"lastUpdated"`
-	Cartridges    map[string]CartridgeRegistryEntry `json:"cartridges"`
+	SchemaVersion string                    `json:"schemaVersion"`
+	LastUpdated   string                    `json:"lastUpdated"`
+	Channels      CartridgeRegistryChannels `json:"channels"`
 }
 
 // CartridgeInfo represents a cartridge in the flat API response format.
@@ -162,6 +199,10 @@ type CartridgeInfo struct {
 	CapGroups         []RegistryCapGroup              `json:"cap_groups"`
 	Versions          map[string]CartridgeVersionData `json:"versions"`
 	AvailableVersions []string                        `json:"availableVersions,omitempty"`
+	// Channel this entry belongs to. Set by the transformer; consumers
+	// must not synthesize this field — it comes from the registry's
+	// `channels` partitioning.
+	Channel CartridgeChannel `json:"channel"`
 }
 
 // IterCaps yields every cap across every cap group in declaration order.
@@ -215,16 +256,19 @@ type CartridgeRegistryResponse struct {
 	Cartridges []CartridgeInfo `json:"cartridges"`
 }
 
-// CartridgeSuggestion represents a cartridge suggestion for a missing cap
+// CartridgeSuggestion represents a cartridge suggestion for a missing cap.
+// Channel propagates from the source registry — the UI uses it to render
+// the release/nightly distinction without re-deriving.
 type CartridgeSuggestion struct {
-	CartridgeId          string `json:"cartridgeId"`
-	CartridgeName        string `json:"cartridgeName"`
-	CartridgeDescription string `json:"cartridgeDescription"`
-	CapUrn               string `json:"capUrn"`
-	CapTitle             string `json:"capTitle"`
-	LatestVersion        string `json:"latestVersion"`
-	RepoUrl              string `json:"repoUrl"`
-	PageUrl              string `json:"pageUrl"`
+	CartridgeId          string           `json:"cartridgeId"`
+	CartridgeName        string           `json:"cartridgeName"`
+	CartridgeDescription string           `json:"cartridgeDescription"`
+	CapUrn               string           `json:"capUrn"`
+	CapTitle             string           `json:"capTitle"`
+	LatestVersion        string           `json:"latestVersion"`
+	RepoUrl              string           `json:"repoUrl"`
+	PageUrl              string           `json:"pageUrl"`
+	Channel              CartridgeChannel `json:"channel"`
 }
 
 // CartridgeRepoServer serves registry data with queries.
@@ -233,16 +277,21 @@ type CartridgeRepoServer struct {
 	registry CartridgeRegistry
 }
 
-// NewCartridgeRepoServer creates a new server instance from v4.0 registry
+// NewCartridgeRepoServer creates a new server instance from a v5.0
+// channel-partitioned registry.
 func NewCartridgeRepoServer(registry CartridgeRegistry) (*CartridgeRepoServer, error) {
-	// Validate schema version - fail hard
-	if registry.SchemaVersion != "4.0" {
+	if registry.SchemaVersion != "5.0" {
 		return nil, NewParseError(fmt.Sprintf(
-			"Unsupported registry schema version: %s. Required: 4.0",
+			"Unsupported registry schema version: %s. Required: 5.0",
 			registry.SchemaVersion,
 		))
 	}
-
+	if registry.Channels.Release.Cartridges == nil {
+		registry.Channels.Release.Cartridges = map[string]CartridgeRegistryEntry{}
+	}
+	if registry.Channels.Nightly.Cartridges == nil {
+		registry.Channels.Nightly.Cartridges = map[string]CartridgeRegistryEntry{}
+	}
 	return &CartridgeRepoServer{registry: registry}, nil
 }
 
@@ -306,73 +355,100 @@ func parseVersion(v string) []uint32 {
 	return nums
 }
 
-// TransformToCartridgeArray transforms registry to flat cartridge array
-func (s *CartridgeRepoServer) TransformToCartridgeArray() ([]CartridgeInfo, error) {
-	result := make([]CartridgeInfo, 0, len(s.registry.Cartridges))
-
-	for id, entry := range s.registry.Cartridges {
-		latestVersion := entry.LatestVersion
-		versionData, ok := entry.Versions[latestVersion]
-		if !ok {
-			return nil, NewParseError(fmt.Sprintf(
-				"Cartridge %s: latest version %s not found in versions",
-				id, latestVersion,
-			))
-		}
-
-		// Validate required fields - fail hard
-		if err := validateVersionData(id, latestVersion, &versionData); err != nil {
-			return nil, err
-		}
-
-		// Get all versions sorted descending
-		availableVersions := make([]string, 0, len(entry.Versions))
-		for version := range entry.Versions {
-			availableVersions = append(availableVersions, version)
-		}
-		sort.Slice(availableVersions, func(i, j int) bool {
-			return compareVersions(availableVersions[i], availableVersions[j]) > 0
-		})
-
-		minAppVersion := versionData.MinAppVersion
-		if minAppVersion == "" {
-			minAppVersion = entry.MinAppVersion
-		}
-
-		capGroups := entry.CapGroups
-		if capGroups == nil {
-			capGroups = []RegistryCapGroup{}
-		}
-
-		categories := entry.Categories
-		if categories == nil {
-			categories = []string{}
-		}
-
-		tags := entry.Tags
-		if tags == nil {
-			tags = []string{}
-		}
-
-		result = append(result, CartridgeInfo{
-			Id:                id,
-			Name:              entry.Name,
-			Version:           latestVersion,
-			Description:       entry.Description,
-			Author:            entry.Author,
-			TeamId:            entry.TeamId,
-			SignedAt:          versionData.ReleaseDate,
-			MinAppVersion:     minAppVersion,
-			PageUrl:           entry.PageUrl,
-			Categories:        categories,
-			Tags:              tags,
-			CapGroups:         capGroups,
-			Versions:          entry.Versions,
-			AvailableVersions: availableVersions,
-		})
+// entryToCartridgeInfo flattens one channel-entry into a CartridgeInfo.
+// Fails hard if the entry's LatestVersion is missing from Versions or
+// if the latest version's builds are malformed.
+func (s *CartridgeRepoServer) entryToCartridgeInfo(
+	channel CartridgeChannel,
+	id string,
+	entry CartridgeRegistryEntry,
+) (CartridgeInfo, error) {
+	latestVersion := entry.LatestVersion
+	versionData, ok := entry.Versions[latestVersion]
+	if !ok {
+		return CartridgeInfo{}, NewParseError(fmt.Sprintf(
+			"Cartridge %s (%s): latestVersion %s not found in versions",
+			id, channel, latestVersion,
+		))
+	}
+	if err := validateVersionData(id, latestVersion, &versionData); err != nil {
+		return CartridgeInfo{}, err
 	}
 
+	availableVersions := make([]string, 0, len(entry.Versions))
+	for version := range entry.Versions {
+		availableVersions = append(availableVersions, version)
+	}
+	sort.Slice(availableVersions, func(i, j int) bool {
+		return compareVersions(availableVersions[i], availableVersions[j]) > 0
+	})
+
+	minAppVersion := versionData.MinAppVersion
+	if minAppVersion == "" {
+		minAppVersion = entry.MinAppVersion
+	}
+	capGroups := entry.CapGroups
+	if capGroups == nil {
+		capGroups = []RegistryCapGroup{}
+	}
+	categories := entry.Categories
+	if categories == nil {
+		categories = []string{}
+	}
+	tags := entry.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+
+	return CartridgeInfo{
+		Id:                id,
+		Name:              entry.Name,
+		Version:           latestVersion,
+		Description:       entry.Description,
+		Author:            entry.Author,
+		TeamId:            entry.TeamId,
+		SignedAt:          versionData.ReleaseDate,
+		MinAppVersion:     minAppVersion,
+		PageUrl:           entry.PageUrl,
+		Categories:        categories,
+		Tags:              tags,
+		CapGroups:         capGroups,
+		Versions:          entry.Versions,
+		AvailableVersions: availableVersions,
+		Channel:           channel,
+	}, nil
+}
+
+// TransformToCartridgeArray walks both channels and emits CartridgeInfo
+// for every entry, preserving channel provenance. Release entries
+// appear before nightly entries in the result.
+func (s *CartridgeRepoServer) TransformToCartridgeArray() ([]CartridgeInfo, error) {
+	result := make([]CartridgeInfo, 0,
+		len(s.registry.Channels.Release.Cartridges)+len(s.registry.Channels.Nightly.Cartridges))
+
+	for _, ch := range []CartridgeChannel{CartridgeChannelRelease, CartridgeChannelNightly} {
+		entries := s.channelEntries(ch)
+		for id, entry := range entries {
+			info, err := s.entryToCartridgeInfo(ch, id, entry)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, info)
+		}
+	}
 	return result, nil
+}
+
+// channelEntries returns the cartridges map for the requested channel.
+func (s *CartridgeRepoServer) channelEntries(ch CartridgeChannel) map[string]CartridgeRegistryEntry {
+	switch ch {
+	case CartridgeChannelRelease:
+		return s.registry.Channels.Release.Cartridges
+	case CartridgeChannelNightly:
+		return s.registry.Channels.Nightly.Cartridges
+	default:
+		return nil
+	}
 }
 
 // GetCartridges returns all cartridges (API response format)
@@ -384,18 +460,23 @@ func (s *CartridgeRepoServer) GetCartridges() (*CartridgeRegistryResponse, error
 	return &CartridgeRegistryResponse{Cartridges: cartridges}, nil
 }
 
-// GetCartridgeById returns a cartridge by ID
-func (s *CartridgeRepoServer) GetCartridgeById(id string) (*CartridgeInfo, error) {
-	all, err := s.TransformToCartridgeArray()
+// GetCartridgeById returns a cartridge by (channel, id). Channel is
+// required because the same id can independently exist in both
+// channels with different versions/metadata.
+func (s *CartridgeRepoServer) GetCartridgeById(channel CartridgeChannel, id string) (*CartridgeInfo, error) {
+	if channel != CartridgeChannelRelease && channel != CartridgeChannelNightly {
+		return nil, NewParseError(fmt.Sprintf("Invalid channel %q", channel))
+	}
+	entries := s.channelEntries(channel)
+	entry, ok := entries[id]
+	if !ok {
+		return nil, nil
+	}
+	info, err := s.entryToCartridgeInfo(channel, id, entry)
 	if err != nil {
 		return nil, err
 	}
-	for i := range all {
-		if all[i].Id == id {
-			return &all[i], nil
-		}
-	}
-	return nil, nil
+	return &info, nil
 }
 
 // SearchCartridges searches cartridges by free-text query.
@@ -465,10 +546,13 @@ func (s *CartridgeRepoServer) GetCartridgesByCategory(category string) ([]Cartri
 
 // GetCartridgesByCap returns cartridges that provide a specific cap.
 //
-// `capUrn` is parsed via NewCapUrnFromString; each candidate cartridge
-// cap is parsed too and matched via IsEquivalent so caps declared in
-// any tag order resolve. A malformed input URN is a ParseError — there
-// is no fallback that compares the raw strings.
+// The request URN is parsed via NewCapUrnFromString; each declared
+// cartridge cap is parsed and matched with ConformsTo: cap dispatch is
+// the partial-order question "does the declared cap conform to (i.e.
+// refine, equal, or be more specific than) the requested pattern?".
+// Only `in` and `out` tags are functionally meaningful — the `op` tag
+// has no role in the predicate. Malformed input or declared URNs are
+// returned as ParseError, never silently ignored.
 func (s *CartridgeRepoServer) GetCartridgesByCap(capUrn string) ([]CartridgeInfo, error) {
 	requested, err := urn.NewCapUrnFromString(capUrn)
 	if err != nil {
@@ -485,11 +569,14 @@ func (s *CartridgeRepoServer) GetCartridgesByCap(capUrn string) ([]CartridgeInfo
 	results := make([]CartridgeInfo, 0)
 	for _, c := range all {
 		for _, cap := range c.IterCaps() {
-			parsed, perr := urn.NewCapUrnFromString(cap.Urn)
+			declared, perr := urn.NewCapUrnFromString(cap.Urn)
 			if perr != nil {
-				continue
+				return nil, NewParseError(fmt.Sprintf(
+					"cartridge %s (%s): invalid declared cap URN %q: %v",
+					c.Id, c.Channel, cap.Urn, perr,
+				))
 			}
-			if parsed.IsEquivalent(requested) {
+			if declared.ConformsTo(requested) {
 				results = append(results, c)
 				break
 			}
@@ -498,10 +585,20 @@ func (s *CartridgeRepoServer) GetCartridgesByCap(capUrn string) ([]CartridgeInfo
 	return results, nil
 }
 
-// CartridgeRepoCache holds cached cartridge repository data
+// CartridgeKey is the composite (channel, id) cache key. A cartridge id
+// is unique within a channel but can appear in both channels at the
+// same time.
+type CartridgeKey struct {
+	Channel CartridgeChannel
+	Id      string
+}
+
+// CartridgeRepoCache holds cached cartridge repository data, keyed by
+// (channel, id) so the same id can independently coexist in release
+// and nightly with separate metadata/versions.
 type CartridgeRepoCache struct {
-	cartridges      map[string]CartridgeInfo
-	capToCartridges map[string][]string
+	cartridges      map[CartridgeKey]CartridgeInfo
+	capToCartridges map[string][]CartridgeKey
 	lastUpdated     time.Time
 	repoUrl         string
 }
@@ -531,7 +628,14 @@ func (r *CartridgeRepo) SetOffline(offline bool) {
 	r.offlineFlag.Store(offline)
 }
 
-// fetchRegistry fetches cartridge registry from a URL
+// fetchRegistry fetches the v5.0 channel-partitioned cartridge
+// manifest from a URL and flattens it through CartridgeRepoServer into
+// the CartridgeRegistryResponse shape the cache expects (one
+// CartridgeInfo per (channel, id) pair). 404 is "no cartridges
+// published yet" → empty response. Any other non-200, network failure,
+// or schema validation error surfaces as an error. There is no
+// fallback to a stale cache shape — the manifest is the source of
+// truth.
 func (r *CartridgeRepo) fetchRegistry(repoUrl string) (*CartridgeRegistryResponse, error) {
 	if r.offlineFlag.Load() {
 		return nil, NewNetworkBlockedError(fmt.Sprintf(
@@ -545,6 +649,9 @@ func (r *CartridgeRepo) fetchRegistry(repoUrl string) (*CartridgeRegistryRespons
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusNotFound {
+		return &CartridgeRegistryResponse{Cartridges: []CartridgeInfo{}}, nil
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, NewStatusError(resp.StatusCode)
 	}
@@ -554,39 +661,51 @@ func (r *CartridgeRepo) fetchRegistry(repoUrl string) (*CartridgeRegistryRespons
 		return nil, NewHttpError(fmt.Sprintf("Failed to read response from %s: %v", repoUrl, err))
 	}
 
-	var registry CartridgeRegistryResponse
-	if err := json.Unmarshal(body, &registry); err != nil {
+	var manifest CartridgeRegistry
+	if err := json.Unmarshal(body, &manifest); err != nil {
 		return nil, NewParseError(fmt.Sprintf("Failed to parse from %s: %v", repoUrl, err))
 	}
 
-	return &registry, nil
+	server, err := NewCartridgeRepoServer(manifest)
+	if err != nil {
+		return nil, err
+	}
+	return server.GetCartridges()
 }
 
 // updateCache updates cache from a registry response.
 //
-// The cap-to-cartridges index keys on the *normalized* tagged-URN form
-// of each cap URN (parse via NewCapUrnFromString, then take String()).
-// Two URNs that are textually different but canonically identical (e.g.
-// tag-order variants) collapse into the same bucket. A cap URN that
-// fails to parse is a registry corruption: the error is propagated to
-// the caller, which logs and moves on to the next repo.
+// Each entry's Channel must be set on arrival — the flat response is
+// produced by the server transformer that walks the v5.0 channel-
+// partitioned source. Cache key is (channel, id). The cap-to-cartridges
+// index keys on the *normalized* tagged-URN form (parse via
+// NewCapUrnFromString, then String()) and stores CartridgeKey
+// references so suggestions preserve channel provenance.
 func (r *CartridgeRepo) updateCache(repoUrl string, registry *CartridgeRegistryResponse) error {
-	cartridges := make(map[string]CartridgeInfo)
-	capToCartridges := make(map[string][]string)
+	cartridges := make(map[CartridgeKey]CartridgeInfo)
+	capToCartridges := make(map[string][]CartridgeKey)
 
 	for _, cartridgeInfo := range registry.Cartridges {
-		cartridgeId := cartridgeInfo.Id
+		if cartridgeInfo.Channel != CartridgeChannelRelease &&
+			cartridgeInfo.Channel != CartridgeChannelNightly {
+			return NewParseError(fmt.Sprintf(
+				"cartridge %s: invalid or missing channel %q",
+				cartridgeInfo.Id, cartridgeInfo.Channel,
+			))
+		}
+		key := CartridgeKey{Channel: cartridgeInfo.Channel, Id: cartridgeInfo.Id}
 		for _, cap := range cartridgeInfo.IterCaps() {
 			parsed, err := urn.NewCapUrnFromString(cap.Urn)
 			if err != nil {
 				return NewParseError(fmt.Sprintf(
-					"cartridge %s: invalid cap URN %q: %v", cartridgeId, cap.Urn, err,
+					"cartridge %s (%s): invalid cap URN %q: %v",
+					key.Id, key.Channel, cap.Urn, err,
 				))
 			}
 			normalized := parsed.String()
-			capToCartridges[normalized] = append(capToCartridges[normalized], cartridgeId)
+			capToCartridges[normalized] = append(capToCartridges[normalized], key)
 		}
-		cartridges[cartridgeId] = cartridgeInfo
+		cartridges[key] = cartridgeInfo
 	}
 
 	r.mu.Lock()
@@ -626,11 +745,12 @@ func (r *CartridgeRepo) isCacheStale(cache *CartridgeRepoCache) bool {
 
 // GetSuggestionsForCap gets cartridge suggestions for a cap URN.
 //
-// `capUrn` is parsed via NewCapUrnFromString; the parsed-and-
+// The request URN is parsed via NewCapUrnFromString; the parsed-and-
 // re-serialized form is the canonical key used to look up the
-// cap-to-cartridges index. Inside each candidate cartridge we walk its
-// caps via IterCaps and match each on IsEquivalent. A malformed input
-// URN logs and returns an empty result rather than masking the error.
+// cap-to-cartridges index. Each declared cap is parsed and matched on
+// IsEquivalent (suggestion lookup uses exact-match URNs). A malformed
+// input URN logs and returns an empty result rather than masking the
+// error.
 func (r *CartridgeRepo) GetSuggestionsForCap(capUrn string) []CartridgeSuggestion {
 	requested, err := urn.NewCapUrnFromString(capUrn)
 	if err != nil {
@@ -645,13 +765,13 @@ func (r *CartridgeRepo) GetSuggestionsForCap(capUrn string) []CartridgeSuggestio
 	suggestions := make([]CartridgeSuggestion, 0)
 
 	for _, cache := range r.caches {
-		cartridgeIds, ok := cache.capToCartridges[normalized]
+		keys, ok := cache.capToCartridges[normalized]
 		if !ok {
 			continue
 		}
 
-		for _, cartridgeId := range cartridgeIds {
-			cartridge, ok := cache.cartridges[cartridgeId]
+		for _, key := range keys {
+			cartridge, ok := cache.cartridges[key]
 			if !ok {
 				continue
 			}
@@ -669,7 +789,7 @@ func (r *CartridgeRepo) GetSuggestionsForCap(capUrn string) []CartridgeSuggestio
 					pageUrl = cache.repoUrl
 				}
 				suggestions = append(suggestions, CartridgeSuggestion{
-					CartridgeId:          cartridgeId,
+					CartridgeId:          key.Id,
 					CartridgeName:        cartridge.Name,
 					CartridgeDescription: cartridge.Description,
 					CapUrn:               normalized,
@@ -677,6 +797,7 @@ func (r *CartridgeRepo) GetSuggestionsForCap(capUrn string) []CartridgeSuggestio
 					LatestVersion:        cartridge.Version,
 					RepoUrl:              cache.repoUrl,
 					PageUrl:              pageUrl,
+					Channel:              key.Channel,
 				})
 				break
 			}
@@ -686,7 +807,9 @@ func (r *CartridgeRepo) GetSuggestionsForCap(capUrn string) []CartridgeSuggestio
 	return suggestions
 }
 
-// GetAllCartridges gets all available cartridges from all repos
+// GetAllCartridges gets all available cartridges from all repos.
+// Channel provenance is on each CartridgeInfo so consumers can render
+// the release/nightly distinction without a separate lookup.
 func (r *CartridgeRepo) GetAllCartridges() []CartridgeInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -737,13 +860,16 @@ func (r *CartridgeRepo) NeedsSync(repoUrls []string) bool {
 	return false
 }
 
-// GetCartridge gets cartridge info by ID
-func (r *CartridgeRepo) GetCartridge(cartridgeId string) *CartridgeInfo {
+// GetCartridge gets cartridge info by (channel, id). Channel is
+// required because the same id can independently exist in both
+// channels with different versions/metadata.
+func (r *CartridgeRepo) GetCartridge(channel CartridgeChannel, cartridgeId string) *CartridgeInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	key := CartridgeKey{Channel: channel, Id: cartridgeId}
 	for _, cache := range r.caches {
-		if cartridge, ok := cache.cartridges[cartridgeId]; ok {
+		if cartridge, ok := cache.cartridges[key]; ok {
 			return &cartridge
 		}
 	}

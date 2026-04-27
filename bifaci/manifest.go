@@ -26,13 +26,24 @@ type CapGroup struct {
 	AdapterUrns []string `json:"adapter_urns,omitempty"`
 }
 
-// CapManifest represents unified cap manifest for --manifest output
+// CapManifest represents unified cap manifest for --manifest output.
+//
+// `(Name, Version, Channel)` is the cartridge's full identity. Channel
+// is part of the cartridge's identity and is baked in at compile time
+// (Go cartridges read it from the `MFR_CARTRIDGE_CHANNEL` env var via
+// build-time codegen, mirroring the Rust SDK's `env!()` pattern).
 type CapManifest struct {
 	// Component name
 	Name string `json:"name"`
 
 	// Component version
 	Version string `json:"version"`
+
+	// Distribution channel ("release" or "nightly"). Required.
+	// Channels are independent namespaces — release v1.0.0 and
+	// nightly v1.0.0 are distinct artifacts that share id+version
+	// strings.
+	Channel string `json:"channel"`
 
 	// Component description
 	Description string `json:"description"`
@@ -49,11 +60,15 @@ type CapManifest struct {
 	PageUrl *string `json:"page_url,omitempty"`
 }
 
-// NewCapManifest creates a new cap manifest with cap groups
-func NewCapManifest(name, version, description string, capGroups []CapGroup) *CapManifest {
+// NewCapManifest creates a new cap manifest with cap groups.
+// `channel` is required — every cartridge declares which channel it
+// was built for so the host can verify the install context
+// (cartridge.json) matches the cartridge's self-report.
+func NewCapManifest(name, version, channel, description string, capGroups []CapGroup) *CapManifest {
 	return &CapManifest{
 		Name:        name,
 		Version:     version,
+		Channel:     channel,
 		Description: description,
 		CapGroups:   capGroups,
 	}

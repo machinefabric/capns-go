@@ -216,7 +216,7 @@ func TestIntegrationMediaSpecDefConstruction(t *testing.T) {
 // CBOR Integration Tests (TEST284-303)
 // These tests verify the CBOR cartridge communication protocol between host and cartridge
 
-const testCBORManifest = `{"name":"TestCartridge","version":"1.0.0","description":"Test cartridge","caps":[{"urn":"cap:in=\"media:void\";op=test;out=\"media:void\"","title":"Test","command":"test"}]}`
+const testCBORManifest = `{"name":"TestCartridge","version":"1.0.0","channel":"release","description":"Test cartridge","cap_groups":[{"name":"default","caps":[{"urn":"cap:in=\"media:void\";op=test;out=\"media:void\"","title":"Test","command":"test"}]}]}`
 
 // createPipePair creates a pair of connected Unix socket streams for testing
 func createPipePair(t *testing.T) (hostWrite, cartridgeRead, cartridgeWrite, hostRead net.Conn) {

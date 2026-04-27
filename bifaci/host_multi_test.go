@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testHostManifest = `{"name":"Test","version":"1.0","caps":[{"urn":"cap:in=media:;out=media:"}]}`
+const testHostManifest = `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:in=media:;out=media:"}]}]}`
 
 // simulateCartridge runs a fake cartridge: handshake + handler on the cartridge side of a pipe.
 // handler receives the FrameReader/FrameWriter after handshake and can read/write frames.
@@ -98,7 +98,7 @@ func Test415_req_triggers_spawn(t *testing.T) {
 
 // TEST416: Attach cartridge performs HELLO handshake, extracts manifest, updates capabilities
 func Test416_attach_cartridge_handshake(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:in=media:;out=media:"}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:in=media:;out=media:"}]}]}`
 
 	hostRead, cartridgeWrite := net.Pipe()
 	cartridgeRead, hostWrite := net.Pipe()
@@ -136,8 +136,8 @@ func Test416_attach_cartridge_handshake(t *testing.T) {
 
 // TEST417: Route REQ to correct cartridge by cap_urn (with two attached cartridges)
 func Test417_route_req_by_cap_urn(t *testing.T) {
-	manifestA := `{"name":"CartridgeA","version":"1.0","caps":[{"urn":"cap:op=convert"}]}`
-	manifestB := `{"name":"CartridgeB","version":"1.0","caps":[{"urn":"cap:op=analyze"}]}`
+	manifestA := `{"name":"CartridgeA","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=convert"}]}]}`
+	manifestB := `{"name":"CartridgeB","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=analyze"}]}]}`
 
 	// Cartridge A pipes
 	hostReadA, cartridgeWriteA := net.Pipe()
@@ -238,7 +238,7 @@ func Test417_route_req_by_cap_urn(t *testing.T) {
 
 // TEST418: Route STREAM_START/CHUNK/STREAM_END/END by req_id (not cap_urn) Verifies that after the initial REQ→cartridge routing, all subsequent continuation frames with the same req_id are routed to the same cartridge — even though no cap_urn is present on those frames.
 func Test418_route_continuation_by_req_id(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:op=cont"}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=cont"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()
@@ -327,7 +327,7 @@ func Test418_route_continuation_by_req_id(t *testing.T) {
 
 // TEST419: Cartridge HEARTBEAT handled locally (not forwarded to relay)
 func Test419_heartbeat_local_handling(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:op=hb"}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=hb"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()
@@ -408,7 +408,7 @@ func Test419_heartbeat_local_handling(t *testing.T) {
 
 // TEST420: Cartridge non-HELLO/non-HB frames forwarded to relay (pass-through)
 func Test420_cartridge_frames_forwarded_to_relay(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:op=fwd"}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=fwd"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()
@@ -498,7 +498,7 @@ func Test420_cartridge_frames_forwarded_to_relay(t *testing.T) {
 
 // TEST421: Cartridge death updates capability list (caps removed)
 func Test421_cartridge_death_updates_caps(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:op=die"}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=die"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()
@@ -553,7 +553,7 @@ func Test421_cartridge_death_updates_caps(t *testing.T) {
 
 // TEST422: Cartridge death sends ERR for all pending requests via relay
 func Test422_cartridge_death_sends_err(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:op=die"}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=die"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()
@@ -622,8 +622,8 @@ func Test422_cartridge_death_sends_err(t *testing.T) {
 
 // TEST423: Multiple cartridges registered with distinct caps route independently
 func Test423_multi_cartridge_distinct_caps(t *testing.T) {
-	manifestA := `{"name":"CartridgeA","version":"1.0","caps":[{"urn":"cap:op=alpha"}]}`
-	manifestB := `{"name":"CartridgeB","version":"1.0","caps":[{"urn":"cap:op=beta"}]}`
+	manifestA := `{"name":"CartridgeA","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=alpha"}]}]}`
+	manifestB := `{"name":"CartridgeB","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=beta"}]}]}`
 
 	// Cartridge A pipes
 	hostReadA, cartridgeWriteA := net.Pipe()
@@ -743,7 +743,7 @@ func Test423_multi_cartridge_distinct_caps(t *testing.T) {
 
 // TEST424: Concurrent requests to the same cartridge are handled independently
 func Test424_concurrent_requests_same_cartridge(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","caps":[{"urn":"cap:op=conc"}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=conc"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()

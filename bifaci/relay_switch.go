@@ -46,9 +46,13 @@ func (e *RelaySwitchError) Error() string {
 	}
 }
 
-// InstalledCartridgeIdentity represents the identity of an installed cartridge
+// InstalledCartridgeIdentity represents the identity of an installed
+// cartridge. `(Id, Channel, Version)` is the cartridge's full
+// identity — release v1.0.0 and nightly v1.0.0 are distinct
+// installs.
 type InstalledCartridgeIdentity struct {
 	Id      string `json:"id"`
+	Channel string `json:"channel"`
 	Version string `json:"version"`
 	Sha256  string `json:"sha256"`
 }
