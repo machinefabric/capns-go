@@ -133,13 +133,13 @@ This catalog lists all tests in the Go codebase.
 | test146 | `Test146_schema_url_not_overwritten_when_explicit` | TEST146: Test schema URL not overwritten when set explicitly before registry URL | cap/registry_test.go:223 |
 | test147 | `Test147_registry_for_test_with_config` | TEST147: Test registry for test with custom config creates registry with specified URLs | cap/registry_test.go:233 |
 | test148 | `Test148_cap_manifest_creation` | TEST148: Manifest creation with cap groups | bifaci/manifest_test.go:23 |
-| test149 | `Test149_cap_manifest_with_author` | TEST149: Author field | bifaci/manifest_test.go:47 |
-| test150 | `Test150_cap_manifest_json_serialization` | TEST150: JSON roundtrip | bifaci/manifest_test.go:90 |
-| test151 | `Test151_cap_manifest_required_fields` | TEST151: Missing required fields fail | bifaci/manifest_test.go:127 |
-| test152 | `Test152_cap_manifest_with_multiple_caps` | TEST152: Multiple caps across groups | bifaci/manifest_test.go:136 |
-| test153 | `Test153_cap_manifest_empty_cap_groups` | TEST153: Empty cap groups | bifaci/manifest_test.go:162 |
-| test154 | `Test154_cap_manifest_optional_fields` | TEST154: Optional author field omitted in serialization | bifaci/manifest_test.go:183 |
-| test155 | `Test155_component_metadata_interface` | TEST155: ComponentMetadata interface | bifaci/manifest_test.go:226 |
+| test149 | `Test149_cap_manifest_with_author` | TEST149: Author field | bifaci/manifest_test.go:45 |
+| test150 | `Test150_cap_manifest_json_serialization` | TEST150: JSON roundtrip | bifaci/manifest_test.go:84 |
+| test151 | `Test151_cap_manifest_required_fields` | TEST151: Missing required fields fail | bifaci/manifest_test.go:119 |
+| test152 | `Test152_cap_manifest_with_multiple_caps` | TEST152: Multiple caps across groups | bifaci/manifest_test.go:128 |
+| test153 | `Test153_cap_manifest_empty_cap_groups` | TEST153: Empty cap groups | bifaci/manifest_test.go:152 |
+| test154 | `Test154_cap_manifest_optional_fields` | TEST154: Optional author field omitted in serialization | bifaci/manifest_test.go:171 |
+| test155 | `Test155_component_metadata_interface` | TEST155: ComponentMetadata interface | bifaci/manifest_test.go:213 |
 | test163 | `Test163_schema_validator_validate_argument_with_schema_success` | TEST163: Test argument schema validation succeeds with valid JSON matching schema | cap/schema_validation_test.go:32 |
 | test164 | `Test164_schema_validator_validate_argument_with_schema_failure` | TEST164: Test argument schema validation fails with JSON missing required fields | cap/schema_validation_test.go:71 |
 | test165 | `Test165_schema_validator_validate_output_with_schema_success` | TEST165: Test output schema validation succeeds with valid JSON matching schema | cap/schema_validation_test.go:134 |
@@ -381,8 +381,8 @@ This catalog lists all tests in the Go codebase.
 | test472 | `Test472_handshake_negotiates_reorder_buffer` | TEST472: Handshake negotiates max_reorder_buffer as minimum of both sides. | bifaci/io_test.go:1211 |
 | test473 | `Test473_cap_discard_parses_as_valid_urn` | TEST473: CAP_DISCARD parses as valid CapUrn with in=media: and out=media:void | standard/caps_test.go:59 |
 | test474 | `Test474_cap_discard_structure` | TEST474: CAP_DISCARD accepts specific-input/void-output caps | standard/caps_test.go:68 |
-| test475 | `Test475_validate_passes_with_identity` | TEST475: validate() passes with CAP_IDENTITY in a cap group | bifaci/manifest_test.go:316 |
-| test476 | `Test476_validate_fails_without_identity` | TEST476: validate() fails without CAP_IDENTITY | bifaci/manifest_test.go:327 |
+| test475 | `Test475_validate_passes_with_identity` | TEST475: validate() passes with CAP_IDENTITY in a cap group | bifaci/manifest_test.go:297 |
+| test476 | `Test476_validate_fails_without_identity` | TEST476: validate() fails without CAP_IDENTITY | bifaci/manifest_test.go:308 |
 | test491 | `Test491_chunk_requires_chunk_index_and_checksum` | TEST491: Frame::chunk constructor requires and sets chunk_index and checksum | bifaci/frame_test.go:1370 |
 | test492 | `Test492_stream_end_requires_chunk_count` | TEST492: Frame::stream_end constructor requires and sets chunk_count | bifaci/frame_test.go:1386 |
 | test493 | `Test493_compute_checksum_fnv1a_test_vectors` | TEST493: compute_checksum produces correct FNV-1a hash for known test vectors | bifaci/frame_test.go:1399 |
@@ -845,7 +845,7 @@ This catalog lists all tests in the Go codebase.
 | test1275 | `Test1275_adapter_selection_dispatchable_by_specific_provider` | TEST1275: A cap whose output is adapter-selection can dispatch adapter-selection requests; identity (wildcard output) cannot, because wildcard output cannot satisfy a specific output requirement. | standard/caps_test.go:171 |
 | test1282 | `Test1282_adapter_selection_auto_registered` | TEST1282: AdapterSelectionOp is auto-registered by CartridgeRuntime | bifaci/cartridge_runtime_test.go:3188 |
 | test1283 | `Test1283_adapter_selection_custom_override` | TEST1283: Custom adapter selection handler overrides the default | bifaci/cartridge_runtime_test.go:3202 |
-| test1284 | `Test1284_cap_group_with_adapter_urns` | TEST1284: Cap group with adapter URNs serializes and deserializes correctly | bifaci/manifest_test.go:339 |
+| test1284 | `Test1284_cap_group_with_adapter_urns` | TEST1284: Cap group with adapter URNs serializes and deserializes correctly | bifaci/manifest_test.go:320 |
 | test1289 | `Test1289_bfs_reachable_includes_source_roundtrip` | TEST1289: BFS reachable targets includes the source itself when round-trip paths exist. A→B and B→A means A is reachable from A (via A→B→A). | planner/live_cap_graph_test.go:447 |
 | test1290 | `Test1290_iddfs_finds_roundtrip_paths` | TEST1290: IDDFS find_paths_to_exact_target finds round-trip paths when source == target. | planner/live_cap_graph_test.go:481 |
 | test1291 | `Test1291_iddfs_roundtrip_with_sequence` | TEST1291: IDDFS round-trip paths are also found with is_sequence=true. | planner/live_cap_graph_test.go:518 |
@@ -866,9 +866,9 @@ This catalog lists all tests in the Go codebase.
 | unnumbered | `TestCapDescription` |  | cap/definition_test.go:446 |
 | unnumbered | `TestCapExists` |  | cap/registry_test.go:119 |
 | unnumbered | `TestCapJSONRoundTrip` |  | cap/definition_test.go:593 |
-| unnumbered | `TestCapManifestCompatibility` |  | bifaci/manifest_test.go:272 |
-| unnumbered | `TestCapManifestValidation` |  | bifaci/manifest_test.go:241 |
-| unnumbered | `TestCapManifestWithPageURL` |  | bifaci/manifest_test.go:65 |
+| unnumbered | `TestCapManifestCompatibility` |  | bifaci/manifest_test.go:257 |
+| unnumbered | `TestCapManifestValidation` |  | bifaci/manifest_test.go:228 |
+| unnumbered | `TestCapManifestWithPageURL` |  | bifaci/manifest_test.go:61 |
 | unnumbered | `TestCapRequestHandling` | Additional existing tests below (not part of TEST108-116 sequence) | cap/definition_test.go:430 |
 | unnumbered | `TestCapUrn_JSONSerialization` | JSON serialization test (not numbered in Rust) | urn/cap_urn_test.go:1413 |
 | unnumbered | `TestCapValidationCoordinator_EndToEnd` |  | cap/schema_validation_test.go:424 |
@@ -942,9 +942,9 @@ The following tests are cataloged but do not currently participate in numeric te
 - `TestCapDescription` — cap/definition_test.go:446
 - `TestCapExists` — cap/registry_test.go:119
 - `TestCapJSONRoundTrip` — cap/definition_test.go:593
-- `TestCapManifestCompatibility` — bifaci/manifest_test.go:272
-- `TestCapManifestValidation` — bifaci/manifest_test.go:241
-- `TestCapManifestWithPageURL` — bifaci/manifest_test.go:65
+- `TestCapManifestCompatibility` — bifaci/manifest_test.go:257
+- `TestCapManifestValidation` — bifaci/manifest_test.go:228
+- `TestCapManifestWithPageURL` — bifaci/manifest_test.go:61
 - `TestCapRequestHandling` — cap/definition_test.go:430
 - `TestCapUrn_JSONSerialization` — urn/cap_urn_test.go:1413
 - `TestCapValidationCoordinator_EndToEnd` — cap/schema_validation_test.go:424

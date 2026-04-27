@@ -209,8 +209,13 @@ func Test417_route_req_by_cap_urn(t *testing.T) {
 		reader := NewFrameReader(engineRead)
 
 		reqId := NewMessageIdRandom()
-		writer.WriteFrame(NewReq(reqId, "cap:op=convert", []byte{}, "text/plain"))
-		writer.WriteFrame(NewEnd(reqId, nil))
+		xid := NewMessageIdFromUint(1)
+		req := NewReq(reqId, "cap:op=convert", []byte{}, "text/plain")
+		req.RoutingId = &xid
+		writer.WriteFrame(req)
+		end := NewEnd(reqId, nil)
+		end.RoutingId = &xid
+		writer.WriteFrame(end)
 
 		// Read response
 		frame, err := reader.ReadFrame()
@@ -299,13 +304,15 @@ func Test418_route_continuation_by_req_id(t *testing.T) {
 		reader := NewFrameReader(engineRead)
 
 		reqId := NewMessageIdRandom()
-		writer.WriteFrame(NewReq(reqId, "cap:op=cont", []byte{}, "text/plain"))
-		writer.WriteFrame(NewStreamStart(reqId, "arg-0", "media:", nil))
+		xid := NewMessageIdFromUint(1)
+		stamp := func(f *Frame) *Frame { f.RoutingId = &xid; return f }
+		writer.WriteFrame(stamp(NewReq(reqId, "cap:op=cont", []byte{}, "text/plain")))
+		writer.WriteFrame(stamp(NewStreamStart(reqId, "arg-0", "media:", nil)))
 		payload := []byte("payload-data")
 		checksum := ComputeChecksum(payload)
-		writer.WriteFrame(NewChunk(reqId, "arg-0", 0, payload, 0, checksum))
-		writer.WriteFrame(NewStreamEnd(reqId, "arg-0", 1))
-		writer.WriteFrame(NewEnd(reqId, nil))
+		writer.WriteFrame(stamp(NewChunk(reqId, "arg-0", 0, payload, 0, checksum)))
+		writer.WriteFrame(stamp(NewStreamEnd(reqId, "arg-0", 1)))
+		writer.WriteFrame(stamp(NewEnd(reqId, nil)))
 
 		// Read response
 		frame, err := reader.ReadFrame()
@@ -459,8 +466,13 @@ func Test420_cartridge_frames_forwarded_to_relay(t *testing.T) {
 
 		// Send REQ + END
 		reqId := NewMessageIdRandom()
-		writer.WriteFrame(NewReq(reqId, "cap:op=fwd", []byte{}, "text/plain"))
-		writer.WriteFrame(NewEnd(reqId, nil))
+		xid := NewMessageIdFromUint(1)
+		req := NewReq(reqId, "cap:op=fwd", []byte{}, "text/plain")
+		req.RoutingId = &xid
+		writer.WriteFrame(req)
+		end := NewEnd(reqId, nil)
+		end.RoutingId = &xid
+		writer.WriteFrame(end)
 
 		// Read all forwarded frames
 		for {
@@ -590,8 +602,13 @@ func Test422_cartridge_death_sends_err(t *testing.T) {
 
 		// Send REQ + END
 		reqId := NewMessageIdRandom()
-		writer.WriteFrame(NewReq(reqId, "cap:op=die", []byte("hello"), "text/plain"))
-		writer.WriteFrame(NewEnd(reqId, nil))
+		xid := NewMessageIdFromUint(1)
+		req := NewReq(reqId, "cap:op=die", []byte("hello"), "text/plain")
+		req.RoutingId = &xid
+		writer.WriteFrame(req)
+		end := NewEnd(reqId, nil)
+		end.RoutingId = &xid
+		writer.WriteFrame(end)
 
 		// Wait for ERR
 		for {
@@ -696,13 +713,23 @@ func Test423_multi_cartridge_distinct_caps(t *testing.T) {
 
 		// Send REQ for alpha
 		alphaId := NewMessageIdRandom()
-		writer.WriteFrame(NewReq(alphaId, "cap:op=alpha", []byte{}, "text/plain"))
-		writer.WriteFrame(NewEnd(alphaId, nil))
+		alphaXid := NewMessageIdFromUint(1)
+		alphaReq := NewReq(alphaId, "cap:op=alpha", []byte{}, "text/plain")
+		alphaReq.RoutingId = &alphaXid
+		writer.WriteFrame(alphaReq)
+		alphaEnd := NewEnd(alphaId, nil)
+		alphaEnd.RoutingId = &alphaXid
+		writer.WriteFrame(alphaEnd)
 
 		// Send REQ for beta
 		betaId := NewMessageIdRandom()
-		writer.WriteFrame(NewReq(betaId, "cap:op=beta", []byte{}, "text/plain"))
-		writer.WriteFrame(NewEnd(betaId, nil))
+		betaXid := NewMessageIdFromUint(2)
+		betaReq := NewReq(betaId, "cap:op=beta", []byte{}, "text/plain")
+		betaReq.RoutingId = &betaXid
+		writer.WriteFrame(betaReq)
+		betaEnd := NewEnd(betaId, nil)
+		betaEnd.RoutingId = &betaXid
+		writer.WriteFrame(betaEnd)
 
 		// Read 2 responses
 		for i := 0; i < 2; i++ {
@@ -801,15 +828,28 @@ func Test424_concurrent_requests_same_cartridge(t *testing.T) {
 		writer := NewFrameWriter(engineWrite)
 		reader := NewFrameReader(engineRead)
 
-		// Send two concurrent REQs
+		// Send two concurrent REQs. The host expects XID
+		// (routing_id) on every relay-side frame — the
+		// RelaySwitch stamps these in production. Mirrors the
+		// Rust TEST424 in capdag/src/bifaci/host_runtime.rs.
 		id0 := NewMessageIdRandom()
 		id1 := NewMessageIdRandom()
+		xid0 := NewMessageIdFromUint(1)
+		xid1 := NewMessageIdFromUint(2)
 
-		writer.WriteFrame(NewReq(id0, "cap:op=conc", []byte{}, "text/plain"))
-		writer.WriteFrame(NewEnd(id0, nil))
+		req0 := NewReq(id0, "cap:op=conc", []byte{}, "text/plain")
+		req0.RoutingId = &xid0
+		writer.WriteFrame(req0)
+		end0 := NewEnd(id0, nil)
+		end0.RoutingId = &xid0
+		writer.WriteFrame(end0)
 
-		writer.WriteFrame(NewReq(id1, "cap:op=conc", []byte{}, "text/plain"))
-		writer.WriteFrame(NewEnd(id1, nil))
+		req1 := NewReq(id1, "cap:op=conc", []byte{}, "text/plain")
+		req1.RoutingId = &xid1
+		writer.WriteFrame(req1)
+		end1 := NewEnd(id1, nil)
+		end1.RoutingId = &xid1
+		writer.WriteFrame(end1)
 
 		// Read both responses
 		for i := 0; i < 2; i++ {
