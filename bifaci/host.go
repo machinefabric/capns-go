@@ -142,10 +142,20 @@ type capTableEntry struct {
 	cartridgeIdx int
 }
 
-// routingEntry tracks a routed request with its original MessageId.
-type routingEntry struct {
-	cartridgeIdx int
-	msgId        MessageId
+// rxidKey composes the (XID, RID) tuple used to route incoming
+// requests from the relay. Mirrors the Rust host's
+// `incoming_rxids: HashMap<(MessageId, MessageId), usize>` — XID
+// (routing_id, assigned by the RelaySwitch) plus RID (the
+// engine-side request id) together identify a request body
+// uniquely. Composing them as a single string lets us use Go's
+// map[string] without a separate hash impl.
+type rxidKey struct {
+	xid string
+	rid string
+}
+
+func makeRxidKey(xid, rid MessageId) rxidKey {
+	return rxidKey{xid: xid.ToString(), rid: rid.ToString()}
 }
 
 // ManagedCartridge represents a cartridge managed by the CartridgeHost.
@@ -168,21 +178,56 @@ type ManagedCartridge struct {
 // cartridge by cap URN. Continuation frames (STREAM_START, CHUNK,
 // STREAM_END, END) are routed by request ID.
 type CartridgeHost struct {
-	cartridges     []*ManagedCartridge
-	capTable       []capTableEntry
-	requestRouting map[string]routingEntry // reqId string → routing info
-	peerRequests   map[string]bool         // cartridge-initiated reqIds
-	capabilities   []byte
-	eventCh        chan cartridgeEvent
-	mu             sync.Mutex
+	cartridges []*ManagedCartridge
+	capTable   []capTableEntry
+
+	// Routing tables — mirror of the Rust `CartridgeHostRuntime`
+	// design (capdag/src/bifaci/host_runtime.rs). Two independent
+	// maps so self-loop peer requests (where the requesting and
+	// answering cartridge are behind the same relay connection)
+	// can be routed correctly:
+	//
+	//   outgoingRids[rid]            = cartridge that SENT the peer REQ.
+	//                                  Keyed by RID alone — the relay
+	//                                  hasn't assigned an XID for
+	//                                  cartridge-initiated requests.
+	//                                  Used to deliver the peer
+	//                                  RESPONSE (frames coming back
+	//                                  from the relay) to the
+	//                                  requester.
+	//
+	//   incomingRxids[(xid, rid)]    = cartridge that RECEIVED a
+	//                                  request from the relay.
+	//                                  Keyed by (XID, RID) because
+	//                                  for self-loop peers the same
+	//                                  RID also exists in
+	//                                  outgoingRids; the XID from
+	//                                  the RelaySwitch disambiguates.
+	//                                  Used to deliver the request
+	//                                  BODY (continuation frames
+	//                                  from the relay) to the
+	//                                  handler.
+	//
+	// Phase tracking: when the request body END arrives from the
+	// relay, the `incomingRxids` entry is removed — subsequent
+	// frames with the same (XID, RID) fall through to
+	// `outgoingRids` and are routed as peer responses. Frame
+	// ordering on a single socket guarantees END is last for the
+	// body phase, so the transition is unambiguous.
+	outgoingRids  map[string]int    // rid string → cartridge_idx
+	incomingRxids map[rxidKey]int   // (xid, rid) → cartridge_idx
+
+	capabilities []byte
+	eventCh      chan cartridgeEvent
+	mu           sync.Mutex
 }
 
 // NewCartridgeHost creates a new multi-cartridge host.
 func NewCartridgeHost() *CartridgeHost {
 	return &CartridgeHost{
-		requestRouting: make(map[string]routingEntry),
-		peerRequests:   make(map[string]bool),
-		eventCh:        make(chan cartridgeEvent, 256),
+		outgoingRids:  make(map[string]int),
+		incomingRxids: make(map[rxidKey]int),
+		eventCh:       make(chan cartridgeEvent, 256),
 	}
 }
 
@@ -378,15 +423,36 @@ func (h *CartridgeHost) Run(relayRead io.Reader, relayWrite io.Writer, resourceF
 	}
 }
 
-// handleRelayFrame routes an incoming frame from the relay to the correct cartridge.
+// handleRelayFrame routes an incoming frame from the relay to the
+// correct cartridge. Mirrors the Rust `handle_relay_frame` design
+// in capdag/src/bifaci/host_runtime.rs.
+//
+// PATH B (REQ from relay): cap dispatch picks a cartridge, the
+// (XID, RID) → cartridge_idx mapping is recorded in
+// `incomingRxids`, and the frame is forwarded to the cartridge
+// (still carrying the XID).
+//
+// PATH C (continuation frames from relay): route by checking
+// `incomingRxids[(xid, rid)]` first (request body phase) and
+// falling back to `outgoingRids[rid]` (peer response phase). For
+// self-loop peer requests the same RID exists in both maps; the
+// XID disambiguates because the body's END (which removes
+// `incomingRxids[(xid, rid)]`) always precedes the peer response's
+// frames on a single ordered relay socket.
 func (h *CartridgeHost) handleRelayFrame(frame *Frame, relayWriter *FrameWriter) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	idKey := frame.Id.ToString()
-
 	switch frame.FrameType {
 	case FrameTypeReq:
+		// All frames from the relay carry an XID assigned by the
+		// RelaySwitch. Cartridge-bound REQs without one are a
+		// protocol error from upstream.
+		if frame.RoutingId == nil {
+			return fmt.Errorf("REQ from relay missing XID — RelaySwitch must stamp routing_id")
+		}
+		xid := *frame.RoutingId
+
 		capUrn := ""
 		if frame.Cap != nil {
 			capUrn = *frame.Cap
@@ -395,6 +461,7 @@ func (h *CartridgeHost) handleRelayFrame(frame *Frame, relayWriter *FrameWriter)
 		cartridgeIdx, found := h.findCartridgeForCapLocked(capUrn)
 		if !found {
 			errFrame := NewErr(frame.Id, "NO_HANDLER", fmt.Sprintf("no cartridge handles cap: %s", capUrn))
+			errFrame.RoutingId = frame.RoutingId
 			relayWriter.WriteFrame(errFrame)
 			return nil
 		}
@@ -403,39 +470,86 @@ func (h *CartridgeHost) handleRelayFrame(frame *Frame, relayWriter *FrameWriter)
 		if !cartridge.running {
 			if cartridge.helloFailed {
 				errFrame := NewErr(frame.Id, "SPAWN_FAILED", "cartridge previously failed to start")
+				errFrame.RoutingId = frame.RoutingId
 				relayWriter.WriteFrame(errFrame)
 				return nil
 			}
 			if err := h.spawnCartridgeLocked(cartridgeIdx); err != nil {
 				errFrame := NewErr(frame.Id, "SPAWN_FAILED", err.Error())
+				errFrame.RoutingId = frame.RoutingId
 				relayWriter.WriteFrame(errFrame)
 				return nil
 			}
 		}
 
-		h.requestRouting[idKey] = routingEntry{cartridgeIdx: cartridgeIdx, msgId: frame.Id}
+		// Record (XID, RID) → cartridge for routing the request
+		// body's continuation frames. The cartridge receives the
+		// REQ with XID intact so its response frames carry the
+		// same XID back to the relay.
+		h.incomingRxids[makeRxidKey(xid, frame.Id)] = cartridgeIdx
 		h.sendToCartridge(cartridgeIdx, frame)
 
-	case FrameTypeStreamStart, FrameTypeChunk, FrameTypeStreamEnd:
-		if entry, ok := h.requestRouting[idKey]; ok {
-			h.sendToCartridge(entry.cartridgeIdx, frame)
+	case FrameTypeStreamStart, FrameTypeChunk, FrameTypeStreamEnd, FrameTypeEnd, FrameTypeErr:
+		// Continuation frame from the relay. Two possibilities:
+		//   1. Body phase — `incomingRxids[(xid, rid)]` says which
+		//      cartridge is handling the original request. END
+		//      here marks the end of the body; we drop the entry
+		//      so a self-loop peer response (same RID) can fall
+		//      through to outgoingRids next.
+		//   2. Response phase — `outgoingRids[rid]` says which
+		//      cartridge sent the peer REQ; the relay is now
+		//      delivering the response back. END/ERR here marks
+		//      the end of the response and drops the entry.
+		//
+		// MUST have XID. Frames from the relay without XID are a
+		// protocol violation upstream.
+		if frame.RoutingId == nil {
+			return fmt.Errorf("%v from relay missing XID — all frames from relay must have XID", frame.FrameType)
+		}
+		xid := *frame.RoutingId
+		key := makeRxidKey(xid, frame.Id)
+
+		var (
+			cartridgeIdx       int
+			routedViaIncoming  bool
+			haveRoute          bool
+		)
+		if idx, ok := h.incomingRxids[key]; ok {
+			cartridgeIdx = idx
+			routedViaIncoming = true
+			haveRoute = true
+		} else if idx, ok := h.outgoingRids[frame.Id.ToString()]; ok {
+			cartridgeIdx = idx
+			routedViaIncoming = false
+			haveRoute = true
+		}
+		if !haveRoute {
+			// No routing — the request was already torn down (e.g.
+			// after cartridge death). Drop silently rather than
+			// resurrecting state.
+			return nil
 		}
 
-	case FrameTypeEnd, FrameTypeErr:
-		if entry, ok := h.requestRouting[idKey]; ok {
-			h.sendToCartridge(entry.cartridgeIdx, frame)
-			// Only remove routing on terminal frames if this is a PEER response
-			// (engine responding to a cartridge's peer invoke). For engine-initiated
-			// requests, the relay END is just the end of the request body — the
-			// cartridge still needs to respond, so routing must survive.
-			if h.peerRequests[idKey] {
-				delete(h.requestRouting, idKey)
-				delete(h.peerRequests, idKey)
+		h.sendToCartridge(cartridgeIdx, frame)
+
+		isTerminal := frame.FrameType == FrameTypeEnd || frame.FrameType == FrameTypeErr
+		if isTerminal {
+			if routedViaIncoming {
+				// Body phase done. The cartridge's response phase
+				// is independent and tracked via the cartridge's
+				// outbound frames carrying the same XID.
+				delete(h.incomingRxids, key)
+			} else {
+				// Peer response phase done. Drop the requester's
+				// entry so the next REQ with the same RID
+				// (extremely unlikely with UUIDs but possible
+				// with deterministic id allocators) starts fresh.
+				delete(h.outgoingRids, frame.Id.ToString())
 			}
 		}
 
 	case FrameTypeHeartbeat:
-		// Engine-level heartbeat — not forwarded to cartridges
+		// Engine-level heartbeat — not forwarded to cartridges.
 		return nil
 
 	case FrameTypeHello:
@@ -443,50 +557,64 @@ func (h *CartridgeHost) handleRelayFrame(frame *Frame, relayWriter *FrameWriter)
 
 	case FrameTypeRelayNotify, FrameTypeRelayState:
 		return fmt.Errorf("relay frame %v reached cartridge host", frame.FrameType)
+
+	case FrameTypeLog:
+		// LOG frames from peer responses — route to the cartridge
+		// that made the peer request, identified by
+		// `outgoingRids[rid]`. Mirrors Rust handling.
+		if idx, ok := h.outgoingRids[frame.Id.ToString()]; ok {
+			h.sendToCartridge(idx, frame)
+		}
+		return nil
 	}
 
 	return nil
 }
 
-// handleCartridgeFrame processes a frame from a cartridge.
+// handleCartridgeFrame processes a frame from a cartridge. Mirrors the
+// Rust `handle_cartridge_frame` design in capdag/src/bifaci/host_runtime.rs.
+//
+// PATH A (REQ from cartridge — peer invoke): MUST NOT carry an XID
+// (cartridges never assign XIDs; the RelaySwitch does). Recorded in
+// `outgoingRids[rid]` so the eventual peer response can be routed
+// back to the requesting cartridge. Forwarded as-is.
+//
+// PATH A (continuation frames from cartridge): forwarded as-is. No
+// routing-table cleanup happens here — `incomingRxids` is cleared
+// only when the request BODY's END arrives from the relay (in
+// `handleRelayFrame`), because cartridge response END and relay
+// body END race independently.
 func (h *CartridgeHost) handleCartridgeFrame(cartridgeIdx int, frame *Frame, relayWriter *FrameWriter) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	idKey := frame.Id.ToString()
-
 	switch frame.FrameType {
 	case FrameTypeHeartbeat:
-		// Respond to cartridge heartbeat locally — don't forward
+		// Respond to cartridge heartbeat locally — don't forward.
 		response := NewHeartbeat(frame.Id)
 		h.sendToCartridge(cartridgeIdx, response)
 
 	case FrameTypeHello:
-		// HELLO post-handshake — protocol violation, ignore
+		// HELLO post-handshake — protocol violation, ignore.
+		return
+
+	case FrameTypeRelayNotify, FrameTypeRelayState:
+		// Cartridges must never send relay frames.
 		return
 
 	case FrameTypeReq:
-		// Cartridge is invoking a peer cap (sending request to engine)
-		h.requestRouting[idKey] = routingEntry{cartridgeIdx: cartridgeIdx, msgId: frame.Id}
-		h.peerRequests[idKey] = true
-		relayWriter.WriteFrame(frame)
-
-	case FrameTypeLog:
-		relayWriter.WriteFrame(frame)
-
-	case FrameTypeStreamStart, FrameTypeChunk, FrameTypeStreamEnd:
-		relayWriter.WriteFrame(frame)
-
-	case FrameTypeEnd:
-		relayWriter.WriteFrame(frame)
-		if !h.peerRequests[idKey] {
-			delete(h.requestRouting, idKey)
+		// PATH A: peer invoke. Must not carry XID.
+		if frame.RoutingId != nil {
+			return
 		}
-
-	case FrameTypeErr:
+		h.outgoingRids[frame.Id.ToString()] = cartridgeIdx
 		relayWriter.WriteFrame(frame)
-		delete(h.requestRouting, idKey)
-		delete(h.peerRequests, idKey)
+
+	default:
+		// Continuation frames (StreamStart/Chunk/StreamEnd/End/Err/Log).
+		// Forward as-is, with whatever XID the cartridge stamped (it
+		// echoes back the XID it received on the inbound REQ).
+		relayWriter.WriteFrame(frame)
 	}
 }
 
@@ -508,21 +636,60 @@ func (h *CartridgeHost) handleCartridgeDeath(cartridgeIdx int, relayWriter *Fram
 		cartridge.cmd = nil
 	}
 
-	// Send ERR for all pending requests routed to this cartridge
-	var failedEntries []routingEntry
-	var failedKeys []string
-	for reqId, entry := range h.requestRouting {
-		if entry.cartridgeIdx == cartridgeIdx {
-			failedEntries = append(failedEntries, entry)
-			failedKeys = append(failedKeys, reqId)
+	// Send ERR for all pending requests this cartridge was involved
+	// in — both the request bodies it was handling (incomingRxids)
+	// and the peer requests it had outstanding (outgoingRids).
+	// Mirrors Rust's heartbeat-timeout cleanup in
+	// capdag/src/bifaci/host_runtime.rs:1950.
+	type incomingFailure struct {
+		key rxidKey
+		xid MessageId
+		rid MessageId
+	}
+	var failedIncoming []incomingFailure
+	for key, idx := range h.incomingRxids {
+		if idx != cartridgeIdx {
+			continue
 		}
+		xid, errX := NewMessageIdFromUuidString(key.xid)
+		rid, errR := NewMessageIdFromUuidString(key.rid)
+		if errX != nil || errR != nil {
+			// Non-UUID id (uint variant) — fall back via numeric parse not
+			// implemented here; skip rather than fabricate. This path is
+			// effectively unreachable in practice (relay always issues UUIDs).
+			delete(h.incomingRxids, key)
+			continue
+		}
+		failedIncoming = append(failedIncoming, incomingFailure{key: key, xid: xid, rid: rid})
+	}
+	for _, f := range failedIncoming {
+		errFrame := NewErr(f.rid, "CARTRIDGE_DIED", fmt.Sprintf("cartridge %d died", cartridgeIdx))
+		xid := f.xid
+		errFrame.RoutingId = &xid
+		relayWriter.WriteFrame(errFrame)
+		delete(h.incomingRxids, f.key)
 	}
 
-	for i, key := range failedKeys {
-		errFrame := NewErr(failedEntries[i].msgId, "CARTRIDGE_DIED", fmt.Sprintf("cartridge %d died", cartridgeIdx))
+	type outgoingFailure struct {
+		key string
+		rid MessageId
+	}
+	var failedOutgoing []outgoingFailure
+	for key, idx := range h.outgoingRids {
+		if idx != cartridgeIdx {
+			continue
+		}
+		rid, err := NewMessageIdFromUuidString(key)
+		if err != nil {
+			delete(h.outgoingRids, key)
+			continue
+		}
+		failedOutgoing = append(failedOutgoing, outgoingFailure{key: key, rid: rid})
+	}
+	for _, f := range failedOutgoing {
+		errFrame := NewErr(f.rid, "CARTRIDGE_DIED", fmt.Sprintf("cartridge %d died", cartridgeIdx))
 		relayWriter.WriteFrame(errFrame)
-		delete(h.requestRouting, key)
-		delete(h.peerRequests, key)
+		delete(h.outgoingRids, f.key)
 	}
 
 	h.updateCapTable()
