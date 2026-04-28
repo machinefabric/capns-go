@@ -85,7 +85,7 @@ func Test768_analyze_path_arguments_stdin_is_from_input_file(t *testing.T) {
 	builder := NewMachinePlanBuilder(registry)
 
 	// Build a single-step path
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 	graph.AddCap(c)
 	source, err := urn.NewMediaUrnFromString("media:pdf")
 	require.NoError(t, err)
@@ -128,7 +128,7 @@ func Test769_analyze_path_arguments_user_input_arg_appears_in_slots(t *testing.T
 	registry.AddCapsToCache([]*cap.Cap{c})
 	builder := NewMachinePlanBuilder(registry)
 
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 	graph.AddCap(c)
 	source, err := urn.NewMediaUrnFromString(`media:txt;textable`)
 	require.NoError(t, err)
