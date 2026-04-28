@@ -551,9 +551,9 @@ func Test1128_cap_documentation_omitted_when_none(t *testing.T) {
 	assert.Nil(t, restored.GetDocumentation())
 }
 
-// TEST1129: A capgraph-shaped JSON document with a documentation field
+// TEST1129: A capfab-shaped JSON document with a documentation field
 // must deserialize into a Cap with the body intact.
-func Test1129_cap_documentation_parses_from_capgraph_json(t *testing.T) {
+func Test1129_cap_documentation_parses_from_capfab_json(t *testing.T) {
 	raw := `{
 		"urn": "cap:in=\"media:textable\";op=docparse;out=\"media:textable\"",
 		"title": "Doc Parse",
@@ -563,7 +563,7 @@ func Test1129_cap_documentation_parses_from_capgraph_json(t *testing.T) {
 		"metadata": {}
 	}`
 	var c Cap
-	require.NoError(t, json.Unmarshal([]byte(raw), &c), "must parse capgraph-shaped JSON")
+	require.NoError(t, json.Unmarshal([]byte(raw), &c), "must parse capfab-shaped JSON")
 	require.NotNil(t, c.GetDocumentation())
 	assert.Equal(t, "## Heading\n\nbody text", *c.GetDocumentation())
 	assert.Equal(t, "short", *c.CapDescription)

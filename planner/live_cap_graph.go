@@ -169,8 +169,8 @@ type PathFindingEventComplete struct {
 
 func (PathFindingEventComplete) isPathFindingEvent() {}
 
-// LiveCapGraph is a precomputed graph of capabilities for path finding.
-type LiveCapGraph struct {
+// LiveCapFab is a precomputed graph of capabilities for path finding.
+type LiveCapFab struct {
 	edges      []*LiveMachinePlanEdge
 	outgoing   map[string][]int
 	incoming   map[string][]int
@@ -178,9 +178,9 @@ type LiveCapGraph struct {
 	capToEdges map[string][]int
 }
 
-// NewLiveCapGraph creates a new empty capability graph.
-func NewLiveCapGraph() *LiveCapGraph {
-	return &LiveCapGraph{
+// NewLiveCapFab creates a new empty capability graph.
+func NewLiveCapFab() *LiveCapFab {
+	return &LiveCapFab{
 		outgoing:   make(map[string][]int),
 		incoming:   make(map[string][]int),
 		nodes:      make(map[string]bool),
@@ -189,7 +189,7 @@ func NewLiveCapGraph() *LiveCapGraph {
 }
 
 // Clear clears the graph completely.
-func (g *LiveCapGraph) Clear() {
+func (g *LiveCapFab) Clear() {
 	g.edges = nil
 	g.outgoing = make(map[string][]int)
 	g.incoming = make(map[string][]int)
@@ -198,12 +198,12 @@ func (g *LiveCapGraph) Clear() {
 }
 
 // Stats returns (node_count, edge_count).
-func (g *LiveCapGraph) Stats() (int, int) {
+func (g *LiveCapFab) Stats() (int, int) {
 	return len(g.nodes), len(g.edges)
 }
 
 // SyncFromCaps rebuilds the graph from a list of Cap definitions.
-func (g *LiveCapGraph) SyncFromCaps(caps []*cap.Cap) {
+func (g *LiveCapFab) SyncFromCaps(caps []*cap.Cap) {
 	g.Clear()
 	for _, c := range caps {
 		g.AddCap(c)
@@ -211,7 +211,7 @@ func (g *LiveCapGraph) SyncFromCaps(caps []*cap.Cap) {
 }
 
 // AddCap adds a capability as an edge in the graph.
-func (g *LiveCapGraph) AddCap(c *cap.Cap) {
+func (g *LiveCapFab) AddCap(c *cap.Cap) {
 	inSpecStr := c.Urn.InSpec()
 	outSpecStr := c.Urn.OutSpec()
 
@@ -290,7 +290,7 @@ func (g *LiveCapGraph) AddCap(c *cap.Cap) {
 //
 // Synthesizes a ForEach edge when isSequence=true and there is at least one Cap edge
 // with !InputIsSequence whose FromSpec source conforms to.
-func (g *LiveCapGraph) getOutgoingEdges(source *urn.MediaUrn, isSequence bool) ([]*LiveMachinePlanEdge, []bool) {
+func (g *LiveCapFab) getOutgoingEdges(source *urn.MediaUrn, isSequence bool) ([]*LiveMachinePlanEdge, []bool) {
 	var edges []*LiveMachinePlanEdge
 	var outSeqs []bool
 
@@ -327,7 +327,7 @@ func (g *LiveCapGraph) getOutgoingEdges(source *urn.MediaUrn, isSequence bool) (
 }
 
 // GetReachableTargets performs BFS from source and returns reachable targets.
-func (g *LiveCapGraph) GetReachableTargets(source *urn.MediaUrn, isSequence bool, maxDepth int) []ReachableTargetInfo {
+func (g *LiveCapFab) GetReachableTargets(source *urn.MediaUrn, isSequence bool, maxDepth int) []ReachableTargetInfo {
 	type visitKey struct {
 		canonical  string
 		isSequence bool
@@ -411,7 +411,7 @@ type visitedKey struct {
 }
 
 // FindPathsToExactTarget performs iterative deepening DFS to find paths to an exact target.
-func (g *LiveCapGraph) FindPathsToExactTarget(
+func (g *LiveCapFab) FindPathsToExactTarget(
 	source, target *urn.MediaUrn,
 	isSequence bool,
 	maxDepth, maxPaths int,
@@ -450,7 +450,7 @@ func (g *LiveCapGraph) FindPathsToExactTarget(
 
 // FindPathsStreaming performs iterative deepening DFS and streams events to onEvent.
 // cancelled is an *int32 that can be set to 1 via atomic store to cancel the search.
-func (g *LiveCapGraph) FindPathsStreaming(
+func (g *LiveCapFab) FindPathsStreaming(
 	source, target *urn.MediaUrn,
 	isSequence bool,
 	maxDepth, maxPaths int,
@@ -518,7 +518,7 @@ func (g *LiveCapGraph) FindPathsStreaming(
 
 // iddfsFind performs depth-limited DFS from current toward target.
 // originalSource is the root source used to construct Strand.SourceSpec.
-func (g *LiveCapGraph) iddfsFind(
+func (g *LiveCapFab) iddfsFind(
 	originalSource *urn.MediaUrn,
 	current *urn.MediaUrn,
 	target *urn.MediaUrn,

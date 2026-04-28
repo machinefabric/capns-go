@@ -149,6 +149,14 @@ type capTableEntry struct {
 // engine-side request id) together identify a request body
 // uniquely. Composing them as a single string lets us use Go's
 // map[string] without a separate hash impl.
+//
+// We deliberately do NOT lose the typed MessageId values: the lookup
+// key is just a string, but the map VALUE carries the original IDs so
+// `handleCartridgeDeath` can synthesize an ERR with the correct rid
+// and re-stamp the original xid without re-parsing the key (which
+// would fail for the uint MessageId variant — UUIDs are not the only
+// legal id form, and silently dropping non-UUID entries would mean a
+// pending request that never gets its terminal ERR).
 type rxidKey struct {
 	xid string
 	rid string
@@ -156,6 +164,22 @@ type rxidKey struct {
 
 func makeRxidKey(xid, rid MessageId) rxidKey {
 	return rxidKey{xid: xid.ToString(), rid: rid.ToString()}
+}
+
+// incomingRoute is the value stored in `incomingRxids`: which cartridge
+// is handling the request, plus the original typed XID/RID needed to
+// synthesize a terminal ERR frame on cartridge death.
+type incomingRoute struct {
+	cartridgeIdx int
+	xid          MessageId
+	rid          MessageId
+}
+
+// outgoingRoute is the value stored in `outgoingRids`: which cartridge
+// initiated the peer request, plus the typed RID for the same reason.
+type outgoingRoute struct {
+	cartridgeIdx int
+	rid          MessageId
 }
 
 // ManagedCartridge represents a cartridge managed by the CartridgeHost.
@@ -214,8 +238,8 @@ type CartridgeHost struct {
 	// `outgoingRids` and are routed as peer responses. Frame
 	// ordering on a single socket guarantees END is last for the
 	// body phase, so the transition is unambiguous.
-	outgoingRids  map[string]int    // rid string → cartridge_idx
-	incomingRxids map[rxidKey]int   // (xid, rid) → cartridge_idx
+	outgoingRids  map[string]outgoingRoute  // rid string → route (carries typed RID)
+	incomingRxids map[rxidKey]incomingRoute // (xid, rid) → route (carries typed XID/RID)
 
 	capabilities []byte
 	eventCh      chan cartridgeEvent
@@ -225,8 +249,8 @@ type CartridgeHost struct {
 // NewCartridgeHost creates a new multi-cartridge host.
 func NewCartridgeHost() *CartridgeHost {
 	return &CartridgeHost{
-		outgoingRids:  make(map[string]int),
-		incomingRxids: make(map[rxidKey]int),
+		outgoingRids:  make(map[string]outgoingRoute),
+		incomingRxids: make(map[rxidKey]incomingRoute),
 		eventCh:       make(chan cartridgeEvent, 256),
 	}
 }
@@ -486,7 +510,11 @@ func (h *CartridgeHost) handleRelayFrame(frame *Frame, relayWriter *FrameWriter)
 		// body's continuation frames. The cartridge receives the
 		// REQ with XID intact so its response frames carry the
 		// same XID back to the relay.
-		h.incomingRxids[makeRxidKey(xid, frame.Id)] = cartridgeIdx
+		h.incomingRxids[makeRxidKey(xid, frame.Id)] = incomingRoute{
+			cartridgeIdx: cartridgeIdx,
+			xid:          xid,
+			rid:          frame.Id,
+		}
 		h.sendToCartridge(cartridgeIdx, frame)
 
 	case FrameTypeStreamStart, FrameTypeChunk, FrameTypeStreamEnd, FrameTypeEnd, FrameTypeErr:
@@ -514,12 +542,12 @@ func (h *CartridgeHost) handleRelayFrame(frame *Frame, relayWriter *FrameWriter)
 			routedViaIncoming  bool
 			haveRoute          bool
 		)
-		if idx, ok := h.incomingRxids[key]; ok {
-			cartridgeIdx = idx
+		if route, ok := h.incomingRxids[key]; ok {
+			cartridgeIdx = route.cartridgeIdx
 			routedViaIncoming = true
 			haveRoute = true
-		} else if idx, ok := h.outgoingRids[frame.Id.ToString()]; ok {
-			cartridgeIdx = idx
+		} else if route, ok := h.outgoingRids[frame.Id.ToString()]; ok {
+			cartridgeIdx = route.cartridgeIdx
 			routedViaIncoming = false
 			haveRoute = true
 		}
@@ -562,8 +590,8 @@ func (h *CartridgeHost) handleRelayFrame(frame *Frame, relayWriter *FrameWriter)
 		// LOG frames from peer responses — route to the cartridge
 		// that made the peer request, identified by
 		// `outgoingRids[rid]`. Mirrors Rust handling.
-		if idx, ok := h.outgoingRids[frame.Id.ToString()]; ok {
-			h.sendToCartridge(idx, frame)
+		if route, ok := h.outgoingRids[frame.Id.ToString()]; ok {
+			h.sendToCartridge(route.cartridgeIdx, frame)
 		}
 		return nil
 	}
@@ -607,7 +635,10 @@ func (h *CartridgeHost) handleCartridgeFrame(cartridgeIdx int, frame *Frame, rel
 		if frame.RoutingId != nil {
 			return
 		}
-		h.outgoingRids[frame.Id.ToString()] = cartridgeIdx
+		h.outgoingRids[frame.Id.ToString()] = outgoingRoute{
+			cartridgeIdx: cartridgeIdx,
+			rid:          frame.Id,
+		}
 		relayWriter.WriteFrame(frame)
 
 	default:
@@ -640,56 +671,38 @@ func (h *CartridgeHost) handleCartridgeDeath(cartridgeIdx int, relayWriter *Fram
 	// in — both the request bodies it was handling (incomingRxids)
 	// and the peer requests it had outstanding (outgoingRids).
 	// Mirrors Rust's heartbeat-timeout cleanup in
-	// capdag/src/bifaci/host_runtime.rs:1950.
-	type incomingFailure struct {
-		key rxidKey
-		xid MessageId
-		rid MessageId
-	}
-	var failedIncoming []incomingFailure
-	for key, idx := range h.incomingRxids {
-		if idx != cartridgeIdx {
+	// capdag/src/bifaci/host_runtime.rs:1950. The typed XID/RID are
+	// stored on the route struct so this path can synthesize a
+	// terminal ERR with the correct id form (UUID or uint) without
+	// re-parsing the lookup key — re-parsing would lose the uint
+	// variant and silently drop the request, leaving the engine
+	// blocked forever on a frame that never arrives.
+	var incomingKeys []rxidKey
+	for key, route := range h.incomingRxids {
+		if route.cartridgeIdx != cartridgeIdx {
 			continue
 		}
-		xid, errX := NewMessageIdFromUuidString(key.xid)
-		rid, errR := NewMessageIdFromUuidString(key.rid)
-		if errX != nil || errR != nil {
-			// Non-UUID id (uint variant) — fall back via numeric parse not
-			// implemented here; skip rather than fabricate. This path is
-			// effectively unreachable in practice (relay always issues UUIDs).
-			delete(h.incomingRxids, key)
-			continue
-		}
-		failedIncoming = append(failedIncoming, incomingFailure{key: key, xid: xid, rid: rid})
-	}
-	for _, f := range failedIncoming {
-		errFrame := NewErr(f.rid, "CARTRIDGE_DIED", fmt.Sprintf("cartridge %d died", cartridgeIdx))
-		xid := f.xid
+		errFrame := NewErr(route.rid, "CARTRIDGE_DIED", fmt.Sprintf("cartridge %d died", cartridgeIdx))
+		xid := route.xid
 		errFrame.RoutingId = &xid
 		relayWriter.WriteFrame(errFrame)
-		delete(h.incomingRxids, f.key)
+		incomingKeys = append(incomingKeys, key)
+	}
+	for _, key := range incomingKeys {
+		delete(h.incomingRxids, key)
 	}
 
-	type outgoingFailure struct {
-		key string
-		rid MessageId
-	}
-	var failedOutgoing []outgoingFailure
-	for key, idx := range h.outgoingRids {
-		if idx != cartridgeIdx {
+	var outgoingKeys []string
+	for key, route := range h.outgoingRids {
+		if route.cartridgeIdx != cartridgeIdx {
 			continue
 		}
-		rid, err := NewMessageIdFromUuidString(key)
-		if err != nil {
-			delete(h.outgoingRids, key)
-			continue
-		}
-		failedOutgoing = append(failedOutgoing, outgoingFailure{key: key, rid: rid})
-	}
-	for _, f := range failedOutgoing {
-		errFrame := NewErr(f.rid, "CARTRIDGE_DIED", fmt.Sprintf("cartridge %d died", cartridgeIdx))
+		errFrame := NewErr(route.rid, "CARTRIDGE_DIED", fmt.Sprintf("cartridge %d died", cartridgeIdx))
 		relayWriter.WriteFrame(errFrame)
-		delete(h.outgoingRids, f.key)
+		outgoingKeys = append(outgoingKeys, key)
+	}
+	for _, key := range outgoingKeys {
+		delete(h.outgoingRids, key)
 	}
 
 	h.updateCapTable()

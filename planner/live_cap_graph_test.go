@@ -19,7 +19,7 @@ func makeTestCapForGraph(inSpec, outSpec, op, title string) *cap.Cap {
 // TEST772: Tests FindPathsToExactTarget() finds multi-step paths
 // Verifies that paths through intermediate nodes are found correctly
 func Test772_find_paths_finds_multi_step_paths(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	cap1 := makeTestCapForGraph("media:a", "media:b", "step1", "A to B")
 	cap2 := makeTestCapForGraph("media:b", "media:c", "step2", "B to C")
@@ -43,7 +43,7 @@ func Test772_find_paths_finds_multi_step_paths(t *testing.T) {
 // TEST773: Tests FindPathsToExactTarget() returns empty when no path exists
 // Verifies that pathfinding returns no paths when target is unreachable
 func Test773_find_paths_returns_empty_when_no_path(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	cap1 := makeTestCapForGraph("media:a", "media:b", "step1", "A to B")
 	graph.AddCap(cap1)
@@ -61,7 +61,7 @@ func Test773_find_paths_returns_empty_when_no_path(t *testing.T) {
 // TEST774: Tests GetReachableTargets() returns all reachable targets
 // Verifies that reachable targets include direct cap targets
 func Test774_get_reachable_targets_finds_all_targets(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	cap1 := makeTestCapForGraph("media:a", "media:b", "step1", "A to B")
 	cap2 := makeTestCapForGraph("media:a", "media:d", "step3", "A to D")
@@ -94,7 +94,7 @@ func Test774_get_reachable_targets_finds_all_targets(t *testing.T) {
 
 // TEST777: Tests type checking prevents using PDF-specific cap with PNG input
 func Test777_type_mismatch_pdf_cap_does_not_match_png_input(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 	pdfToText := makeTestCapForGraph("media:pdf", "media:textable", "pdf2text", "PDF to Text")
 	graph.AddCap(pdfToText)
 
@@ -109,7 +109,7 @@ func Test777_type_mismatch_pdf_cap_does_not_match_png_input(t *testing.T) {
 
 // TEST778: Tests type checking prevents using PNG-specific cap with PDF input
 func Test778_type_mismatch_png_cap_does_not_match_pdf_input(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 	pngToThumb := makeTestCapForGraph("media:png", "media:thumbnail", "png2thumb", "PNG to Thumbnail")
 	graph.AddCap(pngToThumb)
 
@@ -124,7 +124,7 @@ func Test778_type_mismatch_png_cap_does_not_match_pdf_input(t *testing.T) {
 
 // TEST779: Tests get_reachable_targets() only returns targets reachable via type-compatible caps
 func Test779_get_reachable_targets_respects_type_matching(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 	pdfToText := makeTestCapForGraph("media:pdf", "media:textable", "pdf2text", "PDF to Text")
 	pngToThumb := makeTestCapForGraph("media:png", "media:thumbnail", "png2thumb", "PNG to Thumbnail")
 	graph.AddCap(pdfToText)
@@ -161,7 +161,7 @@ func Test779_get_reachable_targets_respects_type_matching(t *testing.T) {
 
 // TEST781: Tests find_paths_to_exact_target() enforces type compatibility across multi-step chains
 func Test781_find_paths_respects_type_chain(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 	resizePng := makeTestCapForGraph("media:png", "media:resized-png", "resize", "Resize PNG")
 	toThumb := makeTestCapForGraph("media:resized-png", "media:thumbnail", "thumb", "To Thumbnail")
 	graph.AddCap(resizePng)
@@ -188,7 +188,7 @@ func Test781_find_paths_respects_type_chain(t *testing.T) {
 
 // TEST787: Tests find_paths_to_exact_target() sorts paths by length, preferring shorter ones
 func Test787_find_paths_sorting_prefers_shorter(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 	direct := makeTestCapForGraph("media:format-a", "media:format-c", "direct", "Direct")
 	step1 := makeTestCapForGraph("media:format-a", "media:format-b", "step1", "Step 1")
 	step2 := makeTestCapForGraph("media:format-b", "media:format-c", "step2", "Step 2")
@@ -211,7 +211,7 @@ func Test787_find_paths_sorting_prefers_shorter(t *testing.T) {
 
 // TEST788: ForEach is only synthesized when is_sequence=true
 func Test788_foreach_only_with_sequence_input(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 	disbind := makeTestCapForGraph("media:pdf", "media:page;textable", "disbind", "Disbind PDF")
 	choose := makeTestCapForGraph("media:textable", "media:decision;json;record;textable", "choose", "Make a Decision")
 	graph.SyncFromCaps([]*cap.Cap{disbind, choose})
@@ -248,7 +248,7 @@ func Test788_foreach_only_with_sequence_input(t *testing.T) {
 // TEST1111: ForEach works for user-provided list sources not in the graph.
 // User provides media:list;textable;txt with is_sequence=true → ForEach+cap path found.
 func Test1111_foreach_for_user_provided_list_source(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	// Cap: textable → decision (accepts singular textable)
 	makeDecision := makeTestCapForGraph(
@@ -289,7 +289,7 @@ func Test1111_foreach_for_user_provided_list_source(t *testing.T) {
 // TEST1112: Collect is not synthesized during path finding.
 // Reaching a list target type requires the cap itself to output a list type.
 func Test1112_no_collect_in_path_finding(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	summarize := makeTestCapForGraph(
 		"media:textable",
@@ -313,7 +313,7 @@ func Test1112_no_collect_in_path_finding(t *testing.T) {
 // TEST1113: Multi-cap path without Collect — Collect is not synthesized.
 // PDF→disbind→page→summarize→summary. CapStepCount=2.
 func Test1113_multi_cap_path_no_collect(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	disbind := makeTestCapForGraph("media:pdf", "media:page;textable", "disbind", "Disbind PDF")
 	summarize := makeTestCapForGraph(
@@ -337,7 +337,7 @@ func Test1113_multi_cap_path_no_collect(t *testing.T) {
 // TEST1114: Graph stores only Cap edges after SyncFromCaps.
 // All stored edges must have IsCap() == true.
 func Test1114_graph_stores_only_cap_edges(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	caps := []*cap.Cap{
 		makeTestCapForGraph("media:pdf", "media:page;textable", "disbind", "Disbind"),
@@ -356,7 +356,7 @@ func Test1114_graph_stores_only_cap_edges(t *testing.T) {
 // TEST1115: ForEach is synthesized when is_sequence=true AND caps can consume items.
 // getOutgoingEdges(source, true) → ForEach edge present, next_is_seq=false.
 func Test1115_dynamic_foreach_with_is_sequence(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	// Need a cap that accepts the source type for ForEach to be synthesized
 	c := makeTestCapForGraph(
@@ -390,7 +390,7 @@ func Test1115_dynamic_foreach_with_is_sequence(t *testing.T) {
 // TEST1116: Collect is never synthesized during path finding.
 // getOutgoingEdges for both scalar and sequence returns no Collect edges.
 func Test1116_collect_never_synthesized(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	source, err := urn.NewMediaUrnFromString("media:page;textable")
 	require.NoError(t, err)
@@ -410,7 +410,7 @@ func Test1116_collect_never_synthesized(t *testing.T) {
 // TEST1117: ForEach is NOT synthesized when is_sequence=false.
 // Even with caps that could consume, ForEach requires is_sequence=true.
 func Test1117_no_foreach_when_not_sequence(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	c := makeTestCapForGraph(
 		"media:textable",
@@ -431,7 +431,7 @@ func Test1117_no_foreach_when_not_sequence(t *testing.T) {
 
 // TEST1118: ForEach not synthesized without cap consumers even with is_sequence=true.
 func Test1118_no_foreach_without_cap_consumers(t *testing.T) {
-	graph := NewLiveCapGraph() // empty graph — no caps
+	graph := NewLiveCapFab() // empty graph — no caps
 
 	source, err := urn.NewMediaUrnFromString("media:textable")
 	require.NoError(t, err)
@@ -445,7 +445,7 @@ func Test1118_no_foreach_without_cap_consumers(t *testing.T) {
 // TEST1289: BFS reachable targets includes the source itself when round-trip paths exist.
 // A→B and B→A means A is reachable from A (via A→B→A).
 func Test1289_bfs_reachable_includes_source_roundtrip(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	// textable → integer (coerce)
 	graph.AddCap(makeTestCapForGraph(
@@ -479,7 +479,7 @@ func Test1289_bfs_reachable_includes_source_roundtrip(t *testing.T) {
 
 // TEST1290: IDDFS find_paths_to_exact_target finds round-trip paths when source == target.
 func Test1290_iddfs_finds_roundtrip_paths(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	// textable → integer
 	graph.AddCap(makeTestCapForGraph(
@@ -516,7 +516,7 @@ func Test1290_iddfs_finds_roundtrip_paths(t *testing.T) {
 
 // TEST1291: IDDFS round-trip paths are also found with is_sequence=true.
 func Test1291_iddfs_roundtrip_with_sequence(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	// textable → integer
 	graph.AddCap(makeTestCapForGraph(
@@ -546,7 +546,7 @@ func Test1291_iddfs_roundtrip_with_sequence(t *testing.T) {
 // TEST1292: BFS and IDDFS agree that round-trip targets exist.
 // If BFS says target X is reachable from source X, IDDFS must find at least one path.
 func Test1292_bfs_iddfs_roundtrip_consistency(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	// Build a small graph: A→B, B→C, C→A
 	graph.AddCap(makeTestCapForGraph("media:a", "media:b", "a_to_b", "A to B"))
@@ -588,7 +588,7 @@ func Test1292_bfs_iddfs_roundtrip_consistency(t *testing.T) {
 // TEST1293: IDDFS round-trip does not produce paths with 0 cap steps.
 // No round-trip should exist when there's no return edge.
 func Test1293_roundtrip_requires_cap_steps(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	// Only one direction — no round trip possible
 	graph.AddCap(makeTestCapForGraph("media:a", "media:b", "a_to_b", "A to B"))
@@ -643,7 +643,7 @@ func Test790_identity_urn_is_specific(t *testing.T) {
 
 // TEST1150: Adding one cap creates one edge and makes its output reachable in one step.
 func Test1150_add_cap_and_basic_traversal(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 	c := makeTestCapForGraph("media:pdf", "media:extracted-text", "extract_text", "Extract Text")
 	graph.AddCap(c)
 
@@ -680,7 +680,7 @@ func Test1151_exact_vs_conformance_matching(t *testing.T) {
 	assert.False(t, singular.IsEquivalent(list), "singular and list should NOT be equivalent")
 	assert.False(t, list.IsEquivalent(singular), "list and singular should NOT be equivalent")
 
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	// pdf → result (singular)
 	cap1 := makeTestCapForGraph("media:pdf", "media:analysis-result", "analyze", "Analyze PDF")
@@ -712,7 +712,7 @@ func Test1151_exact_vs_conformance_matching(t *testing.T) {
 
 // TEST1152: Path finding returns the expected two-cap chain through an intermediate media type.
 func Test1152_multi_step_path(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	cap1 := makeTestCapForGraph("media:pdf", "media:extracted-text", "extract", "Extract")
 	cap2 := makeTestCapForGraph("media:extracted-text", "media:summary-text", "summarize", "Summarize")
@@ -733,7 +733,7 @@ func Test1152_multi_step_path(t *testing.T) {
 
 // TEST1153: Repeated path searches return the same path order for the same graph and target.
 func Test1153_deterministic_ordering(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	cap1 := makeTestCapForGraph("media:pdf", "media:extracted-text", "extract_a", "Extract A")
 	cap2 := makeTestCapForGraph("media:pdf", "media:extracted-text", "extract_b", "Extract B")
@@ -761,7 +761,7 @@ func Test1153_deterministic_ordering(t *testing.T) {
 
 // TEST1154: SyncFromCaps replaces the existing graph contents with the new cap set.
 func Test1154_sync_from_caps(t *testing.T) {
-	graph := NewLiveCapGraph()
+	graph := NewLiveCapFab()
 
 	caps := []*cap.Cap{
 		makeTestCapForGraph("media:pdf", "media:extracted-text", "op1", "Op1"),
