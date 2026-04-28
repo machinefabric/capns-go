@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// makeTestCapForGraph creates a minimal cap for live_cap_graph tests.
+// makeTestCapForGraph creates a minimal cap for live_cap_fab tests.
 func makeTestCapForGraph(inSpec, outSpec, op, title string) *cap.Cap {
 	capUrn := urn.NewCapUrn(inSpec, outSpec, map[string]string{"op": op})
 	return cap.NewCapWithArgs(capUrn, title, "test", nil)

@@ -595,23 +595,23 @@ This catalog lists all tests in the Go codebase.
 | test769 | `Test769_analyze_path_arguments_user_input_arg_appears_in_slots` | TEST769: Tests AnalyzePathArguments puts RequiresUserInput args in slots and sets CanExecuteWithoutInput=false Verifies that caps with non-stdin, non-default arguments are identified as requiring user input, appear in slots, and the requirements reflect that execution cannot proceed without them. | planner/plan_builder_test.go:111 |
 | test770 | `Test770_rejects_foreach` | TEST770: PlanToResolvedGraph rejects plans containing ForEach nodes Verifies that plans requiring decomposition (ForEach) are rejected before conversion | orchestrator/orchestrator_test.go:156 |
 | test771 | `Test771_rejects_foreach_paired_collect` | TEST771: PlanToResolvedGraph rejects plans containing ForEach-paired Collect nodes Verifies that Collect nodes without OutputMediaUrn (ForEach-paired) are rejected | orchestrator/orchestrator_test.go:473 |
-| test772 | `Test772_find_paths_finds_multi_step_paths` | TEST772: Tests FindPathsToExactTarget() finds multi-step paths Verifies that paths through intermediate nodes are found correctly | planner/live_cap_graph_test.go:21 |
-| test773 | `Test773_find_paths_returns_empty_when_no_path` | TEST773: Tests FindPathsToExactTarget() returns empty when no path exists Verifies that pathfinding returns no paths when target is unreachable | planner/live_cap_graph_test.go:45 |
-| test774 | `Test774_get_reachable_targets_finds_all_targets` | TEST774: Tests GetReachableTargets() returns all reachable targets Verifies that reachable targets include direct cap targets | planner/live_cap_graph_test.go:63 |
-| test777 | `Test777_type_mismatch_pdf_cap_does_not_match_png_input` | TEST777: Tests type checking prevents using PDF-specific cap with PNG input | planner/live_cap_graph_test.go:96 |
-| test778 | `Test778_type_mismatch_png_cap_does_not_match_pdf_input` | TEST778: Tests type checking prevents using PNG-specific cap with PDF input | planner/live_cap_graph_test.go:111 |
-| test779 | `Test779_get_reachable_targets_respects_type_matching` | TEST779: Tests get_reachable_targets() only returns targets reachable via type-compatible caps | planner/live_cap_graph_test.go:126 |
+| test772 | `Test772_find_paths_finds_multi_step_paths` | TEST772: Tests FindPathsToExactTarget() finds multi-step paths Verifies that paths through intermediate nodes are found correctly | planner/live_cap_fab_test.go:21 |
+| test773 | `Test773_find_paths_returns_empty_when_no_path` | TEST773: Tests FindPathsToExactTarget() returns empty when no path exists Verifies that pathfinding returns no paths when target is unreachable | planner/live_cap_fab_test.go:45 |
+| test774 | `Test774_get_reachable_targets_finds_all_targets` | TEST774: Tests GetReachableTargets() returns all reachable targets Verifies that reachable targets include direct cap targets | planner/live_cap_fab_test.go:63 |
+| test777 | `Test777_type_mismatch_pdf_cap_does_not_match_png_input` | TEST777: Tests type checking prevents using PDF-specific cap with PNG input | planner/live_cap_fab_test.go:96 |
+| test778 | `Test778_type_mismatch_png_cap_does_not_match_pdf_input` | TEST778: Tests type checking prevents using PNG-specific cap with PDF input | planner/live_cap_fab_test.go:111 |
+| test779 | `Test779_get_reachable_targets_respects_type_matching` | TEST779: Tests get_reachable_targets() only returns targets reachable via type-compatible caps | planner/live_cap_fab_test.go:126 |
 | test780 | `Test780_split_integer_array` | TEST780: split_cbor_array splits a simple array of integers | orchestrator/cbor_util_test.go:30 |
-| test781 | `Test781_find_paths_respects_type_chain` | TEST781: Tests find_paths_to_exact_target() enforces type compatibility across multi-step chains | planner/live_cap_graph_test.go:163 |
+| test781 | `Test781_find_paths_respects_type_chain` | TEST781: Tests find_paths_to_exact_target() enforces type compatibility across multi-step chains | planner/live_cap_fab_test.go:163 |
 | test782 | `Test782_split_non_array` | TEST782: split_cbor_array rejects non-array input | orchestrator/cbor_util_test.go:46 |
 | test783 | `Test783_split_empty_array` | TEST783: split_cbor_array rejects empty array | orchestrator/cbor_util_test.go:56 |
 | test784 | `Test784_split_invalid_cbor` | TEST784: split_cbor_array rejects invalid CBOR bytes | orchestrator/cbor_util_test.go:66 |
 | test785 | `Test785_assemble_integer_array` | TEST785: assemble_cbor_array creates array from individual items | orchestrator/cbor_util_test.go:75 |
 | test786 | `Test786_roundtrip_split_assemble` | TEST786: split then assemble roundtrip preserves data | orchestrator/cbor_util_test.go:91 |
-| test787 | `Test787_find_paths_sorting_prefers_shorter` | TEST787: Tests find_paths_to_exact_target() sorts paths by length, preferring shorter ones | planner/live_cap_graph_test.go:190 |
-| test788 | `Test788_foreach_only_with_sequence_input` | TEST788: ForEach is only synthesized when is_sequence=true | planner/live_cap_graph_test.go:213 |
-| test789 | `Test789_cap_from_json_has_valid_specs` | TEST789: Tests that caps loaded from JSON have correct in_spec/out_spec | planner/live_cap_graph_test.go:606 |
-| test790 | `Test790_identity_urn_is_specific` | TEST790: Tests identity_urn is specific and doesn't match everything | planner/live_cap_graph_test.go:629 |
+| test787 | `Test787_find_paths_sorting_prefers_shorter` | TEST787: Tests find_paths_to_exact_target() sorts paths by length, preferring shorter ones | planner/live_cap_fab_test.go:190 |
+| test788 | `Test788_foreach_only_with_sequence_input` | TEST788: ForEach is only synthesized when is_sequence=true | planner/live_cap_fab_test.go:213 |
+| test789 | `Test789_cap_from_json_has_valid_specs` | TEST789: Tests that caps loaded from JSON have correct in_spec/out_spec | planner/live_cap_fab_test.go:606 |
+| test790 | `Test790_identity_urn_is_specific` | TEST790: Tests identity_urn is specific and doesn't match everything | planner/live_cap_fab_test.go:629 |
 | test792 | `Test792_ArgumentBindingRequiresInput` | TEST792: ArgumentBinding RequiresInput distinguishes Slots from Literals | planner/argument_binding_test.go:289 |
 | test793 | `Test793_ArgumentBindingSerializationPreviousOutput` | TEST793: ArgumentBinding PreviousOutput serializes/deserializes correctly | planner/argument_binding_test.go:301 |
 | test794 | `Test794_ArgumentBindingsAddFilePath` | TEST794: ArgumentBindings AddFilePath adds InputFilePath binding | planner/argument_binding_test.go:331 |
@@ -762,14 +762,14 @@ This catalog lists all tests in the Go codebase.
 | test1107 | `Test1107_SlotValueOverridesCapSettingsPerStep` | TEST1107: step_0 has a slot_value override, step_1 falls through to cap_settings. Proves per-step override works while shared settings remain as fallback. | planner/argument_binding_test.go:174 |
 | test1108 | `Test1108_ResolveAllPassesNodeID` | TEST1108: ResolveAll with node_id threads correctly through to each binding. | planner/argument_binding_test.go:216 |
 | test1109 | `Test1109_SlotKeyUsesNodeIDNotCapUrn` | TEST1109: Slot key uses node_id, NOT cap_urn — a slot_value keyed by cap_urn must not match. | planner/argument_binding_test.go:267 |
-| test1111 | `Test1111_foreach_for_user_provided_list_source` | TEST1111: ForEach works for user-provided list sources not in the graph. User provides media:list;textable;txt with is_sequence=true → ForEach+cap path found. | planner/live_cap_graph_test.go:250 |
-| test1112 | `Test1112_no_collect_in_path_finding` | TEST1112: Collect is not synthesized during path finding. Reaching a list target type requires the cap itself to output a list type. | planner/live_cap_graph_test.go:291 |
-| test1113 | `Test1113_multi_cap_path_no_collect` | TEST1113: Multi-cap path without Collect — Collect is not synthesized. PDF→disbind→page→summarize→summary. CapStepCount=2. | planner/live_cap_graph_test.go:315 |
-| test1114 | `Test1114_graph_stores_only_cap_edges` | TEST1114: Graph stores only Cap edges after SyncFromCaps. All stored edges must have IsCap() == true. | planner/live_cap_graph_test.go:339 |
-| test1115 | `Test1115_dynamic_foreach_with_is_sequence` | TEST1115: ForEach is synthesized when is_sequence=true AND caps can consume items. getOutgoingEdges(source, true) → ForEach edge present, next_is_seq=false. | planner/live_cap_graph_test.go:358 |
-| test1116 | `Test1116_collect_never_synthesized` | TEST1116: Collect is never synthesized during path finding. getOutgoingEdges for both scalar and sequence returns no Collect edges. | planner/live_cap_graph_test.go:392 |
-| test1117 | `Test1117_no_foreach_when_not_sequence` | TEST1117: ForEach is NOT synthesized when is_sequence=false. Even with caps that could consume, ForEach requires is_sequence=true. | planner/live_cap_graph_test.go:412 |
-| test1118 | `Test1118_no_foreach_without_cap_consumers` | TEST1118: ForEach not synthesized without cap consumers even with is_sequence=true. | planner/live_cap_graph_test.go:433 |
+| test1111 | `Test1111_foreach_for_user_provided_list_source` | TEST1111: ForEach works for user-provided list sources not in the graph. User provides media:list;textable;txt with is_sequence=true → ForEach+cap path found. | planner/live_cap_fab_test.go:250 |
+| test1112 | `Test1112_no_collect_in_path_finding` | TEST1112: Collect is not synthesized during path finding. Reaching a list target type requires the cap itself to output a list type. | planner/live_cap_fab_test.go:291 |
+| test1113 | `Test1113_multi_cap_path_no_collect` | TEST1113: Multi-cap path without Collect — Collect is not synthesized. PDF→disbind→page→summarize→summary. CapStepCount=2. | planner/live_cap_fab_test.go:315 |
+| test1114 | `Test1114_graph_stores_only_cap_edges` | TEST1114: Graph stores only Cap edges after SyncFromCaps. All stored edges must have IsCap() == true. | planner/live_cap_fab_test.go:339 |
+| test1115 | `Test1115_dynamic_foreach_with_is_sequence` | TEST1115: ForEach is synthesized when is_sequence=true AND caps can consume items. getOutgoingEdges(source, true) → ForEach edge present, next_is_seq=false. | planner/live_cap_fab_test.go:358 |
+| test1116 | `Test1116_collect_never_synthesized` | TEST1116: Collect is never synthesized during path finding. getOutgoingEdges for both scalar and sequence returns no Collect edges. | planner/live_cap_fab_test.go:392 |
+| test1117 | `Test1117_no_foreach_when_not_sequence` | TEST1117: ForEach is NOT synthesized when is_sequence=false. Even with caps that could consume, ForEach requires is_sequence=true. | planner/live_cap_fab_test.go:412 |
+| test1118 | `Test1118_no_foreach_without_cap_consumers` | TEST1118: ForEach not synthesized without cap consumers even with is_sequence=true. | planner/live_cap_fab_test.go:433 |
 | test1119 | `Test1119_FromStrand_returns_single_strand_machine` | TEST1119: FromStrand builds a single-strand Machine from a planner.Strand. Smoke test the registry-threaded API end-to-end. | machine/machine_test.go:695 |
 | test1120 | `Test1120_FromStrand_unknown_cap_fails_hard` | TEST1120: FromStrand fails hard when the cap is not in the registry. The planner produces strands referencing caps that must be present in the cap registry cache for resolution to succeed. | machine/machine_test.go:723 |
 | test1127 | `Test1127_cap_documentation_round_trip_with_markdown_body` | TEST1127: Documentation field round-trips through JSON serialize/deserialize. The body must survive multi-line markdown with CRLF, backticks, double quotes, and Unicode characters — every character must be preserved. | cap/definition_test.go:516 |
@@ -787,11 +787,11 @@ This catalog lists all tests in the Go codebase.
 | test1147 | `Test1147_machine_syntax_error_display_is_specific` | TEST1147: MachineSyntaxError.Error() includes position and detail. invalidWiringError(7) must produce a message containing "statement 7" and "invalid wiring". | machine/machine_test.go:741 |
 | test1148 | `Test1148_machine_parse_error_from_syntax_preserves_variant` | TEST1148: MachineParseError with Syntax field preserves the syntax error kind. | machine/machine_test.go:753 |
 | test1149 | `Test1149_machine_parse_error_from_resolution_preserves_variant` | TEST1149: MachineParseError with Abstraction field preserves the resolution error kind. | machine/machine_test.go:769 |
-| test1150 | `Test1150_add_cap_and_basic_traversal` | TEST1150: Adding one cap creates one edge and makes its output reachable in one step. | planner/live_cap_graph_test.go:645 |
-| test1151 | `Test1151_exact_vs_conformance_matching` | TEST1151: Exact target lookup prefers the direct singular or list-producing path over longer alternatives. | planner/live_cap_graph_test.go:673 |
-| test1152 | `Test1152_multi_step_path` | TEST1152: Path finding returns the expected two-cap chain through an intermediate media type. | planner/live_cap_graph_test.go:714 |
-| test1153 | `Test1153_deterministic_ordering` | TEST1153: Repeated path searches return the same path order for the same graph and target. | planner/live_cap_graph_test.go:735 |
-| test1154 | `Test1154_sync_from_caps` | TEST1154: SyncFromCaps replaces the existing graph contents with the new cap set. | planner/live_cap_graph_test.go:763 |
+| test1150 | `Test1150_add_cap_and_basic_traversal` | TEST1150: Adding one cap creates one edge and makes its output reachable in one step. | planner/live_cap_fab_test.go:645 |
+| test1151 | `Test1151_exact_vs_conformance_matching` | TEST1151: Exact target lookup prefers the direct singular or list-producing path over longer alternatives. | planner/live_cap_fab_test.go:673 |
+| test1152 | `Test1152_multi_step_path` | TEST1152: Path finding returns the expected two-cap chain through an intermediate media type. | planner/live_cap_fab_test.go:714 |
+| test1153 | `Test1153_deterministic_ordering` | TEST1153: Repeated path searches return the same path order for the same graph and target. | planner/live_cap_fab_test.go:735 |
+| test1154 | `Test1154_sync_from_caps` | TEST1154: SyncFromCaps replaces the existing graph contents with the new cap set. | planner/live_cap_fab_test.go:763 |
 | test1155 | `Test1155_FromStrandProducesSingleStrandMachine` | TEST1155: Building a machine from one strand produces one strand with one resolved edge. | machine/machine_test.go:176 |
 | test1156 | `Test1156_FromStrandsKeepStrandsDisjoint` | TEST1156: Building from multiple strands keeps them disjoint and preserves input strand order. | machine/machine_test.go:193 |
 | test1157 | `Test1157_FromStrandsEmptyInputFailsHard` | TEST1157: Building from zero strands fails with NoCapabilitySteps. | machine/machine_test.go:220 |
@@ -846,11 +846,11 @@ This catalog lists all tests in the Go codebase.
 | test1282 | `Test1282_adapter_selection_auto_registered` | TEST1282: AdapterSelectionOp is auto-registered by CartridgeRuntime | bifaci/cartridge_runtime_test.go:3188 |
 | test1283 | `Test1283_adapter_selection_custom_override` | TEST1283: Custom adapter selection handler overrides the default | bifaci/cartridge_runtime_test.go:3202 |
 | test1284 | `Test1284_cap_group_with_adapter_urns` | TEST1284: Cap group with adapter URNs serializes and deserializes correctly | bifaci/manifest_test.go:320 |
-| test1289 | `Test1289_bfs_reachable_includes_source_roundtrip` | TEST1289: BFS reachable targets includes the source itself when round-trip paths exist. A→B and B→A means A is reachable from A (via A→B→A). | planner/live_cap_graph_test.go:447 |
-| test1290 | `Test1290_iddfs_finds_roundtrip_paths` | TEST1290: IDDFS find_paths_to_exact_target finds round-trip paths when source == target. | planner/live_cap_graph_test.go:481 |
-| test1291 | `Test1291_iddfs_roundtrip_with_sequence` | TEST1291: IDDFS round-trip paths are also found with is_sequence=true. | planner/live_cap_graph_test.go:518 |
-| test1292 | `Test1292_bfs_iddfs_roundtrip_consistency` | TEST1292: BFS and IDDFS agree that round-trip targets exist. If BFS says target X is reachable from source X, IDDFS must find at least one path. | planner/live_cap_graph_test.go:548 |
-| test1293 | `Test1293_roundtrip_requires_cap_steps` | TEST1293: IDDFS round-trip does not produce paths with 0 cap steps. No round-trip should exist when there's no return edge. | planner/live_cap_graph_test.go:590 |
+| test1289 | `Test1289_bfs_reachable_includes_source_roundtrip` | TEST1289: BFS reachable targets includes the source itself when round-trip paths exist. A→B and B→A means A is reachable from A (via A→B→A). | planner/live_cap_fab_test.go:447 |
+| test1290 | `Test1290_iddfs_finds_roundtrip_paths` | TEST1290: IDDFS find_paths_to_exact_target finds round-trip paths when source == target. | planner/live_cap_fab_test.go:481 |
+| test1291 | `Test1291_iddfs_roundtrip_with_sequence` | TEST1291: IDDFS round-trip paths are also found with is_sequence=true. | planner/live_cap_fab_test.go:518 |
+| test1292 | `Test1292_bfs_iddfs_roundtrip_consistency` | TEST1292: BFS and IDDFS agree that round-trip targets exist. If BFS says target X is reachable from source X, IDDFS must find at least one path. | planner/live_cap_fab_test.go:548 |
+| test1293 | `Test1293_roundtrip_requires_cap_steps` | TEST1293: IDDFS round-trip does not produce paths with 0 cap steps. No round-trip should exist when there's no return edge. | planner/live_cap_fab_test.go:590 |
 | test1294 | `Test1294_rule11_void_input_with_stdin_rejected` | TEST1294: RULE11 - void-input cap with stdin source rejected | cap/validation_test.go:288 |
 | test1295 | `Test1295_rule11_non_void_input_without_stdin_rejected` | TEST1295: RULE11 - non-void-input cap without stdin source rejected | cap/validation_test.go:301 |
 | test1296 | `Test1296_rule11_void_input_cli_flag_only_passes` | TEST1296: RULE11 - void-input cap with only cli_flag sources passes | cap/validation_test.go:314 |
