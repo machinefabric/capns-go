@@ -763,10 +763,10 @@ func Test631_needs_sync_empty_cache(t *testing.T) {
 	}
 }
 
-// TEST336: A registry response with a malformed cap URN inside cap_groups
+// TEST319: A registry response with a malformed cap URN inside cap_groups
 // must propagate as ParseError when indexed into the cache, not silently
 // disappear.
-func Test336_update_cache_rejects_malformed_cap_urn(t *testing.T) {
+func Test319_update_cache_rejects_malformed_cap_urn(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 	registry := &CartridgeRegistryResponse{
 		Cartridges: []CartridgeInfo{

@@ -184,15 +184,17 @@ type outgoingRoute struct {
 
 // ManagedCartridge represents a cartridge managed by the CartridgeHost.
 type ManagedCartridge struct {
-	path        string
-	cmd         *exec.Cmd
-	writerCh    chan *Frame
-	manifest    []byte
-	limits      Limits
-	caps        []string
-	knownCaps   []string
-	running     bool
-	helloFailed bool
+	path                     string
+	cmd                      *exec.Cmd
+	writerCh                 chan *Frame
+	manifest                 []byte
+	limits                   Limits
+	caps                     []string
+	knownCaps                []string
+	running                  bool
+	helloFailed              bool
+	LastHeartbeatUnixSeconds *int64
+	RestartCount             uint64
 }
 
 // CartridgeHost manages N cartridge binaries with cap-based routing.
@@ -244,6 +246,10 @@ type CartridgeHost struct {
 	capabilities []byte
 	eventCh      chan cartridgeEvent
 	mu           sync.Mutex
+
+	// Observer receives lifecycle notifications for cartridges.
+	// May be nil.
+	Observer CartridgeHostObserver
 }
 
 // NewCartridgeHost creates a new multi-cartridge host.

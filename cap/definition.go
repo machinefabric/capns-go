@@ -350,8 +350,10 @@ type Cap struct {
 	MediaSpecs     []media.MediaSpecDef `json:"media_specs,omitempty"`
 	Args           []CapArg             `json:"args,omitempty"`
 	Output         *CapOutput           `json:"output,omitempty"`
-	MetadataJSON   any                  `json:"metadata_json,omitempty"`
-	RegisteredBy   *RegisteredBy        `json:"registered_by,omitempty"`
+	MetadataJSON        any                  `json:"metadata_json,omitempty"`
+	RegisteredBy        *RegisteredBy        `json:"registered_by,omitempty"`
+	SupportedModelTypes []string             `json:"supported_model_types,omitempty"`
+	DefaultModelSpec    *string              `json:"default_model_spec,omitempty"`
 }
 
 // NewCap creates a new cap
@@ -811,6 +813,14 @@ func (c *Cap) MarshalJSON() ([]byte, error) {
 		capData["registered_by"] = c.RegisteredBy
 	}
 
+	if len(c.SupportedModelTypes) > 0 {
+		capData["supported_model_types"] = c.SupportedModelTypes
+	}
+
+	if c.DefaultModelSpec != nil {
+		capData["default_model_spec"] = *c.DefaultModelSpec
+	}
+
 	return json.Marshal(capData)
 }
 
@@ -910,6 +920,19 @@ func (c *Cap) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("failed to unmarshal registered_by: %w", err)
 		}
 		c.RegisteredBy = &registeredBy
+	}
+
+	if supportedModelTypesRaw, ok := raw["supported_model_types"]; ok {
+		supportedModelTypesBytes, _ := json.Marshal(supportedModelTypesRaw)
+		var supportedModelTypes []string
+		if err := json.Unmarshal(supportedModelTypesBytes, &supportedModelTypes); err != nil {
+			return fmt.Errorf("failed to unmarshal supported_model_types: %w", err)
+		}
+		c.SupportedModelTypes = supportedModelTypes
+	}
+
+	if defaultModelSpec, ok := raw["default_model_spec"].(string); ok {
+		c.DefaultModelSpec = &defaultModelSpec
 	}
 
 	return nil

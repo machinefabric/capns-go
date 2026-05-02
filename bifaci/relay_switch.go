@@ -47,6 +47,42 @@ func (e *RelaySwitchError) Error() string {
 	}
 }
 
+// CartridgeAttachmentErrorKind describes why a cartridge failed to attach.
+type CartridgeAttachmentErrorKind string
+
+const (
+	CartridgeAttachmentErrorKindIncompatible      CartridgeAttachmentErrorKind = "incompatible"
+	CartridgeAttachmentErrorKindManifestInvalid   CartridgeAttachmentErrorKind = "manifest_invalid"
+	CartridgeAttachmentErrorKindHandshakeFailed   CartridgeAttachmentErrorKind = "handshake_failed"
+	CartridgeAttachmentErrorKindIdentityRejected  CartridgeAttachmentErrorKind = "identity_rejected"
+	CartridgeAttachmentErrorKindEntryPointMissing CartridgeAttachmentErrorKind = "entry_point_missing"
+	CartridgeAttachmentErrorKindQuarantined       CartridgeAttachmentErrorKind = "quarantined"
+)
+
+// CartridgeAttachmentError carries the details of a failed cartridge attachment.
+type CartridgeAttachmentError struct {
+	Kind                  CartridgeAttachmentErrorKind `json:"kind"`
+	Message               string                       `json:"message"`
+	DetectedAtUnixSeconds int64                        `json:"detected_at_unix_seconds"`
+}
+
+// CartridgeRuntimeStats holds live statistics for a managed cartridge.
+type CartridgeRuntimeStats struct {
+	Running                  bool    `json:"running"`
+	PID                      *uint32 `json:"pid,omitempty"`
+	ActiveRequestCount       uint64  `json:"active_request_count"`
+	PeerRequestCount         uint64  `json:"peer_request_count"`
+	MemoryFootprintMB        uint64  `json:"memory_footprint_mb"`
+	MemoryRSSMB              uint64  `json:"memory_rss_mb"`
+	LastHeartbeatUnixSeconds *int64  `json:"last_heartbeat_unix_seconds,omitempty"`
+	RestartCount             uint64  `json:"restart_count"`
+}
+
+// NotRunning returns a CartridgeRuntimeStats representing a stopped cartridge.
+func NotRunning() CartridgeRuntimeStats {
+	return CartridgeRuntimeStats{Running: false}
+}
+
 // InstalledCartridgeIdentity represents the identity of an installed
 // cartridge. `(RegistryURL, Channel, Id, Version)` is the
 // cartridge's full identity — installs of the same id from
@@ -60,11 +96,13 @@ func (e *RelaySwitchError) Error() string {
 // nullable: missing key is a parse error so old-schema payloads
 // surface immediately.
 type InstalledCartridgeIdentity struct {
-	RegistryURL *string `json:"registry_url"`
-	Id          string  `json:"id"`
-	Channel     string  `json:"channel"`
-	Version     string  `json:"version"`
-	Sha256      string  `json:"sha256"`
+	RegistryURL     *string                   `json:"registry_url"`
+	Id              string                    `json:"id"`
+	Channel         string                    `json:"channel"`
+	Version         string                    `json:"version"`
+	Sha256          string                    `json:"sha256"`
+	AttachmentError *CartridgeAttachmentError `json:"attachment_error,omitempty"`
+	RuntimeStats    *CartridgeRuntimeStats    `json:"runtime_stats,omitempty"`
 }
 
 // UnmarshalJSON enforces "required-but-nullable" for RegistryURL

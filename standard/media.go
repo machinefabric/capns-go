@@ -68,11 +68,62 @@ const MediaObjectList = "media:list;record"
 // MediaPNG is the media URN for PNG image data
 const MediaPNG = "media:image;png"
 
+// MediaJPEG is the media URN for JPEG image data
+const MediaJPEG = "media:jpeg;image"
+
+// MediaGIF is the media URN for GIF image data
+const MediaGIF = "media:gif;image"
+
+// MediaBMP is the media URN for BMP image data
+const MediaBMP = "media:bmp;image"
+
+// MediaTIFF is the media URN for TIFF image data
+const MediaTIFF = "media:tiff;image"
+
+// MediaWEBP is the media URN for WebP image data
+const MediaWEBP = "media:webp;image"
+
 // MediaAudio is the media URN for audio data (wav, mp3, flac, etc.)
 const MediaAudio = "media:wav;audio"
 
+// MediaMP3 is the media URN for MP3 audio data
+const MediaMP3 = "media:mp3;audio"
+
+// MediaWAV is the media URN for WAV audio data
+const MediaWAV = "media:wav;audio"
+
+// MediaFLAC is the media URN for FLAC audio data
+const MediaFLAC = "media:flac;audio"
+
+// MediaOGG is the media URN for OGG audio data
+const MediaOGG = "media:ogg;audio"
+
+// MediaAAC is the media URN for AAC audio data
+const MediaAAC = "media:aac;audio"
+
+// MediaM4A is the media URN for M4A audio data
+const MediaM4A = "media:m4a;audio"
+
+// MediaAIFF is the media URN for AIFF audio data
+const MediaAIFF = "media:aiff;audio"
+
+// MediaOpus is the media URN for Opus audio data
+const MediaOpus = "media:opus;audio"
+
 // MediaVideo is the media URN for video data (mp4, webm, mov, etc.)
 const MediaVideo = "media:video"
+
+// MediaMP4 is the media URN for MP4 video data
+const MediaMP4 = "media:mp4;video"
+
+// MediaMOV is the media URN for MOV video data
+const MediaMOV = "media:mov;video"
+
+// MediaWEBM is the media URN for WebM video data
+const MediaWEBM = "media:webm;video"
+
+// MediaMKV is the media URN for MKV video data
+const MediaMKV = "media:mkv;video"
 
 // Semantic AI input types - distinguished by their purpose/context
 
@@ -245,6 +296,21 @@ const MediaTranscriptionOutput = "media:record;textable;transcription"
 
 // MediaDecision is the media URN for decision output (Make Decision) - scalar by default
 const MediaDecision = "media:decision;json;record;textable"
+
+// MediaHFToken is the media URN for a Hugging Face API token (secret, textable)
+const MediaHFToken = "media:hf-token;secret;textable"
+
+// MediaModelArchList is the media URN for a list of model architectures — JSON record
+const MediaModelArchList = "media:model-arch-list;json;record;textable"
+
+// MediaModelSearchRequest is the media URN for a model search request — JSON record
+const MediaModelSearchRequest = "media:model-search-request;json;record;textable"
+
+// MediaModelSearchResponse is the media URN for a model search response — JSON record
+const MediaModelSearchResponse = "media:model-search-response;json;record;textable"
+
+// MediaModelFilterResolution is the media URN for model filter resolution — JSON record
+const MediaModelFilterResolution = "media:model-filter-resolution;json;record;textable"
 
 // MediaCollection is the media URN for a collection (map/record form)
 const MediaCollection = "media:collection;record;textable"
