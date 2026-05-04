@@ -6,6 +6,50 @@ import (
 	"testing"
 )
 
+// testManifestWithCaps builds a RelayNotify-shaped manifest JSON map
+// from a flat list of cap-URN strings. The wire schema embeds caps
+// inside `installed_cartridges[*].cap_groups`, so this helper wraps
+// the list in a single synthetic installed-cartridge entry. Test code
+// stays compact while exercising the production payload shape.
+//
+// An empty cap-urn list produces an empty `installed_cartridges`
+// array, matching the "host has no cartridges that passed the
+// attachment checklist" wire state.
+func testManifestWithCaps(capURNs []string) map[string]interface{} {
+	if len(capURNs) == 0 {
+		return map[string]interface{}{
+			"installed_cartridges": []interface{}{},
+		}
+	}
+	groupCaps := make([]map[string]interface{}, 0, len(capURNs))
+	for _, urn := range capURNs {
+		groupCaps = append(groupCaps, map[string]interface{}{
+			"urn":     urn,
+			"title":   "test",
+			"command": "test",
+			"args":    []interface{}{},
+		})
+	}
+	return map[string]interface{}{
+		"installed_cartridges": []interface{}{
+			map[string]interface{}{
+				"registry_url": nil,
+				"channel":      "release",
+				"id":           "test-cartridge",
+				"version":      "0.0.0",
+				"sha256":       "0000000000000000000000000000000000000000000000000000000000000000",
+				"cap_groups": []interface{}{
+					map[string]interface{}{
+						"name":         "test",
+						"caps":         groupCaps,
+						"adapter_urns": []interface{}{},
+					},
+				},
+			},
+		},
+	}
+}
+
 // TEST426: Single master REQ/response routing
 func Test426_relay_switch_single_master_req_response(t *testing.T) {
 	// Create socket pairs
@@ -18,10 +62,7 @@ func Test426_relay_switch_single_master_req_response(t *testing.T) {
 		writer := NewFrameWriter(slaveWrite)
 
 		// Send initial RelayNotify
-		manifest := map[string]interface{}{
-			"caps":                  []string{`cap:in=media:;out=media:`},
-			"installed_cartridges": []interface{}{},
-		}
+		manifest := testManifestWithCaps([]string{`cap:in=media:;out=media:`})
 		manifestJSON, _ := json.Marshal(manifest)
 		limits := DefaultLimits()
 		if err := SendNotify(writer, manifestJSON, limits); err != nil {
@@ -85,10 +126,7 @@ func Test427_relay_switch_multi_master_cap_routing(t *testing.T) {
 		reader := NewFrameReader(slaveRead1)
 		writer := NewFrameWriter(slaveWrite1)
 
-		manifest := map[string]interface{}{
-			"caps":                  []string{`cap:in=media:;out=media:`},
-			"installed_cartridges": []interface{}{},
-		}
+		manifest := testManifestWithCaps([]string{`cap:in=media:;out=media:`})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 
@@ -109,10 +147,7 @@ func Test427_relay_switch_multi_master_cap_routing(t *testing.T) {
 		reader := NewFrameReader(slaveRead2)
 		writer := NewFrameWriter(slaveWrite2)
 
-		manifest := map[string]interface{}{
-			"caps":                  []string{`cap:in="media:void";op=double;out="media:void"`},
-			"installed_cartridges": []interface{}{},
-		}
+		manifest := testManifestWithCaps([]string{`cap:in="media:void";op=double;out="media:void"`})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 
@@ -172,10 +207,7 @@ func Test428_relay_switch_unknown_cap_returns_error(t *testing.T) {
 		reader := NewFrameReader(slaveRead)
 		writer := NewFrameWriter(slaveWrite)
 
-		manifest := map[string]interface{}{
-			"caps":                  []string{`cap:in=media:;out=media:`},
-			"installed_cartridges": []interface{}{},
-		}
+		manifest := testManifestWithCaps([]string{`cap:in=media:;out=media:`})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 
@@ -219,10 +251,7 @@ func Test429_relay_switch_find_master_for_cap(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead1)
 		writer := NewFrameWriter(slaveWrite1)
-		manifest := map[string]interface{}{
-			"caps":                  []string{`cap:in=media:;out=media:`},
-			"installed_cartridges": []interface{}{},
-		}
+		manifest := testManifestWithCaps([]string{`cap:in=media:;out=media:`})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 		for {
@@ -235,10 +264,7 @@ func Test429_relay_switch_find_master_for_cap(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead2)
 		writer := NewFrameWriter(slaveWrite2)
-		manifest := map[string]interface{}{
-			"caps":                  []string{`cap:in="media:void";op=double;out="media:void"`},
-			"installed_cartridges": []interface{}{},
-		}
+		manifest := testManifestWithCaps([]string{`cap:in="media:void";op=double;out="media:void"`})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 		for {
@@ -297,7 +323,7 @@ func Test430_relay_switch_tie_breaking(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead1)
 		writer := NewFrameWriter(slaveWrite1)
-		manifest := map[string]interface{}{"caps": []string{sameCap}, "installed_cartridges": []interface{}{}}
+		manifest := testManifestWithCaps([]string{sameCap})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 
@@ -317,7 +343,7 @@ func Test430_relay_switch_tie_breaking(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead2)
 		writer := NewFrameWriter(slaveWrite2)
-		manifest := map[string]interface{}{"caps": []string{sameCap}, "installed_cartridges": []interface{}{}}
+		manifest := testManifestWithCaps([]string{sameCap})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 
@@ -364,10 +390,7 @@ func Test431_relay_switch_continuation_frame_routing(t *testing.T) {
 		reader := NewFrameReader(slaveRead)
 		writer := NewFrameWriter(slaveWrite)
 
-		manifest := map[string]interface{}{
-			"caps":                  []string{`cap:in="media:void";op=test;out="media:void"`},
-			"installed_cartridges": []interface{}{},
-		}
+		manifest := testManifestWithCaps([]string{`cap:in="media:void";op=test;out="media:void"`})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 
@@ -458,13 +481,10 @@ func Test433_relay_switch_capability_aggregation_deduplicates(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead1)
 		writer := NewFrameWriter(slaveWrite1)
-		manifest := map[string]interface{}{
-			"caps": []string{
-				`cap:in=media:;out=media:`,
-				`cap:in="media:void";op=double;out="media:void"`,
-			},
-			"installed_cartridges": []interface{}{},
-		}
+		manifest := testManifestWithCaps([]string{
+			`cap:in=media:;out=media:`,
+			`cap:in="media:void";op=double;out="media:void"`,
+		})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 		for {
@@ -477,13 +497,10 @@ func Test433_relay_switch_capability_aggregation_deduplicates(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead2)
 		writer := NewFrameWriter(slaveWrite2)
-		manifest := map[string]interface{}{
-			"caps": []string{
-				`cap:in=media:;out=media:`, // Duplicate
-				`cap:in="media:void";op=triple;out="media:void"`,
-			},
-			"installed_cartridges": []interface{}{},
-		}
+		manifest := testManifestWithCaps([]string{
+			`cap:in=media:;out=media:`, // Duplicate
+			`cap:in="media:void";op=triple;out="media:void"`,
+		})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 		for {
@@ -518,7 +535,7 @@ func Test434_relay_switch_limits_negotiation_minimum(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead1)
 		writer := NewFrameWriter(slaveWrite1)
-		manifest := map[string]interface{}{"caps": []string{}, "installed_cartridges": []interface{}{}}
+		manifest := testManifestWithCaps([]string{})
 		manifestJSON, _ := json.Marshal(manifest)
 		limits1 := Limits{MaxFrame: 1_000_000, MaxChunk: 100_000}
 		SendNotify(writer, manifestJSON, limits1)
@@ -532,7 +549,7 @@ func Test434_relay_switch_limits_negotiation_minimum(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead2)
 		writer := NewFrameWriter(slaveWrite2)
-		manifest := map[string]interface{}{"caps": []string{}, "installed_cartridges": []interface{}{}}
+		manifest := testManifestWithCaps([]string{})
 		manifestJSON, _ := json.Marshal(manifest)
 		limits2 := Limits{MaxFrame: 2_000_000, MaxChunk: 50_000}
 		SendNotify(writer, manifestJSON, limits2)
@@ -567,10 +584,7 @@ func Test435_relay_switch_urn_matching(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead)
 		writer := NewFrameWriter(slaveWrite)
-		manifest := map[string]interface{}{
-			"caps":                  []string{registeredCap},
-			"installed_cartridges": []interface{}{},
-		}
+		manifest := testManifestWithCaps([]string{registeredCap})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 
@@ -638,7 +652,7 @@ func Test437_preferred_cap_routes_to_generic(t *testing.T) {
 		go func() {
 			reader := NewFrameReader(r)
 			writer := NewFrameWriter(w)
-			manifest := map[string]interface{}{"caps": caps, "installed_cartridges": []interface{}{}}
+			manifest := testManifestWithCaps(caps)
 			manifestJSON, _ := json.Marshal(manifest)
 			SendNotify(writer, manifestJSON, DefaultLimits())
 			for {
@@ -696,7 +710,7 @@ func Test438_preferred_cap_falls_back_when_not_comparable(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead)
 		writer := NewFrameWriter(slaveWrite)
-		manifest := map[string]interface{}{"caps": []string{`cap:in=media:;out=media:`, registered}, "installed_cartridges": []interface{}{}}
+		manifest := testManifestWithCaps([]string{`cap:in=media:;out=media:`, registered})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 		for {
@@ -736,7 +750,7 @@ func Test439_generic_provider_can_dispatch_specific_request(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead)
 		writer := NewFrameWriter(slaveWrite)
-		manifest := map[string]interface{}{"caps": []string{`cap:in=media:;out=media:`, genericCap}, "installed_cartridges": []interface{}{}}
+		manifest := testManifestWithCaps([]string{`cap:in=media:;out=media:`, genericCap})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 		for {

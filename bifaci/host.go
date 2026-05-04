@@ -184,12 +184,19 @@ type outgoingRoute struct {
 
 // ManagedCartridge represents a cartridge managed by the CartridgeHost.
 type ManagedCartridge struct {
-	path                     string
-	cmd                      *exec.Cmd
-	writerCh                 chan *Frame
-	manifest                 []byte
-	limits                   Limits
-	caps                     []string
+	path     string
+	cmd      *exec.Cmd
+	writerCh chan *Frame
+	manifest []byte
+	limits   Limits
+	// caps is the flat URN view derived from capGroups (kept in sync
+	// alongside it to avoid recomputing on every cap-table rebuild).
+	caps []string
+	// capGroups is the cartridge's manifest cap-groups, parsed at
+	// HELLO time. This is the source of truth on the wire; the engine
+	// reads `installed_cartridges[*].cap_groups` and computes its own
+	// flat list.
+	capGroups                []CapGroup
 	knownCaps                []string
 	running                  bool
 	helloFailed              bool
@@ -294,21 +301,23 @@ func (h *CartridgeHost) AttachCartridge(cartridgeRead io.Reader, cartridgeWrite 
 	reader.SetLimits(limits)
 	writer.SetLimits(limits)
 
-	caps, err := parseCapsFromManifest(manifest)
+	capGroups, err := parseCapGroupsFromManifest(manifest)
 	if err != nil {
 		return -1, fmt.Errorf("failed to parse manifest: %w", err)
 	}
+	caps := flattenCapURNs(capGroups)
 
 	h.mu.Lock()
 	cartridgeIdx := len(h.cartridges)
 
 	writerCh := make(chan *Frame, 64)
 	cartridge := &ManagedCartridge{
-		writerCh: writerCh,
-		manifest: manifest,
-		limits:   limits,
-		caps:     caps,
-		running:  true,
+		writerCh:  writerCh,
+		manifest:  manifest,
+		limits:    limits,
+		caps:      caps,
+		capGroups: capGroups,
+		running:   true,
 	}
 	h.cartridges = append(h.cartridges, cartridge)
 
@@ -787,7 +796,7 @@ func (h *CartridgeHost) spawnCartridgeLocked(cartridgeIdx int) error {
 	reader.SetLimits(limits)
 	writer.SetLimits(limits)
 
-	caps, parseErr := parseCapsFromManifest(manifest)
+	capGroups, parseErr := parseCapGroupsFromManifest(manifest)
 	if parseErr != nil {
 		cartridge.helloFailed = true
 		cmd.Process.Kill()
@@ -796,7 +805,8 @@ func (h *CartridgeHost) spawnCartridgeLocked(cartridgeIdx int) error {
 
 	cartridge.manifest = manifest
 	cartridge.limits = limits
-	cartridge.caps = caps
+	cartridge.capGroups = capGroups
+	cartridge.caps = flattenCapURNs(capGroups)
 	cartridge.running = true
 
 	writerCh := make(chan *Frame, 64)
@@ -829,22 +839,36 @@ func (h *CartridgeHost) updateCapTable() {
 }
 
 // rebuildCapabilities rebuilds the aggregate capabilities JSON.
+//
+// The wire payload now lives entirely inside
+// `installed_cartridges[*].cap_groups`. The Go host doesn't carry
+// installed-cartridge identities (this is a unit-test / interop host;
+// production cartridge hosting is the Rust runtime), so we synthesize
+// one entry per running cartridge with a `cap_groups` view assembled
+// from the parsed manifest.
 func (h *CartridgeHost) rebuildCapabilities() {
-	var allCaps []string
-	for _, cartridge := range h.cartridges {
-		if cartridge.running {
-			allCaps = append(allCaps, cartridge.caps...)
+	var installed []InstalledCartridgeIdentity
+	for idx, cartridge := range h.cartridges {
+		if !cartridge.running {
+			continue
 		}
+		installed = append(installed, InstalledCartridgeIdentity{
+			RegistryURL: nil,
+			Id:          fmt.Sprintf("cartridge-%d", idx),
+			Channel:     "release",
+			Version:     "0.0.0",
+			Sha256:      "",
+			CapGroups:   cartridge.capGroups,
+		})
 	}
 
-	if len(allCaps) == 0 {
+	if len(installed) == 0 {
 		h.capabilities = nil
 		return
 	}
 
 	payload := RelayNotifyCapabilitiesPayload{
-		Caps:                allCaps,
-		InstalledCartridges: []InstalledCartridgeIdentity{},
+		InstalledCartridges: installed,
 	}
 	capsJSON, err := json.Marshal(payload)
 	if err != nil {
@@ -871,19 +895,17 @@ func (h *CartridgeHost) killAllCartridges() {
 	}
 }
 
-// parseCapsFromManifest parses cap URNs from a JSON manifest.
-// Expected format: {"cap_groups": [{"caps": [{"urn": "cap:op=test", ...}, ...]}]}
-func parseCapsFromManifest(manifest []byte) ([]string, error) {
+// parseCapGroupsFromManifest parses the cartridge's cap_groups from a
+// JSON manifest. Returns the full CapGroup slice — the engine needs it
+// to register adapter URNs per-cartridge, and the flat cap-urn list is
+// derived from it.
+func parseCapGroupsFromManifest(manifest []byte) ([]CapGroup, error) {
 	if len(manifest) == 0 {
 		return nil, nil
 	}
 
 	var parsed struct {
-		CapGroups []struct {
-			Caps []struct {
-				Urn string `json:"urn"`
-			} `json:"caps"`
-		} `json:"cap_groups"`
+		CapGroups []CapGroup `json:"cap_groups"`
 	}
 
 	if err := json.Unmarshal(manifest, &parsed); err != nil {
@@ -894,14 +916,20 @@ func parseCapsFromManifest(manifest []byte) ([]string, error) {
 		return nil, fmt.Errorf("manifest missing required cap_groups array")
 	}
 
+	return parsed.CapGroups, nil
+}
+
+// flattenCapURNs walks a slice of CapGroups and returns the flat list of
+// cap URN strings, preserving order.
+func flattenCapURNs(groups []CapGroup) []string {
 	var caps []string
-	for _, group := range parsed.CapGroups {
-		for _, cap := range group.Caps {
-			if cap.Urn != "" {
-				caps = append(caps, cap.Urn)
+	for _, group := range groups {
+		for _, c := range group.Caps {
+			urn := c.Urn.String()
+			if urn != "" {
+				caps = append(caps, urn)
 			}
 		}
 	}
-
-	return caps, nil
+	return caps
 }

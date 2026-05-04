@@ -96,13 +96,37 @@ func NotRunning() CartridgeRuntimeStats {
 // nullable: missing key is a parse error so old-schema payloads
 // surface immediately.
 type InstalledCartridgeIdentity struct {
-	RegistryURL     *string                   `json:"registry_url"`
-	Id              string                    `json:"id"`
-	Channel         string                    `json:"channel"`
-	Version         string                    `json:"version"`
-	Sha256          string                    `json:"sha256"`
+	RegistryURL *string `json:"registry_url"`
+	Id          string  `json:"id"`
+	Channel     string  `json:"channel"`
+	Version     string  `json:"version"`
+	Sha256      string  `json:"sha256"`
+	// CapGroups carries the cartridge's manifest cap_groups so the
+	// engine can register content-inspection adapters per cartridge.
+	// Empty when the cartridge failed attachment before its manifest
+	// could be parsed; the flat cap-urn snapshot is computed from
+	// these groups, not stored separately on the wire.
+	CapGroups       []CapGroup                `json:"cap_groups,omitempty"`
 	AttachmentError *CartridgeAttachmentError `json:"attachment_error,omitempty"`
 	RuntimeStats    *CartridgeRuntimeStats    `json:"runtime_stats,omitempty"`
+}
+
+// CapURNs returns the flat de-duplicated cap-URN list across this
+// cartridge's groups, preserving first-seen order. Computed view.
+func (i *InstalledCartridgeIdentity) CapURNs() []string {
+	seen := make(map[string]struct{}, 0)
+	out := make([]string, 0)
+	for _, group := range i.CapGroups {
+		for _, c := range group.Caps {
+			urn := c.Urn.String()
+			if _, ok := seen[urn]; ok {
+				continue
+			}
+			seen[urn] = struct{}{}
+			out = append(out, urn)
+		}
+	}
+	return out
 }
 
 // UnmarshalJSON enforces "required-but-nullable" for RegistryURL
@@ -134,10 +158,28 @@ func (i *InstalledCartridgeIdentity) RegistrySlug() string {
 	return SlugFor(i.RegistryURL)
 }
 
-// RelayNotifyCapabilitiesPayload is the parsed payload from RelayNotify frames
+// RelayNotifyCapabilitiesPayload is the parsed payload from RelayNotify frames.
+// The flat cap-urn list is no longer carried on the wire — consumers derive
+// it from `InstalledCartridges[*].CapGroups` via `CapURNs()`.
 type RelayNotifyCapabilitiesPayload struct {
-	Caps                 []string                     `json:"caps"`
-	InstalledCartridges  []InstalledCartridgeIdentity `json:"installed_cartridges"`
+	InstalledCartridges []InstalledCartridgeIdentity `json:"installed_cartridges"`
+}
+
+// CapURNs returns the flat de-duplicated cap-URN union across every
+// cartridge in the payload, preserving first-seen order.
+func (p *RelayNotifyCapabilitiesPayload) CapURNs() []string {
+	seen := make(map[string]struct{}, 0)
+	out := make([]string, 0)
+	for idx := range p.InstalledCartridges {
+		for _, urn := range p.InstalledCartridges[idx].CapURNs() {
+			if _, ok := seen[urn]; ok {
+				continue
+			}
+			seen[urn] = struct{}{}
+			out = append(out, urn)
+		}
+	}
+	return out
 }
 
 // RoutingEntry tracks request source and destination
@@ -268,7 +310,7 @@ func NewRelaySwitch(sockets []SocketPair) (*RelaySwitch, error) {
 			socketWriter:        socketWriter,
 			manifest:            manifest,
 			limits:              *limits,
-			caps:                payload.Caps,
+			caps:                payload.CapURNs(),
 			installedCartridges: payload.InstalledCartridges,
 			healthy:             true,
 		})
@@ -664,7 +706,7 @@ func (sw *RelaySwitch) handleMasterFrame(sourceIdx int, frame *Frame) (*Frame, e
 
 		// Update master's caps, installed cartridges, and limits
 		if sourceIdx >= 0 && sourceIdx < len(sw.masters) {
-			sw.masters[sourceIdx].caps = payload.Caps
+			sw.masters[sourceIdx].caps = payload.CapURNs()
 			sw.masters[sourceIdx].installedCartridges = payload.InstalledCartridges
 			sw.masters[sourceIdx].manifest = manifest
 			// Extract and update limits from RelayNotify
@@ -740,25 +782,13 @@ func (sw *RelaySwitch) rebuildInstalledCartridges() {
 	sw.aggregateInstalledCartridges = result
 }
 
-// rebuildCapabilities rebuilds aggregate capabilities
+// rebuildCapabilities rebuilds aggregate capabilities. The wire payload
+// now carries caps inside `installed_cartridges[*].cap_groups`; we
+// republish the union of every healthy master's installed cartridges so
+// the engine sees one combined view.
 func (sw *RelaySwitch) rebuildCapabilities() {
-	capSet := make(map[string]bool)
-	for _, master := range sw.masters {
-		if master.healthy {
-			for _, cap := range master.caps {
-				capSet[cap] = true
-			}
-		}
-	}
-
-	caps := []string{}
-	for cap := range capSet {
-		caps = append(caps, cap)
-	}
-
 	manifest := RelayNotifyCapabilitiesPayload{
-		Caps:                caps,
-		InstalledCartridges: []InstalledCartridgeIdentity{},
+		InstalledCartridges: append([]InstalledCartridgeIdentity{}, sw.aggregateInstalledCartridges...),
 	}
 	data, _ := json.Marshal(manifest)
 	sw.capabilities = data
@@ -795,8 +825,10 @@ func (sw *RelaySwitch) rebuildLimits() {
 
 // parseRelayNotifyPayload parses caps and installed_cartridges from a RelayNotify manifest payload.
 // The payload JSON must contain:
-//   - "caps": []string  (the capability URN list)
-//   - "installed_cartridges": []InstalledCartridgeIdentity (optional)
+//   - "installed_cartridges": []InstalledCartridgeIdentity (required, may be empty)
+//
+// The flat cap-urn list is no longer carried on the wire — callers
+// derive it from `payload.CapURNs()`.
 func parseRelayNotifyPayload(manifest []byte) (*RelayNotifyCapabilitiesPayload, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(manifest, &raw); err != nil {
@@ -806,29 +838,19 @@ func parseRelayNotifyPayload(manifest []byte) (*RelayNotifyCapabilitiesPayload, 
 		}
 	}
 
-	capsRaw, ok := raw["caps"]
+	icRaw, ok := raw["installed_cartridges"]
 	if !ok {
 		return nil, &RelaySwitchError{
 			Type:    RelaySwitchErrorTypeProtocol,
-			Message: "manifest missing required caps array",
-		}
-	}
-
-	var caps []string
-	if err := json.Unmarshal(capsRaw, &caps); err != nil {
-		return nil, &RelaySwitchError{
-			Type:    RelaySwitchErrorTypeProtocol,
-			Message: fmt.Sprintf("invalid caps field: %v", err),
+			Message: "manifest missing required installed_cartridges array",
 		}
 	}
 
 	var installedCartridges []InstalledCartridgeIdentity
-	if icRaw, ok := raw["installed_cartridges"]; ok {
-		if err := json.Unmarshal(icRaw, &installedCartridges); err != nil {
-			return nil, &RelaySwitchError{
-				Type:    RelaySwitchErrorTypeProtocol,
-				Message: fmt.Sprintf("invalid installed_cartridges field: %v", err),
-			}
+	if err := json.Unmarshal(icRaw, &installedCartridges); err != nil {
+		return nil, &RelaySwitchError{
+			Type:    RelaySwitchErrorTypeProtocol,
+			Message: fmt.Sprintf("invalid installed_cartridges field: %v", err),
 		}
 	}
 
@@ -837,7 +859,6 @@ func parseRelayNotifyPayload(manifest []byte) (*RelayNotifyCapabilitiesPayload, 
 	}
 
 	return &RelayNotifyCapabilitiesPayload{
-		Caps:                caps,
 		InstalledCartridges: installedCartridges,
 	}, nil
 }
