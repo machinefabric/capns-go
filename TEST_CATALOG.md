@@ -1,10 +1,10 @@
 # Go Test Catalog
 
-**Total Tests:** 896
+**Total Tests:** 899
 
 **Numbered Tests:** 840
 
-**Unnumbered Tests:** 56
+**Unnumbered Tests:** 59
 
 **Numbered Tests Missing Descriptions:** 0
 
@@ -871,6 +871,9 @@ This catalog lists all tests in the Go codebase.
 | unnumbered | `TestCapUrn_JSONSerialization` | JSON serialization test (not numbered in Rust) | urn/cap_urn_test.go:1413 |
 | unnumbered | `TestCapValidationCoordinator_EndToEnd` |  | cap/schema_validation_test.go:424 |
 | unnumbered | `TestCapWithMediaSpecs` |  | cap/definition_test.go:458 |
+| unnumbered | `TestCartridgeAttachmentErrorDecodesProtoSnakeCaseStrings` | TestCartridgeAttachmentErrorDecodesProtoSnakeCaseStrings is the engine→Go-host (or Swift→Go-host) decode path: incoming JSON uses the snake_case wire format, and the Go side must resolve each string into the matching variant. CartridgeAttachmentErrorKind is just `type ... string`, so this test is also a check that the JSON unmarshaller doesn't normalise/lowercase/etc the bytes behind our backs. | bifaci/relay_switch_test.go:878 |
+| unnumbered | `TestCartridgeAttachmentErrorJSONRoundTrips` | TestCartridgeAttachmentErrorJSONRoundTrips verifies a CartridgeAttachmentError marshals to JSON and unmarshals back without changing the kind for every variant. RelayNotify wire payload is JSON; a single-variant regression breaks the entire per-master parse. | bifaci/relay_switch_test.go:830 |
+| unnumbered | `TestCartridgeAttachmentErrorKindMatchesProtoSnakeCase` | TestCartridgeAttachmentErrorKindMatchesProtoSnakeCase pins every variant's string value against its proto snake_case name. New variants must be added here AND in the Rust / Swift / proto sides. | bifaci/relay_switch_test.go:802 |
 | unnumbered | `TestCartridgeErrorResponse` | Mirror-specific coverage: Test cartridge ERR frame is received by host as error | bifaci/integration_test.go:489 |
 | unnumbered | `TestCartridgeSuddenDisconnect` | Mirror-specific coverage: Test host receives error when cartridge closes connection unexpectedly | bifaci/integration_test.go:1091 |
 | unnumbered | `TestChunkingDataIntegrity3x` | Mirror-specific coverage: Test auto-chunking preserves data integrity across chunk boundaries for 3x max_chunk payload | bifaci/integration_test.go:1701 |
@@ -933,6 +936,9 @@ The following tests are cataloged but do not currently participate in numeric te
 - `TestCapUrn_JSONSerialization` — urn/cap_urn_test.go:1413
 - `TestCapValidationCoordinator_EndToEnd` — cap/schema_validation_test.go:424
 - `TestCapWithMediaSpecs` — cap/definition_test.go:458
+- `TestCartridgeAttachmentErrorDecodesProtoSnakeCaseStrings` — bifaci/relay_switch_test.go:878
+- `TestCartridgeAttachmentErrorJSONRoundTrips` — bifaci/relay_switch_test.go:830
+- `TestCartridgeAttachmentErrorKindMatchesProtoSnakeCase` — bifaci/relay_switch_test.go:802
 - `TestCartridgeErrorResponse` — bifaci/integration_test.go:489
 - `TestCartridgeSuddenDisconnect` — bifaci/integration_test.go:1091
 - `TestChunkingDataIntegrity3x` — bifaci/integration_test.go:1701
@@ -979,8 +985,8 @@ The following tests are cataloged but do not currently participate in numeric te
 ---
 
 *Generated from Go source tree*
-*Total tests: 896*
+*Total tests: 899*
 *Total numbered tests: 840*
-*Total unnumbered tests: 56*
+*Total unnumbered tests: 59*
 *Total numbered tests missing descriptions: 0*
 *Total numbering mismatches: 0*
