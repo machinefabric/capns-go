@@ -197,7 +197,7 @@ const MediaYAMLListRecord = "media:list;record;textable;yaml"
 const MediaCSV = "media:csv;list;record;textable"
 
 // MediaCSVList is the media URN for single-column CSV — list of values without record structure
-const MediaCSVList = "media:csv;list;textable"
+const MediaCSVList = "media:csv;list;record;textable"
 
 // File path type — for arguments that represent filesystem paths.
 // There is a single media URN; cardinality (single file vs many files)

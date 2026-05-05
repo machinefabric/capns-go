@@ -19,7 +19,7 @@ import (
 	"github.com/machinefabric/capdag-go/urn"
 )
 
-const testManifest = `{"name":"TestCartridge","version":"1.0.0","channel":"release","description":"Test cartridge","cap_groups":[{"name":"default","caps":[{"urn":"cap:","title":"Identity","command":"identity"},{"urn":"cap:in=\"media:void\";op=test;out=\"media:void\"","title":"Test","command":"test"}]}]}`
+const testManifest = `{"name":"TestCartridge","version":"1.0.0","channel":"release","description":"Test cartridge","cap_groups":[{"name":"default","caps":[{"urn":"cap:","title":"Identity","command":"identity"},{"urn":"cap:in=\"media:void\";test;out=\"media:void\"","title":"Test","command":"test"}]}]}`
 
 // Mock emitter that captures emitted data for testing
 type mockStreamEmitter struct {
@@ -103,12 +103,12 @@ func Test248_register_and_find_handler(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	runtime.Register(`cap:in="media:void";op=test;out="media:void"`,
+	runtime.Register(`cap:in="media:void";test;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			return emitter.EmitCbor("result")
 		})
 
-	handler := runtime.FindHandler(`cap:in="media:void";op=test;out="media:void"`)
+	handler := runtime.FindHandler(`cap:in="media:void";test;out="media:void"`)
 	if handler == nil {
 		t.Fatal("Expected to find handler, got nil")
 	}
@@ -121,7 +121,7 @@ func Test249_raw_handler(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	runtime.Register(`cap:in="media:void";op=raw;out="media:void"`,
+	runtime.Register(`cap:in="media:void";raw;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			// Collect first arg and echo it
 			payload, err := CollectFirstArg(frames)
@@ -131,7 +131,7 @@ func Test249_raw_handler(t *testing.T) {
 			return emitter.EmitCbor(payload)
 		})
 
-	handler := runtime.FindHandler(`cap:in="media:void";op=raw;out="media:void"`)
+	handler := runtime.FindHandler(`cap:in="media:void";raw;out="media:void"`)
 	if handler == nil {
 		t.Fatal("Expected to find handler")
 	}
@@ -159,7 +159,7 @@ func Test250_typed_handler_deserialization(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	runtime.Register(`cap:in="media:void";op=test;out="media:void"`,
+	runtime.Register(`cap:in="media:void";test;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			payload, err := CollectFirstArg(frames)
 			if err != nil {
@@ -176,7 +176,7 @@ func Test250_typed_handler_deserialization(t *testing.T) {
 			return emitter.EmitCbor(value.(string))
 		})
 
-	handler := runtime.FindHandler(`cap:in="media:void";op=test;out="media:void"`)
+	handler := runtime.FindHandler(`cap:in="media:void";test;out="media:void"`)
 	emitter := &mockStreamEmitter{}
 	peer := &noPeerInvoker{}
 	err = handler(bytesToFrameChannel([]byte(`{"key":"hello"}`)), emitter, peer)
@@ -199,7 +199,7 @@ func Test251_typed_handler_rejects_invalid_json(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	runtime.Register(`cap:in="media:void";op=test;out="media:void"`,
+	runtime.Register(`cap:in="media:void";test;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			payload, err := CollectFirstArg(frames)
 			if err != nil {
@@ -212,7 +212,7 @@ func Test251_typed_handler_rejects_invalid_json(t *testing.T) {
 			return emitter.EmitCbor([]byte{})
 		})
 
-	handler := runtime.FindHandler(`cap:in="media:void";op=test;out="media:void"`)
+	handler := runtime.FindHandler(`cap:in="media:void";test;out="media:void"`)
 	emitter := &mockStreamEmitter{}
 	peer := &noPeerInvoker{}
 	err = handler(bytesToFrameChannel([]byte("not json {{{{")), emitter, peer)
@@ -228,7 +228,7 @@ func Test252_find_handler_unknown_cap(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	handler := runtime.FindHandler(`cap:in="media:void";op=nonexistent;out="media:void"`)
+	handler := runtime.FindHandler(`cap:in="media:void";nonexistent;out="media:void"`)
 	if handler != nil {
 		t.Fatal("Expected nil for unknown cap, got handler")
 	}
@@ -241,12 +241,12 @@ func Test253_handler_is_send_sync(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	runtime.Register(`cap:in="media:void";op=threaded;out="media:void"`,
+	runtime.Register(`cap:in="media:void";threaded;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			return emitter.EmitCbor("done")
 		})
 
-	handler := runtime.FindHandler(`cap:in="media:void";op=threaded;out="media:void"`)
+	handler := runtime.FindHandler(`cap:in="media:void";threaded;out="media:void"`)
 	if handler == nil {
 		t.Fatal("Expected handler")
 	}
@@ -275,7 +275,7 @@ func Test253_handler_is_send_sync(t *testing.T) {
 // TEST254: Test NoPeerInvoker always returns PeerRequest error
 func Test254_no_peer_invoker(t *testing.T) {
 	peer := &noPeerInvoker{}
-	_, err := peer.Invoke(`cap:in="media:void";op=test;out="media:void"`, []cap.CapArgumentValue{})
+	_, err := peer.Invoke(`cap:in="media:void";test;out="media:void"`, []cap.CapArgumentValue{})
 	if err == nil {
 		t.Fatal("Expected error from NoPeerInvoker, got nil")
 	}
@@ -290,7 +290,7 @@ func Test255_no_peer_invoker_with_arguments(t *testing.T) {
 	args := []cap.CapArgumentValue{
 		cap.NewCapArgumentValueFromStr("media:test", "value"),
 	}
-	_, err := peer.Invoke(`cap:in="media:void";op=test;out="media:void"`, args)
+	_, err := peer.Invoke(`cap:in="media:void";test;out="media:void"`, args)
 	if err == nil {
 		t.Fatal("Expected error from NoPeerInvoker with arguments")
 	}
@@ -348,7 +348,7 @@ func Test258_new_cartridge_runtime_with_manifest_struct(t *testing.T) {
 
 // TEST259: Test extract_effective_payload with non-CBOR content_type returns raw payload unchanged
 func Test259_extract_effective_payload_non_cbor(t *testing.T) {
-	capDef := createTestCap(`cap:in="media:void";op=test;out="media:void"`, "Test", "test", nil)
+	capDef := createTestCap(`cap:in="media:void";test;out="media:void"`, "Test", "test", nil)
 	payload := []byte("raw data")
 	result, err := extractEffectivePayload(payload, "application/json", capDef, true)
 	if err != nil {
@@ -361,7 +361,7 @@ func Test259_extract_effective_payload_non_cbor(t *testing.T) {
 
 // TEST260: Test extract_effective_payload with empty content_type returns raw payload unchanged
 func Test260_extract_effective_payload_no_content_type(t *testing.T) {
-	capDef := createTestCap(`cap:in="media:void";op=test;out="media:void"`, "Test", "test", nil)
+	capDef := createTestCap(`cap:in="media:void";test;out="media:void"`, "Test", "test", nil)
 	payload := []byte("raw data")
 	result, err := extractEffectivePayload(payload, "", capDef, true)
 	if err != nil {
@@ -387,7 +387,7 @@ func Test261_extract_effective_payload_cbor_match(t *testing.T) {
 	}
 
 	// The cap URN has in=media:string;textable
-	capDef := createTestCap(`cap:in="media:string;textable";op=test;out="media:void"`, "Test", "test", nil)
+	capDef := createTestCap(`cap:in="media:string;textable";test;out="media:void"`, "Test", "test", nil)
 	result, err := extractEffectivePayload(payload, "application/cbor", capDef, false)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -430,7 +430,7 @@ func Test262_extract_effective_payload_cbor_no_match(t *testing.T) {
 		t.Fatalf("Failed to encode payload: %v", err)
 	}
 
-	capDef := createTestCap(`cap:in="media:string;textable";op=test;out="media:void"`, "Test", "test", nil)
+	capDef := createTestCap(`cap:in="media:string;textable";test;out="media:void"`, "Test", "test", nil)
 	_, err = extractEffectivePayload(payload, "application/cbor", capDef, false)
 	if err == nil {
 		t.Fatal("Expected error when no argument matches expected input")
@@ -442,7 +442,7 @@ func Test262_extract_effective_payload_cbor_no_match(t *testing.T) {
 
 // TEST263: Test extract_effective_payload with invalid CBOR bytes returns deserialization error
 func Test263_extract_effective_payload_invalid_cbor(t *testing.T) {
-	capDef := createTestCap(`cap:in="media:void";op=test;out="media:void"`, "Test", "test", nil)
+	capDef := createTestCap(`cap:in="media:void";test;out="media:void"`, "Test", "test", nil)
 	_, err := extractEffectivePayload([]byte("not cbor"), "application/cbor", capDef, false)
 	if err == nil {
 		t.Fatal("Expected error for invalid CBOR bytes")
@@ -456,7 +456,7 @@ func Test264_extract_effective_payload_cbor_not_array(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to encode payload: %v", err)
 	}
-	capDef := createTestCap(`cap:in="media:void";op=test;out="media:void"`, "Test", "test", nil)
+	capDef := createTestCap(`cap:in="media:void";test;out="media:void"`, "Test", "test", nil)
 	_, err = extractEffectivePayload(payload, "application/cbor", capDef, false)
 	if err == nil {
 		t.Fatal("Expected error for CBOR non-array payload")
@@ -470,15 +470,15 @@ func Test270_multiple_handlers(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	runtime.Register(`cap:in="media:void";op=alpha;out="media:void"`,
+	runtime.Register(`cap:in="media:void";alpha;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			return emitter.EmitCbor("a")
 		})
-	runtime.Register(`cap:in="media:void";op=beta;out="media:void"`,
+	runtime.Register(`cap:in="media:void";beta;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			return emitter.EmitCbor("b")
 		})
-	runtime.Register(`cap:in="media:void";op=gamma;out="media:void"`,
+	runtime.Register(`cap:in="media:void";gamma;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			return emitter.EmitCbor("g")
 		})
@@ -486,7 +486,7 @@ func Test270_multiple_handlers(t *testing.T) {
 	peer := &noPeerInvoker{}
 
 	emitterA := &mockStreamEmitter{}
-	hAlpha := runtime.FindHandler(`cap:in="media:void";op=alpha;out="media:void"`)
+	hAlpha := runtime.FindHandler(`cap:in="media:void";alpha;out="media:void"`)
 	_ = hAlpha(bytesToFrameChannel([]byte{}), emitterA, peer)
 	var resultA string
 	cborlib.Unmarshal(emitterA.GetAllData(), &resultA)
@@ -495,7 +495,7 @@ func Test270_multiple_handlers(t *testing.T) {
 	}
 
 	emitterB := &mockStreamEmitter{}
-	hBeta := runtime.FindHandler(`cap:in="media:void";op=beta;out="media:void"`)
+	hBeta := runtime.FindHandler(`cap:in="media:void";beta;out="media:void"`)
 	_ = hBeta(bytesToFrameChannel([]byte{}), emitterB, peer)
 	var resultB string
 	cborlib.Unmarshal(emitterB.GetAllData(), &resultB)
@@ -504,7 +504,7 @@ func Test270_multiple_handlers(t *testing.T) {
 	}
 
 	emitterG := &mockStreamEmitter{}
-	hGamma := runtime.FindHandler(`cap:in="media:void";op=gamma;out="media:void"`)
+	hGamma := runtime.FindHandler(`cap:in="media:void";gamma;out="media:void"`)
 	_ = hGamma(bytesToFrameChannel([]byte{}), emitterG, peer)
 	var resultG string
 	cborlib.Unmarshal(emitterG.GetAllData(), &resultG)
@@ -520,16 +520,16 @@ func Test271_handler_replacement(t *testing.T) {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
 
-	runtime.Register(`cap:in="media:void";op=test;out="media:void"`,
+	runtime.Register(`cap:in="media:void";test;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			return emitter.EmitCbor("first")
 		})
-	runtime.Register(`cap:in="media:void";op=test;out="media:void"`,
+	runtime.Register(`cap:in="media:void";test;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			return emitter.EmitCbor("second")
 		})
 
-	handler := runtime.FindHandler(`cap:in="media:void";op=test;out="media:void"`)
+	handler := runtime.FindHandler(`cap:in="media:void";test;out="media:void"`)
 	emitter := &mockStreamEmitter{}
 	peer := &noPeerInvoker{}
 	_ = handler(bytesToFrameChannel([]byte{}), emitter, peer)
@@ -557,7 +557,7 @@ func Test272_extract_effective_payload_multiple_args(t *testing.T) {
 		t.Fatalf("Failed to encode payload: %v", err)
 	}
 
-	capDef := createTestCap(`cap:in="media:model-spec;textable";op=infer;out="media:void"`, "Test", "infer", nil)
+	capDef := createTestCap(`cap:in="media:model-spec;textable";infer;out="media:void"`, "Test", "infer", nil)
 	result, err := extractEffectivePayload(payload, "application/cbor", capDef, false)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -626,7 +626,7 @@ func Test273_ExtractEffectivePayloadBinaryValue(t *testing.T) {
 		t.Fatalf("Failed to encode payload: %v", err)
 	}
 
-	capDef := createTestCap(`cap:in="media:pdf";op=process;out="media:void"`, "Test", "process", nil)
+	capDef := createTestCap(`cap:in="media:pdf";process;out="media:void"`, "Test", "process", nil)
 	result, err := extractEffectivePayload(payload, "application/cbor", capDef, false)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -845,7 +845,7 @@ func Test336_FilePathReadsFilePassesBytes(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:pdf";op=process;out="media:void"`,
+		`cap:in="media:pdf";process;out="media:void"`,
 		"Process PDF",
 		"process",
 		[]cap.CapArg{
@@ -871,7 +871,7 @@ func Test336_FilePathReadsFilePassesBytes(t *testing.T) {
 	// wrapper to recover the raw file bytes.
 	var receivedPayload []byte
 	runtime.Register(
-		`cap:in="media:pdf";op=process;out="media:void"`,
+		`cap:in="media:pdf";process;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			payload, err := CollectFirstArg(frames)
 			if err != nil {
@@ -924,7 +924,7 @@ func Test337_FilePathWithoutStdinPassesString(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:void";op=test;out="media:void"`,
+		`cap:in="media:void";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -965,7 +965,7 @@ func Test338_FilePathViaCliFlag(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:pdf";op=process;out="media:void"`,
+		`cap:in="media:pdf";process;out="media:void"`,
 		"Process",
 		"process",
 		[]cap.CapArg{
@@ -1030,7 +1030,7 @@ func Test339_FilePathArrayGlobExpansion(t *testing.T) {
 		},
 	}
 	capDef := createTestCap(
-		`cap:in="media:";op=batch;out="media:void"`,
+		`cap:in="media:";batch;out="media:void"`,
 		"Batch",
 		"batch",
 		[]cap.CapArg{batchArg},
@@ -1091,7 +1091,7 @@ func Test339_FilePathArrayGlobExpansion(t *testing.T) {
 // TEST340: File not found error provides clear message
 func Test340_FileNotFoundClearError(t *testing.T) {
 	capDef := createTestCap(
-		`cap:in="media:pdf";op=test;out="media:void"`,
+		`cap:in="media:pdf";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -1139,7 +1139,7 @@ func Test341_StdinPrecedenceOverFilePath(t *testing.T) {
 
 	// Stdin source comes BEFORE position source
 	capDef := createTestCap(
-		`cap:in="media:";op=test;out="media:void"`,
+		`cap:in="media:";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -1181,7 +1181,7 @@ func Test342_FilePathPositionZeroReadsFirstArg(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:";op=test;out="media:void"`,
+		`cap:in="media:";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -1233,7 +1233,7 @@ func Test342_FilePathPositionZeroReadsFirstArg(t *testing.T) {
 // TEST343: Non-file-path args are not affected by file reading
 func Test343_NonFilePathArgsUnaffected(t *testing.T) {
 	capDef := createTestCap(
-		`cap:in="media:void";op=test;out="media:void"`,
+		`cap:in="media:void";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -1271,7 +1271,7 @@ func Test343_NonFilePathArgsUnaffected(t *testing.T) {
 // swallow user mistakes like typos or wrong directories.
 func Test344_FilePathArrayInvalidJSONFails(t *testing.T) {
 	capDef := createTestCap(
-		`cap:in="media:";op=batch;out="media:void"`,
+		`cap:in="media:";batch;out="media:void"`,
 		"Test",
 		"batch",
 		[]cap.CapArg{
@@ -1317,7 +1317,7 @@ func Test345_FilePathArrayOneFileMissingFailsHard(t *testing.T) {
 	missingPath := filepath.Join(tempDir, "test345_missing.txt")
 
 	capDef := createTestCap(
-		`cap:in="media:";op=batch;out="media:void"`,
+		`cap:in="media:";batch;out="media:void"`,
 		"Test",
 		"batch",
 		[]cap.CapArg{
@@ -1368,7 +1368,7 @@ func Test346_LargeFileReadsSuccessfully(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:";op=test;out="media:void"`,
+		`cap:in="media:";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -1412,7 +1412,7 @@ func Test347_EmptyFileReadsAsEmptyBytes(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:";op=test;out="media:void"`,
+		`cap:in="media:";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -1457,7 +1457,7 @@ func Test348_FilePathConversionRespectsSourceOrder(t *testing.T) {
 
 	// Position source BEFORE stdin source
 	capDef := createTestCap(
-		`cap:in="media:";op=test;out="media:void"`,
+		`cap:in="media:";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -1503,7 +1503,7 @@ func Test349_FilePathMultipleSourcesFallback(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:";op=test;out="media:void"`,
+		`cap:in="media:";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -1550,7 +1550,7 @@ func Test350_FullCLIModeWithFilePathIntegration(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:pdf";op=process;out="media:result;textable"`,
+		`cap:in="media:pdf";process;out="media:result;textable"`,
 		"Process PDF",
 		"process",
 		[]cap.CapArg{
@@ -1576,7 +1576,7 @@ func Test350_FullCLIModeWithFilePathIntegration(t *testing.T) {
 	// wrapper to recover the raw file bytes.
 	var receivedPayload []byte
 	runtime.Register(
-		`cap:in="media:pdf";op=process;out="media:result;textable"`,
+		`cap:in="media:pdf";process;out="media:result;textable"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			payload, err := CollectFirstArg(frames)
 			if err != nil {
@@ -1632,7 +1632,7 @@ func Test351_FilePathArrayEmptyArray(t *testing.T) {
 		},
 	}
 	capDef := createTestCap(
-		`cap:in="media:";op=batch;out="media:void"`,
+		`cap:in="media:";batch;out="media:void"`,
 		"Test",
 		"batch",
 		[]cap.CapArg{batchArg},
@@ -1693,7 +1693,7 @@ func Test352_FilePermissionDeniedClearError(t *testing.T) {
 	defer os.Chmod(tempFile, 0644) // Restore for cleanup
 
 	capDef := createTestCap(
-		`cap:in="media:";op=test;out="media:void"`,
+		`cap:in="media:";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -1731,7 +1731,7 @@ func Test352_FilePermissionDeniedClearError(t *testing.T) {
 // TEST353: CBOR payload format matches between CLI and CBOR mode
 func Test353_CBORPayloadFormatConsistency(t *testing.T) {
 	capDef := createTestCap(
-		`cap:in="media:text;textable";op=test;out="media:void"`,
+		`cap:in="media:text;textable";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -1792,7 +1792,7 @@ func Test354_GlobPatternNoMatchesEmptyArray(t *testing.T) {
 	tempDir := t.TempDir()
 
 	capDef := createTestCap(
-		`cap:in="media:";op=batch;out="media:void"`,
+		`cap:in="media:";batch;out="media:void"`,
 		"Test",
 		"batch",
 		[]cap.CapArg{
@@ -1859,7 +1859,7 @@ func Test355_GlobPatternSkipsDirectories(t *testing.T) {
 		},
 	}
 	capDef := createTestCap(
-		`cap:in="media:";op=batch;out="media:void"`,
+		`cap:in="media:";batch;out="media:void"`,
 		"Test",
 		"batch",
 		[]cap.CapArg{batchArg},
@@ -1930,7 +1930,7 @@ func Test356_MultipleGlobPatternsCombined(t *testing.T) {
 		},
 	}
 	capDef := createTestCap(
-		`cap:in="media:";op=batch;out="media:void"`,
+		`cap:in="media:";batch;out="media:void"`,
 		"Test",
 		"batch",
 		[]cap.CapArg{batchArg},
@@ -2004,7 +2004,7 @@ func Test357_SymlinksFollowed(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:";op=test;out="media:void"`,
+		`cap:in="media:";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -2049,7 +2049,7 @@ func Test358_BinaryFileNonUTF8(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:";op=test;out="media:void"`,
+		`cap:in="media:";test;out="media:void"`,
 		"Test",
 		"test",
 		[]cap.CapArg{
@@ -2103,7 +2103,7 @@ func Test359_InvalidGlobPatternFails(t *testing.T) {
 		},
 	}
 	capDef := createTestCap(
-		`cap:in="media:";op=batch;out="media:void"`,
+		`cap:in="media:";batch;out="media:void"`,
 		"Test",
 		"batch",
 		[]cap.CapArg{batchArg},
@@ -2139,7 +2139,7 @@ func Test360_ExtractEffectivePayloadWithFileData(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:pdf";op=process;out="media:void"`,
+		`cap:in="media:pdf";process;out="media:void"`,
 		"Process",
 		"process",
 		[]cap.CapArg{
@@ -2222,7 +2222,7 @@ func Test361_CLIModeFilePath(t *testing.T) {
 	defer os.Remove(tempFile)
 
 	capDef := createTestCap(
-		`cap:in="media:pdf";op=process;out="media:void"`,
+		`cap:in="media:pdf";process;out="media:void"`,
 		"Process",
 		"process",
 		[]cap.CapArg{
@@ -2271,7 +2271,7 @@ func Test362_CLIModePipedBinary(t *testing.T) {
 
 	// Create cap that accepts stdin
 	capDef := createTestCap(
-		`cap:in="media:pdf";op=process;out="media:void"`,
+		`cap:in="media:pdf";process;out="media:void"`,
 		"Process",
 		"process",
 		[]cap.CapArg{
@@ -2393,7 +2393,7 @@ func Test363_CBORModeChunkedContent(t *testing.T) {
 	}
 
 	capDef := createTestCap(
-		`cap:in="media:pdf";op=process;out="media:void"`,
+		`cap:in="media:pdf";process;out="media:void"`,
 		"Process",
 		"process",
 		[]cap.CapArg{
@@ -2549,7 +2549,7 @@ func Test364_CBORModeFilePath(t *testing.T) {
 // TEST395: Small payload (< max_chunk) produces correct CBOR arguments
 func Test395_BuildPayloadSmall(t *testing.T) {
 	capDef := createTestCap(
-		`cap:in="media:";op=process;out="media:void"`,
+		`cap:in="media:";process;out="media:void"`,
 		"Process",
 		"process",
 		[]cap.CapArg{},
@@ -2598,7 +2598,7 @@ func Test395_BuildPayloadSmall(t *testing.T) {
 // TEST396: Large payload (> max_chunk) accumulates across chunks correctly
 func Test396_BuildPayloadLarge(t *testing.T) {
 	capDef := createTestCap(
-		`cap:in="media:";op=process;out="media:void"`,
+		`cap:in="media:";process;out="media:void"`,
 		"Process",
 		"process",
 		[]cap.CapArg{},
@@ -2642,7 +2642,7 @@ func Test396_BuildPayloadLarge(t *testing.T) {
 // TEST397: Empty reader produces valid empty CBOR arguments
 func Test397_BuildPayloadEmpty(t *testing.T) {
 	capDef := createTestCap(
-		`cap:in="media:";op=process;out="media:void"`,
+		`cap:in="media:";process;out="media:void"`,
 		"Process",
 		"process",
 		[]cap.CapArg{},
@@ -2685,7 +2685,7 @@ func (e *errorReader) Read(p []byte) (n int, err error) {
 // TEST398: IO error from reader propagates as RuntimeError::Io
 func Test398_BuildPayloadIOError(t *testing.T) {
 	capDef := createTestCap(
-		`cap:in="media:";op=process;out="media:void"`,
+		`cap:in="media:";process;out="media:void"`,
 		"Process",
 		"process",
 		[]cap.CapArg{},
@@ -2723,7 +2723,7 @@ func Test544_peer_invoker_sends_end_frame(t *testing.T) {
 	args := []cap.CapArgumentValue{
 		cap.NewCapArgumentValueFromStr("media:test", "hello"),
 	}
-	_, err := peer.Invoke(`cap:in="media:void";op=test;out="media:void"`, args)
+	_, err := peer.Invoke(`cap:in="media:void";test;out="media:void"`, args)
 	if err != nil {
 		t.Fatalf("Invoke failed: %v", err)
 	}
@@ -2966,10 +2966,10 @@ func Test680_require_stream_missing_fails(t *testing.T) {
 func Test681_find_stream_multiple(t *testing.T) {
 	streams := streamsToSlice([]testStream{
 		{"media:textable;txt", []byte("text data")},
-		{"media:png", []byte("image data")},
+		{"media:image;png", []byte("image data")},
 		{"media:json;textable", []byte("json data")},
 	})
-	result, err := FindStream(streams, "media:png")
+	result, err := FindStream(streams, "media:image;png")
 	if err != nil {
 		t.Fatalf("FindStream error: %v", err)
 	}

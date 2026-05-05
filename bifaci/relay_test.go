@@ -13,7 +13,7 @@ func relayPipe() (net.Conn, net.Conn) {
 
 // TEST404: Slave sends RelayNotify on connect (initial_notify parameter)
 func Test404_slave_sends_relay_notify_on_connect(t *testing.T) {
-	manifest := []byte(`{"caps":["cap:op=test"]}`)
+	manifest := []byte(`{"caps":["cap:test"]}`)
 	limits := DefaultLimits()
 
 	masterRead, slaveWrite := relayPipe()
@@ -68,7 +68,7 @@ func Test404_slave_sends_relay_notify_on_connect(t *testing.T) {
 
 // TEST405: Master reads RelayNotify and extracts manifest + limits
 func Test405_master_reads_relay_notify(t *testing.T) {
-	manifest := []byte(`{"caps":["cap:op=convert"]}`)
+	manifest := []byte(`{"caps":["cap:convert"]}`)
 	limits := Limits{MaxFrame: 1_000_000, MaxChunk: 64_000}
 
 	masterRead, slaveWrite := relayPipe()
@@ -181,7 +181,7 @@ func Test407_protocol_frames_pass_through(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		writer := NewFrameWriter(masterSocketWrite)
-		req := NewReq(reqId, "cap:op=test", []byte("hello"), "text/plain")
+		req := NewReq(reqId, "cap:test", []byte("hello"), "text/plain")
 		if err := writer.WriteFrame(req); err != nil {
 			t.Errorf("WriteFrame REQ failed: %v", err)
 		}
@@ -258,7 +258,7 @@ func Test407_protocol_frames_pass_through(t *testing.T) {
 		if frame.FrameType != FrameTypeReq {
 			t.Errorf("Expected REQ at runtime, got %v", frame.FrameType)
 		}
-		if frame.Cap == nil || *frame.Cap != "cap:op=test" {
+		if frame.Cap == nil || *frame.Cap != "cap:test" {
 			t.Errorf("cap.Cap mismatch: got %v", frame.Cap)
 		}
 		if string(frame.Payload) != "hello" {
@@ -307,7 +307,7 @@ func Test408_relay_frames_not_forwarded(t *testing.T) {
 			t.Errorf("WriteFrame RelayState failed: %v", err)
 		}
 		// Then send a normal REQ to verify the slave still works
-		req := NewReq(NewMessageIdRandom(), "cap:op=test", []byte{}, "text/plain")
+		req := NewReq(NewMessageIdRandom(), "cap:test", []byte{}, "text/plain")
 		if err := writer.WriteFrame(req); err != nil {
 			t.Errorf("WriteFrame REQ failed: %v", err)
 		}
@@ -383,7 +383,7 @@ func Test409_slave_injects_relay_notify_midstream(t *testing.T) {
 		limits := DefaultLimits()
 
 		// First: send initial RelayNotify
-		initial := []byte(`{"caps":["cap:op=test"]}`)
+		initial := []byte(`{"caps":["cap:test"]}`)
 		if err := SendNotify(socketWriter, initial, limits); err != nil {
 			t.Errorf("SendNotify initial failed: %v", err)
 		}
@@ -398,7 +398,7 @@ func Test409_slave_injects_relay_notify_midstream(t *testing.T) {
 		}
 
 		// Then: inject updated RelayNotify (new cap discovered)
-		updated := []byte(`{"caps":["cap:op=test","cap:op=convert"]}`)
+		updated := []byte(`{"caps":["cap:test","cap:convert"]}`)
 		if err := SendNotify(socketWriter, updated, limits); err != nil {
 			t.Errorf("SendNotify updated failed: %v", err)
 		}
@@ -416,7 +416,7 @@ func Test409_slave_injects_relay_notify_midstream(t *testing.T) {
 	if f1.FrameType != FrameTypeRelayNotify {
 		t.Errorf("Expected RELAY_NOTIFY, got %v", f1.FrameType)
 	}
-	if string(f1.RelayNotifyManifest()) != `{"caps":["cap:op=test"]}` {
+	if string(f1.RelayNotifyManifest()) != `{"caps":["cap:test"]}` {
 		t.Errorf("Initial manifest mismatch: got %s", string(f1.RelayNotifyManifest()))
 	}
 
@@ -437,7 +437,7 @@ func Test409_slave_injects_relay_notify_midstream(t *testing.T) {
 	if f3.FrameType != FrameTypeRelayNotify {
 		t.Errorf("Expected RELAY_NOTIFY, got %v", f3.FrameType)
 	}
-	if string(f3.RelayNotifyManifest()) != `{"caps":["cap:op=test","cap:op=convert"]}` {
+	if string(f3.RelayNotifyManifest()) != `{"caps":["cap:test","cap:convert"]}` {
 		t.Errorf("Updated manifest mismatch: got %s", string(f3.RelayNotifyManifest()))
 	}
 
@@ -459,7 +459,7 @@ func Test410_master_receives_updated_relay_notify(t *testing.T) {
 		writer := NewFrameWriter(slaveSocketWrite)
 
 		// Initial RelayNotify
-		initial := NewRelayNotify([]byte(`{"caps":["cap:op=a"]}`), limits.MaxFrame, limits.MaxChunk, limits.MaxReorderBuffer)
+		initial := NewRelayNotify([]byte(`{"caps":["cap:a"]}`), limits.MaxFrame, limits.MaxChunk, limits.MaxReorderBuffer)
 		if err := writer.WriteFrame(initial); err != nil {
 			t.Errorf("WriteFrame initial notify failed: %v", err)
 		}
@@ -472,7 +472,7 @@ func Test410_master_receives_updated_relay_notify(t *testing.T) {
 
 		// Updated RelayNotify with new limits
 		updatedLimits := Limits{MaxFrame: 3_000_000, MaxChunk: 200_000, MaxReorderBuffer: DefaultMaxReorderBuffer}
-		updated := NewRelayNotify([]byte(`{"caps":["cap:op=a","cap:op=b"]}`), updatedLimits.MaxFrame, updatedLimits.MaxChunk, updatedLimits.MaxReorderBuffer)
+		updated := NewRelayNotify([]byte(`{"caps":["cap:a","cap:b"]}`), updatedLimits.MaxFrame, updatedLimits.MaxChunk, updatedLimits.MaxReorderBuffer)
 		if err := writer.WriteFrame(updated); err != nil {
 			t.Errorf("WriteFrame updated notify failed: %v", err)
 		}
@@ -493,7 +493,7 @@ func Test410_master_receives_updated_relay_notify(t *testing.T) {
 	}
 
 	// Initial state
-	if string(master.Manifest()) != `{"caps":["cap:op=a"]}` {
+	if string(master.Manifest()) != `{"caps":["cap:a"]}` {
 		t.Errorf("Initial manifest mismatch: got %s", string(master.Manifest()))
 	}
 	if master.Limits().MaxFrame != 2_000_000 {
@@ -525,7 +525,7 @@ func Test410_master_receives_updated_relay_notify(t *testing.T) {
 	}
 
 	// Manifest and limits should be updated
-	if string(master.Manifest()) != `{"caps":["cap:op=a","cap:op=b"]}` {
+	if string(master.Manifest()) != `{"caps":["cap:a","cap:b"]}` {
 		t.Errorf("Updated manifest mismatch: got %s", string(master.Manifest()))
 	}
 	if master.Limits().MaxFrame != 3_000_000 {
@@ -603,8 +603,8 @@ func Test412_bidirectional_concurrent_flow(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		writer := NewFrameWriter(masterSocketWrite)
-		req1 := NewReq(reqId1, "cap:op=a", []byte("data-a"), "text/plain")
-		req2 := NewReq(reqId2, "cap:op=b", []byte("data-b"), "text/plain")
+		req1 := NewReq(reqId1, "cap:a", []byte("data-a"), "text/plain")
+		req2 := NewReq(reqId2, "cap:b", []byte("data-b"), "text/plain")
 		writer.WriteFrame(req1)
 		writer.WriteFrame(req2)
 		masterSocketWrite.Close()

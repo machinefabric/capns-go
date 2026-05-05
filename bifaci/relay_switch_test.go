@@ -147,7 +147,7 @@ func Test427_relay_switch_multi_master_cap_routing(t *testing.T) {
 		reader := NewFrameReader(slaveRead2)
 		writer := NewFrameWriter(slaveWrite2)
 
-		manifest := testManifestWithCaps([]string{`cap:in="media:void";op=double;out="media:void"`})
+		manifest := testManifestWithCaps([]string{`cap:in="media:void";double;out="media:void"`})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 
@@ -187,7 +187,7 @@ func Test427_relay_switch_multi_master_cap_routing(t *testing.T) {
 	// Send REQ for double
 	req2 := NewReq(
 		NewMessageIdFromUint(2),
-		`cap:in="media:void";op=double;out="media:void"`,
+		`cap:in="media:void";double;out="media:void"`,
 		[]byte{},
 		"text/plain",
 	)
@@ -227,7 +227,7 @@ func Test428_relay_switch_unknown_cap_returns_error(t *testing.T) {
 	// Send REQ for unknown cap
 	req := NewReq(
 		NewMessageIdFromUint(1),
-		`cap:in="media:void";op=unknown;out="media:void"`,
+		`cap:in="media:void";unknown;out="media:void"`,
 		[]byte{},
 		"text/plain",
 	)
@@ -264,7 +264,7 @@ func Test429_relay_switch_find_master_for_cap(t *testing.T) {
 	go func() {
 		reader := NewFrameReader(slaveRead2)
 		writer := NewFrameWriter(slaveWrite2)
-		manifest := testManifestWithCaps([]string{`cap:in="media:void";op=double;out="media:void"`})
+		manifest := testManifestWithCaps([]string{`cap:in="media:void";double;out="media:void"`})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 		for {
@@ -291,12 +291,12 @@ func Test429_relay_switch_find_master_for_cap(t *testing.T) {
 		t.Errorf("Expected master 0 for echo, got %d (err=%v)", idx1, err)
 	}
 
-	idx2, err := sw.findMasterForCap(`cap:in="media:void";op=double;out="media:void"`, nil)
+	idx2, err := sw.findMasterForCap(`cap:in="media:void";double;out="media:void"`, nil)
 	if err != nil || idx2 != 1 {
 		t.Errorf("Expected master 1 for double, got %d (err=%v)", idx2, err)
 	}
 
-	_, err = sw.findMasterForCap(`cap:in="media:void";op=unknown;out="media:void"`, nil)
+	_, err = sw.findMasterForCap(`cap:in="media:void";unknown;out="media:void"`, nil)
 	if err == nil {
 		t.Error("Expected error for unknown cap")
 	}
@@ -390,7 +390,7 @@ func Test431_relay_switch_continuation_frame_routing(t *testing.T) {
 		reader := NewFrameReader(slaveRead)
 		writer := NewFrameWriter(slaveWrite)
 
-		manifest := testManifestWithCaps([]string{`cap:in="media:void";op=test;out="media:void"`})
+		manifest := testManifestWithCaps([]string{`cap:in="media:void";test;out="media:void"`})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
 
@@ -433,7 +433,7 @@ func Test431_relay_switch_continuation_frame_routing(t *testing.T) {
 	reqID := NewMessageIdFromUint(1)
 
 	// Send REQ
-	req := NewReq(reqID, `cap:in="media:void";op=test;out="media:void"`, []byte{}, "text/plain")
+	req := NewReq(reqID, `cap:in="media:void";test;out="media:void"`, []byte{}, "text/plain")
 	sw.SendToMaster(req, nil)
 
 	// Send CHUNK
@@ -483,7 +483,7 @@ func Test433_relay_switch_capability_aggregation_deduplicates(t *testing.T) {
 		writer := NewFrameWriter(slaveWrite1)
 		manifest := testManifestWithCaps([]string{
 			`cap:in=media:;out=media:`,
-			`cap:in="media:void";op=double;out="media:void"`,
+			`cap:in="media:void";double;out="media:void"`,
 		})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
@@ -499,7 +499,7 @@ func Test433_relay_switch_capability_aggregation_deduplicates(t *testing.T) {
 		writer := NewFrameWriter(slaveWrite2)
 		manifest := testManifestWithCaps([]string{
 			`cap:in=media:;out=media:`, // Duplicate
-			`cap:in="media:void";op=triple;out="media:void"`,
+			`cap:in="media:void";triple;out="media:void"`,
 		})
 		manifestJSON, _ := json.Marshal(manifest)
 		SendNotify(writer, manifestJSON, DefaultLimits())
@@ -579,7 +579,7 @@ func Test435_relay_switch_urn_matching(t *testing.T) {
 	engineRead, slaveWrite := net.Pipe()
 	slaveRead, engineWrite := net.Pipe()
 
-	registeredCap := `cap:in="media:text;utf8";op=process;out="media:text;utf8"`
+	registeredCap := `cap:in="media:text;utf8";process;out="media:text;utf8"`
 
 	go func() {
 		reader := NewFrameReader(slaveRead)
@@ -617,7 +617,7 @@ func Test435_relay_switch_urn_matching(t *testing.T) {
 	// Output (covariant): provider's media:text;utf8 conforms_to request's media:text
 	req2 := NewReq(
 		NewMessageIdFromUint(2),
-		`cap:in="media:text;utf8;normalized";op=process;out="media:text"`,
+		`cap:in="media:text;utf8;normalized";process;out="media:text"`,
 		[]byte{},
 		"text/plain",
 	)
@@ -645,8 +645,8 @@ func Test437_preferred_cap_routes_to_generic(t *testing.T) {
 	engineRead1, slaveWrite1 := net.Pipe()
 	slaveRead1, engineWrite1 := net.Pipe()
 
-	genericCap := `cap:in=media:;op=generate_thumbnail;out="media:image;png;thumbnail"`
-	specificCap := `cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`
+	genericCap := `cap:in=media:;generate-thumbnail;out="media:image;png;thumbnail"`
+	specificCap := `cap:in="media:pdf";generate-thumbnail;out="media:image;png;thumbnail"`
 
 	spawnSlave := func(r, w net.Conn, caps []string) {
 		go func() {
@@ -675,7 +675,7 @@ func Test437_preferred_cap_routes_to_generic(t *testing.T) {
 		t.Fatalf("Failed to create RelaySwitch: %v", err)
 	}
 
-	request := `cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`
+	request := `cap:in="media:pdf";generate-thumbnail;out="media:image;png;thumbnail"`
 
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
@@ -705,7 +705,7 @@ func Test438_preferred_cap_falls_back_when_not_comparable(t *testing.T) {
 	engineRead, slaveWrite := net.Pipe()
 	slaveRead, engineWrite := net.Pipe()
 
-	registered := `cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`
+	registered := `cap:in="media:pdf";generate-thumbnail;out="media:image;png;thumbnail"`
 
 	go func() {
 		reader := NewFrameReader(slaveRead)
@@ -725,9 +725,9 @@ func Test438_preferred_cap_falls_back_when_not_comparable(t *testing.T) {
 		t.Fatalf("Failed to create RelaySwitch: %v", err)
 	}
 
-	request := `cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`
+	request := `cap:in="media:pdf";generate-thumbnail;out="media:image;png;thumbnail"`
 	// Preference for an unrelated cap — no equivalent match, falls back to closest-specificity
-	unrelated := `cap:in="media:txt;textable";op=generate_thumbnail;out="media:image;png;thumbnail"`
+	unrelated := `cap:in="media:txt;textable";generate-thumbnail;out="media:image;png;thumbnail"`
 
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
@@ -745,7 +745,7 @@ func Test439_generic_provider_can_dispatch_specific_request(t *testing.T) {
 	engineRead, slaveWrite := net.Pipe()
 	slaveRead, engineWrite := net.Pipe()
 
-	genericCap := `cap:in=media:;op=generate_thumbnail;out="media:image;png;thumbnail"`
+	genericCap := `cap:in=media:;generate-thumbnail;out="media:image;png;thumbnail"`
 
 	go func() {
 		reader := NewFrameReader(slaveRead)
@@ -766,7 +766,7 @@ func Test439_generic_provider_can_dispatch_specific_request(t *testing.T) {
 	}
 
 	// Specific PDF request — generic handler CAN dispatch it
-	request := `cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`
+	request := `cap:in="media:pdf";generate-thumbnail;out="media:image;png;thumbnail"`
 
 	sw.mu.Lock()
 	defer sw.mu.Unlock()

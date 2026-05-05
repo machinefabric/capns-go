@@ -55,7 +55,7 @@ func main() {
 				Command: "echo",
 			},
 			{
-				Urn:     mustParseCapUrn(`cap:in="media:void";op=void_test;out="media:void"`),
+				Urn:     mustParseCapUrn(`cap:in="media:void";void-test;out="media:void"`),
 				Title:   "Void Test",
 				Command: "void",
 			},
@@ -99,7 +99,7 @@ func main() {
 		})
 
 	// Register void test handler
-	runtime.Register(`cap:in="media:void";op=void_test;out="media:void"`,
+	runtime.Register(`cap:in="media:void";void-test;out="media:void"`,
 		func(payload []byte, emitter capdag.StreamEmitter, peer capdag.PeerInvoker) error {
 			// Void capability - no input, no output
 			emitter.Emit([]byte{})

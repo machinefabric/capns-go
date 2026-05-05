@@ -68,12 +68,12 @@ func buildTestRegistry(t *testing.T, capUrns []string) *cap.CapRegistry {
 func Test1142_resolved_graph_to_mermaid_renders_shapes_dedupes_edges_and_escapes(t *testing.T) {
 	extractCap := buildTestCap(
 		t,
-		`cap:in="media:pdf";op=extract;out="media:txt;textable"`,
+		`cap:in="media:pdf";extract;out="media:txt;textable"`,
 		`Extract "Title" <One>\path`,
 	)
 	embedCap := buildTestCap(
 		t,
-		`cap:in="media:txt;textable";op=embed;out="media:embedding;record"`,
+		`cap:in="media:txt;textable";embed;out="media:embedding;record"`,
 		"Embed",
 	)
 
@@ -117,14 +117,14 @@ func Test1142_resolved_graph_to_mermaid_renders_shapes_dedupes_edges_and_escapes
 // TEST1161: Converting a simple linear plan produces resolved edges for the cap-to-cap chain.
 func Test1161_simple_linear_chain_conversion(t *testing.T) {
 	registry := buildTestRegistry(t, []string{
-		"cap:in=media:pdf;op=extract;out=media:text",
-		"cap:in=media:text;op=summarize;out=media:summary",
+		"cap:in=media:pdf;extract;out=media:text",
+		"cap:in=media:text;summarize;out=media:summary",
 	})
 
 	plan := planner.NewMachinePlan("test_chain")
 	plan.AddNode(planner.NewInputSlotNode("input", "input", "media:pdf", planner.CardinalitySingle))
-	plan.AddNode(planner.NewMachineNode("cap_0", "cap:in=media:pdf;op=extract;out=media:text"))
-	plan.AddNode(planner.NewMachineNode("cap_1", "cap:in=media:text;op=summarize;out=media:summary"))
+	plan.AddNode(planner.NewMachineNode("cap_0", "cap:in=media:pdf;extract;out=media:text"))
+	plan.AddNode(planner.NewMachineNode("cap_1", "cap:in=media:text;summarize;out=media:summary"))
 	plan.AddNode(planner.NewOutputNode("output", "result", "cap_1"))
 	plan.AddEdge(planner.NewDirectEdge("input", "cap_0"))
 	plan.AddEdge(planner.NewDirectEdge("cap_0", "cap_1"))
@@ -155,15 +155,15 @@ func Test1161_simple_linear_chain_conversion(t *testing.T) {
 // Verifies that plans requiring decomposition (ForEach) are rejected before conversion
 func Test770_rejects_foreach(t *testing.T) {
 	registry := buildTestRegistry(t, []string{
-		"cap:in=media:pdf;op=disbind;out=media:pdf-page",
-		"cap:in=media:pdf-page;op=process;out=media:text",
+		"cap:in=media:pdf;disbind;out=media:pdf-page",
+		"cap:in=media:pdf-page;process;out=media:text",
 	})
 
 	plan := planner.NewMachinePlan("foreach_plan")
 	plan.AddNode(planner.NewInputSlotNode("input", "input", "media:pdf", planner.CardinalitySingle))
-	plan.AddNode(planner.NewMachineNode("cap_0", "cap:in=media:pdf;op=disbind;out=media:pdf-page"))
+	plan.AddNode(planner.NewMachineNode("cap_0", "cap:in=media:pdf;disbind;out=media:pdf-page"))
 	plan.AddNode(planner.NewForEachNode("foreach_0", "cap_0", "cap_1", "cap_1"))
-	plan.AddNode(planner.NewMachineNode("cap_1", "cap:in=media:pdf-page;op=process;out=media:text"))
+	plan.AddNode(planner.NewMachineNode("cap_1", "cap:in=media:pdf-page;process;out=media:text"))
 	plan.AddNode(planner.NewOutputNode("output", "result", "cap_1"))
 
 	plan.AddEdge(planner.NewDirectEdge("input", "cap_0"))
@@ -185,11 +185,11 @@ func Test770_rejects_foreach(t *testing.T) {
 
 // TEST953: Linear plans (no ForEach/Collect) still convert successfully
 func Test953_linear_plan_still_works(t *testing.T) {
-	registry := buildTestRegistry(t, []string{"cap:in=media:pdf;op=extract;out=media:text"})
+	registry := buildTestRegistry(t, []string{"cap:in=media:pdf;extract;out=media:text"})
 
 	plan := planner.NewMachinePlan("linear_plan")
 	plan.AddNode(planner.NewInputSlotNode("input", "input", "media:pdf", planner.CardinalitySingle))
-	plan.AddNode(planner.NewMachineNode("cap_0", "cap:in=media:pdf;op=extract;out=media:text"))
+	plan.AddNode(planner.NewMachineNode("cap_0", "cap:in=media:pdf;extract;out=media:text"))
 	plan.AddNode(planner.NewOutputNode("output", "result", "cap_0"))
 	plan.AddEdge(planner.NewDirectEdge("input", "cap_0"))
 	plan.AddEdge(planner.NewDirectEdge("cap_0", "output"))
@@ -209,13 +209,13 @@ func Test953_linear_plan_still_works(t *testing.T) {
 // should be rewritten to go from cap_0 to cap_1 directly.
 func Test954_standalone_collect_passthrough(t *testing.T) {
 	registry := buildTestRegistry(t, []string{
-		`cap:in=media:pdf;op=extract;out="media:text;textable"`,
-		`cap:in="media:list;text;textable";op=embed;out="media:embedding-vector;record;textable"`,
+		`cap:in=media:pdf;extract;out="media:text;textable"`,
+		`cap:in="media:list;text;textable";embed;out="media:embedding-vector;record;textable"`,
 	})
 
 	plan := planner.NewMachinePlan("collect_plan")
 	plan.AddNode(planner.NewInputSlotNode("input", "input", "media:pdf", planner.CardinalitySingle))
-	plan.AddNode(planner.NewMachineNode("cap_0", `cap:in=media:pdf;op=extract;out="media:text;textable"`))
+	plan.AddNode(planner.NewMachineNode("cap_0", `cap:in=media:pdf;extract;out="media:text;textable"`))
 
 	// Standalone Collect: scalar→list with OutputMediaUrn set
 	collectNode := planner.NewCollectNode("collect_0", []string{"cap_0"})
@@ -223,7 +223,7 @@ func Test954_standalone_collect_passthrough(t *testing.T) {
 	collectNode.NodeType.OutputMediaUrn = &outUrn
 	plan.AddNode(collectNode)
 
-	plan.AddNode(planner.NewMachineNode("cap_1", `cap:in="media:list;text;textable";op=embed;out="media:embedding-vector;record;textable"`))
+	plan.AddNode(planner.NewMachineNode("cap_1", `cap:in="media:list;text;textable";embed;out="media:embedding-vector;record;textable"`))
 	plan.AddNode(planner.NewOutputNode("output", "result", "cap_1"))
 
 	plan.AddEdge(planner.NewDirectEdge("input", "cap_0"))
@@ -257,10 +257,10 @@ func Test954_standalone_collect_passthrough(t *testing.T) {
 // TEST1256: A single declared cap and one wiring parse into a two-node one-edge DAG.
 func Test1256_parse_simple_machine(t *testing.T) {
 	registry := buildParserTestRegistry(t, []string{
-		`cap:in="media:pdf";op=extract;out="media:txt;textable"`,
+		`cap:in="media:pdf";extract;out="media:txt;textable"`,
 	})
 
-	notation := `[extract cap:in="media:pdf";op=extract;out="media:txt;textable"][A -> extract -> B]`
+	notation := `[extract cap:in="media:pdf";extract;out="media:txt;textable"][A -> extract -> B]`
 
 	graph, err := ParseMachineToCapDag(notation, registry)
 	if err != nil {
@@ -284,12 +284,12 @@ func Test1256_parse_simple_machine(t *testing.T) {
 // TEST1257: Two sequential wirings preserve the intermediate node media type.
 func Test1257_parse_two_step_chain(t *testing.T) {
 	registry := buildParserTestRegistry(t, []string{
-		`cap:in="media:pdf";op=extract;out="media:txt;textable"`,
-		`cap:in="media:txt;textable";op=embed;out="media:embedding-vector;record;textable"`,
+		`cap:in="media:pdf";extract;out="media:txt;textable"`,
+		`cap:in="media:txt;textable";embed;out="media:embedding-vector;record;textable"`,
 	})
 
-	notation := `[extract cap:in="media:pdf";op=extract;out="media:txt;textable"]` +
-		`[embed cap:in="media:txt;textable";op=embed;out="media:embedding-vector;record;textable"]` +
+	notation := `[extract cap:in="media:pdf";extract;out="media:txt;textable"]` +
+		`[embed cap:in="media:txt;textable";embed;out="media:embedding-vector;record;textable"]` +
 		`[A -> extract -> B]` +
 		`[B -> embed -> C]`
 
@@ -320,7 +320,7 @@ func Test1257_parse_two_step_chain(t *testing.T) {
 func Test1261_cap_not_found_in_registry(t *testing.T) {
 	registry := buildParserTestRegistry(t, []string{})
 
-	notation := `[ex cap:in="media:unknown";op=test;out="media:unknown"][A -> ex -> B]`
+	notation := `[ex cap:in="media:unknown";test;out="media:unknown"][A -> ex -> B]`
 	_, err := ParseMachineToCapDag(notation, registry)
 	if err == nil {
 		t.Fatal("Expected error for cap not in registry, got nil")
@@ -354,10 +354,10 @@ func Test1262_invalid_machine_notation(t *testing.T) {
 // In Go the machine parser may reject cycles at the parse layer or the orchestrator layer.
 func Test1263_cycle_detection(t *testing.T) {
 	registry := buildParserTestRegistry(t, []string{
-		`cap:in="media:txt;textable";op=process;out="media:txt;textable"`,
+		`cap:in="media:txt;textable";process;out="media:txt;textable"`,
 	})
 
-	notation := `[proc cap:in="media:txt;textable";op=process;out="media:txt;textable"]` +
+	notation := `[proc cap:in="media:txt;textable";process;out="media:txt;textable"]` +
 		`[A -> proc -> B]` +
 		`[B -> proc -> C]` +
 		`[C -> proc -> A]`
@@ -378,12 +378,12 @@ func Test1263_cycle_detection(t *testing.T) {
 // TEST1264: Shared nodes with incompatible upstream and downstream media fail during parsing.
 func Test1264_incompatible_media_types_at_shared_node(t *testing.T) {
 	registry := buildParserTestRegistry(t, []string{
-		`cap:in="media:void";op=produce_pdf;out="media:pdf"`,
-		`cap:in="media:audio;wav";op=transcribe;out="media:txt;textable"`,
+		`cap:in="media:void";produce-pdf;out="media:pdf"`,
+		`cap:in="media:audio;wav";transcribe;out="media:txt;textable"`,
 	})
 
-	notation := `[produce cap:in="media:void";op=produce_pdf;out="media:pdf"]` +
-		`[transcribe cap:in="media:audio;wav";op=transcribe;out="media:txt;textable"]` +
+	notation := `[produce cap:in="media:void";produce-pdf;out="media:pdf"]` +
+		`[transcribe cap:in="media:audio;wav";transcribe;out="media:txt;textable"]` +
 		`[A -> produce -> B]` +
 		`[B -> transcribe -> C]`
 
@@ -400,12 +400,12 @@ func Test1264_incompatible_media_types_at_shared_node(t *testing.T) {
 // TEST1265: Shared nodes accept compatible media URNs when one is a more specific form of the other.
 func Test1265_compatible_media_urns_at_shared_node(t *testing.T) {
 	registry := buildParserTestRegistry(t, []string{
-		`cap:in="media:pdf";op=thumbnail;out="media:image;png"`,
-		`cap:in="media:image;png;bytes";op=embed_image;out="media:embedding-vector;record;textable"`,
+		`cap:in="media:pdf";thumbnail;out="media:image;png"`,
+		`cap:in="media:image;png;bytes";embed-image;out="media:embedding-vector;record;textable"`,
 	})
 
-	notation := `[thumb cap:in="media:pdf";op=thumbnail;out="media:image;png"]` +
-		`[embed_image cap:in="media:image;png;bytes";op=embed_image;out="media:embedding-vector;record;textable"]` +
+	notation := `[thumb cap:in="media:pdf";thumbnail;out="media:image;png"]` +
+		`[embed_image cap:in="media:image;png;bytes";embed-image;out="media:embedding-vector;record;textable"]` +
 		`[A -> thumb -> B]` +
 		`[B -> embed_image -> C]`
 
@@ -418,12 +418,12 @@ func Test1265_compatible_media_urns_at_shared_node(t *testing.T) {
 // TEST1267: Record-shaped outputs can feed record-shaped inputs without error.
 func Test1267_structure_match_both_record(t *testing.T) {
 	registry := buildParserTestRegistry(t, []string{
-		`cap:in="media:void";op=produce;out="media:json;record;textable"`,
-		`cap:in="media:json;record;textable";op=transform;out="media:result;record;textable"`,
+		`cap:in="media:void";produce;out="media:json;record;textable"`,
+		`cap:in="media:json;record;textable";transform;out="media:result;record;textable"`,
 	})
 
-	notation := `[produce cap:in="media:void";op=produce;out="media:json;record;textable"]` +
-		`[transform cap:in="media:json;record;textable";op=transform;out="media:result;record;textable"]` +
+	notation := `[produce cap:in="media:void";produce;out="media:json;record;textable"]` +
+		`[transform cap:in="media:json;record;textable";transform;out="media:result;record;textable"]` +
 		`[A -> produce -> B]` +
 		`[B -> transform -> C]`
 
@@ -436,12 +436,12 @@ func Test1267_structure_match_both_record(t *testing.T) {
 // TEST1268: Opaque outputs can feed opaque inputs without triggering structure conflicts.
 func Test1268_structure_match_both_opaque(t *testing.T) {
 	registry := buildParserTestRegistry(t, []string{
-		`cap:in="media:void";op=produce;out="media:json;textable"`,
-		`cap:in="media:json;textable";op=format;out="media:txt;textable"`,
+		`cap:in="media:void";produce;out="media:json;textable"`,
+		`cap:in="media:json;textable";format;out="media:txt;textable"`,
 	})
 
-	notation := `[produce cap:in="media:void";op=produce;out="media:json;textable"]` +
-		`[format cap:in="media:json;textable";op=format;out="media:txt;textable"]` +
+	notation := `[produce cap:in="media:void";produce;out="media:json;textable"]` +
+		`[format cap:in="media:json;textable";format;out="media:txt;textable"]` +
 		`[A -> produce -> B]` +
 		`[B -> format -> C]`
 
@@ -454,11 +454,11 @@ func Test1268_structure_match_both_opaque(t *testing.T) {
 // TEST1269: Multi-line machine notation parses successfully with the same semantics as inline notation.
 func Test1269_parse_multiline_machine(t *testing.T) {
 	registry := buildParserTestRegistry(t, []string{
-		`cap:in="media:pdf";op=extract;out="media:txt;textable"`,
+		`cap:in="media:pdf";extract;out="media:txt;textable"`,
 	})
 
 	notation := `
-[extract cap:in="media:pdf";op=extract;out="media:txt;textable"]
+[extract cap:in="media:pdf";extract;out="media:txt;textable"]
 [doc -> extract -> text]
 `
 
@@ -472,15 +472,15 @@ func Test1269_parse_multiline_machine(t *testing.T) {
 // Verifies that Collect nodes without OutputMediaUrn (ForEach-paired) are rejected
 func Test771_rejects_foreach_paired_collect(t *testing.T) {
 	registry := buildTestRegistry(t, []string{
-		"cap:in=media:pdf;op=disbind;out=media:pdf-page",
-		"cap:in=media:pdf-page;op=process;out=media:text",
+		"cap:in=media:pdf;disbind;out=media:pdf-page",
+		"cap:in=media:pdf-page;process;out=media:text",
 	})
 
 	plan := planner.NewMachinePlan("collect_plan")
 	plan.AddNode(planner.NewInputSlotNode("input", "input", "media:pdf", planner.CardinalitySingle))
-	plan.AddNode(planner.NewMachineNode("cap_0", "cap:in=media:pdf;op=disbind;out=media:pdf-page"))
+	plan.AddNode(planner.NewMachineNode("cap_0", "cap:in=media:pdf;disbind;out=media:pdf-page"))
 	plan.AddNode(planner.NewForEachNode("foreach_0", "cap_0", "cap_1", "cap_1"))
-	plan.AddNode(planner.NewMachineNode("cap_1", "cap:in=media:pdf-page;op=process;out=media:text"))
+	plan.AddNode(planner.NewMachineNode("cap_1", "cap:in=media:pdf-page;process;out=media:text"))
 	plan.AddNode(planner.NewCollectNode("collect_0", []string{"cap_1"}))
 	plan.AddNode(planner.NewOutputNode("output", "result", "collect_0"))
 

@@ -27,7 +27,7 @@ func assertUintMetaValue(t *testing.T, meta map[string]interface{}, key string, 
 // TEST205: Test REQ frame encode/decode roundtrip preserves all fields
 func Test205_req_frame_roundtrip(t *testing.T) {
 	id := NewMessageIdRandom()
-	cap := `cap:in="media:void";op=test;out="media:void"`
+	cap := `cap:in="media:void";test;out="media:void"`
 	payload := []byte("test payload")
 	contentType := "application/json"
 
@@ -260,7 +260,7 @@ func Test214_frame_io_roundtrip(t *testing.T) {
 	reader := NewFrameReader(&buf)
 
 	id := NewMessageIdRandom()
-	original := NewReq(id, `cap:in="media:void";op=test;out="media:void"`, []byte("test"), "application/json")
+	original := NewReq(id, `cap:in="media:void";test;out="media:void"`, []byte("test"), "application/json")
 
 	// Write frame
 	if err := writer.WriteFrame(original); err != nil {
@@ -323,7 +323,7 @@ func Test216_write_frame_rejects_oversized(t *testing.T) {
 	// Create a frame with large payload that will exceed limit when encoded
 	id := NewMessageIdRandom()
 	largePayload := make([]byte, 200)
-	frame := NewReq(id, `cap:in="media:void";op=test;out="media:void"`, largePayload, "")
+	frame := NewReq(id, `cap:in="media:void";test;out="media:void"`, largePayload, "")
 
 	err := writer.WriteFrame(frame)
 	if err == nil {
@@ -339,7 +339,7 @@ func Test217_read_frame_rejects_oversized(t *testing.T) {
 	// Write with default limits
 	id := NewMessageIdRandom()
 	largePayload := make([]byte, 1000)
-	frame := NewReq(id, `cap:in="media:void";op=test;out="media:void"`, largePayload, "")
+	frame := NewReq(id, `cap:in="media:void";test;out="media:void"`, largePayload, "")
 	writer.WriteFrame(frame)
 
 	// Try to read with much smaller limit
@@ -739,7 +739,7 @@ func Test231_handshake_rejects_non_hello(t *testing.T) {
 
 	// Cartridge sends REQ instead of HELLO (bad!)
 	cartridgeWriter := NewFrameWriter(&cartridgeToHost)
-	badFrame := NewReq(NewMessageIdFromUint(1), "cap:op=bad", []byte{}, "text/plain")
+	badFrame := NewReq(NewMessageIdFromUint(1), "cap:bad", []byte{}, "text/plain")
 	if err := cartridgeWriter.WriteFrame(badFrame); err != nil {
 		t.Fatalf("Failed to write bad frame: %v", err)
 	}
@@ -802,7 +802,7 @@ func Test233_binary_payload_all_byte_values(t *testing.T) {
 	}
 
 	id := NewMessageIdRandom()
-	frame := NewReq(id, "cap:op=binary", data, "application/octet-stream")
+	frame := NewReq(id, "cap:binary", data, "application/octet-stream")
 
 	encoded, err := EncodeFrame(frame)
 	if err != nil {
@@ -885,7 +885,7 @@ func Test390_stream_end_roundtrip(t *testing.T) {
 
 // TEST848: RelayNotify encode/decode roundtrip preserves manifest and limits
 func Test848_relay_notify_roundtrip(t *testing.T) {
-	manifest := []byte(`{"caps":["cap:op=relay-test"]}`)
+	manifest := []byte(`{"caps":["cap:relay-test"]}`)
 	maxFrame := 2_000_000
 	maxChunk := 128_000
 

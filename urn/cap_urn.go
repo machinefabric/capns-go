@@ -30,8 +30,8 @@ import (
 // fields specify the input and output media URNs respectively.
 //
 // Examples:
-// - cap:in="media:binary";op=generate;out="media:binary";target=thumbnail
-// - cap:in="media:void";op=dimensions;out="media:integer"
+// - cap:in="media:binary";generate;out="media:binary";target=thumbnail
+// - cap:in="media:void";dimensions;out="media:integer"
 // - cap:in="media:string";key="Value With Spaces";out="media:object"
 type CapUrn struct {
 	// inSpec is the input media URN - required (use media:void for caps with no input)

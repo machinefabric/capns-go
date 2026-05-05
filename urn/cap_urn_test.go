@@ -31,7 +31,7 @@ func testUrnWithIO(inSpec, outSpec, tags string) string {
 
 // TEST001: Test that cap URN is created with tags parsed correctly and direction specs accessible
 func Test001_cap_urn_creation(t *testing.T) {
-	capUrn, err := NewCapUrnFromString(testUrn("op=transform;format=json;type=data_processing"))
+	capUrn, err := NewCapUrnFromString(testUrn("transform;format=json;type=data_processing"))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, capUrn)
@@ -258,7 +258,7 @@ func Test011_serialization_smart_quoting(t *testing.T) {
 
 // TEST012: Test that simple cap URN round-trips (parse -> serialize -> parse equals original)
 func Test012_round_trip_simple(t *testing.T) {
-	original := testUrn("op=generate;ext=pdf")
+	original := testUrn("generate;ext=pdf")
 	cap, err := NewCapUrnFromString(original)
 	require.NoError(t, err)
 	serialized := cap.ToString()
@@ -302,7 +302,7 @@ func Test015_cap_prefix_required(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, ErrorMissingCapPrefix, err.(*CapUrnError).Code)
 
-	capUrn, err = NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	capUrn, err = NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	assert.NoError(t, err)
 	assert.NotNil(t, capUrn)
 	op, exists := capUrn.GetTag("op")
@@ -318,10 +318,10 @@ func Test015_cap_prefix_required(t *testing.T) {
 
 // TEST016: Test that trailing semicolon is equivalent (same hash, same string, matches)
 func Test016_trailing_semicolon_equivalence(t *testing.T) {
-	cap1, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	cap1, err := NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	require.NoError(t, err)
 
-	cap2, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf") + ";")
+	cap2, err := NewCapUrnFromString(testUrn("generate;ext=pdf") + ";")
 	require.NoError(t, err)
 
 	assert.True(t, cap1.Equals(cap2))
@@ -332,17 +332,17 @@ func Test016_trailing_semicolon_equivalence(t *testing.T) {
 
 // TEST017: Test tag matching: exact match, subset match, wildcard match, value mismatch
 func Test017_tag_matching(t *testing.T) {
-	cap, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf;target=thumbnail"))
+	cap, err := NewCapUrnFromString(testUrn("generate;ext=pdf;target=thumbnail"))
 	require.NoError(t, err)
 
 	// Exact match — both directions accept
-	request1, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf;target=thumbnail"))
+	request1, err := NewCapUrnFromString(testUrn("generate;ext=pdf;target=thumbnail"))
 	require.NoError(t, err)
 	assert.True(t, cap.Accepts(request1))
 	assert.True(t, request1.Accepts(cap))
 
 	// Routing direction: request(op=generate) accepts cap(op,ext,target) — request only needs op
-	request2, err := NewCapUrnFromString(testUrn("op=generate"))
+	request2, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 	assert.True(t, request2.Accepts(cap))
 	// Reverse: cap(op,ext,target) as pattern rejects request missing ext,target
@@ -354,7 +354,7 @@ func Test017_tag_matching(t *testing.T) {
 	assert.True(t, request3.Accepts(cap))
 
 	// Conflicting value — neither direction accepts
-	request4, err := NewCapUrnFromString(testUrn("op=extract"))
+	request4, err := NewCapUrnFromString(testUrn("extract"))
 	require.NoError(t, err)
 	assert.False(t, cap.Accepts(request4))
 	assert.False(t, request4.Accepts(cap))
@@ -376,7 +376,7 @@ func Test018_matching_case_sensitive_values(t *testing.T) {
 
 // TEST019: Missing tag in instance causes rejection — pattern's tags are constraints
 func Test019_missing_tag_handling(t *testing.T) {
-	cap, err := NewCapUrnFromString(testUrn("op=generate"))
+	cap, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 
 	// cap(op) as pattern: instance(ext) missing op → reject
@@ -387,18 +387,18 @@ func Test019_missing_tag_handling(t *testing.T) {
 	assert.False(t, request1.Accepts(cap))
 
 	// Routing: request(op) accepts cap(op,ext) — instance has op → match
-	cap2, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	cap2, err := NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	require.NoError(t, err)
-	request2, err := NewCapUrnFromString(testUrn("op=generate"))
+	request2, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 	assert.True(t, request2.Accepts(cap2))
 	// Reverse: cap(op,ext) as pattern rejects request missing ext
 	assert.False(t, cap2.Accepts(request2))
 
 	// cap(ext=*;op=generate) as pattern accepts request(ext=pdf;op=generate)
-	cap3, err := NewCapUrnFromString(testUrn("ext=*;op=generate"))
+	cap3, err := NewCapUrnFromString(testUrn("ext=*;generate"))
 	require.NoError(t, err)
-	request3, err := NewCapUrnFromString(testUrn("ext=pdf;op=generate"))
+	request3, err := NewCapUrnFromString(testUrn("ext=pdf;generate"))
 	require.NoError(t, err)
 	assert.True(t, cap3.Accepts(request3))
 }
@@ -411,7 +411,7 @@ func Test020_specificity(t *testing.T) {
 	cap1, err := NewCapUrnFromString(testUrn("type=general"))
 	require.NoError(t, err)
 
-	cap2, err := NewCapUrnFromString(testUrn("op=generate"))
+	cap2, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 
 	cap3, err := NewCapUrnFromString(testUrn("op=*;ext=pdf"))
@@ -483,13 +483,13 @@ func Test023_builder_preserves_case(t *testing.T) {
 
 // TEST024: Directional accepts — pattern's tags are constraints, instance must satisfy
 func Test024_directional_accepts(t *testing.T) {
-	cap1, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	cap1, err := NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	require.NoError(t, err)
 
-	cap2, err := NewCapUrnFromString(testUrn("op=generate;format=*"))
+	cap2, err := NewCapUrnFromString(testUrn("generate;format=*"))
 	require.NoError(t, err)
 
-	cap3, err := NewCapUrnFromString(testUrn("type=image;op=extract"))
+	cap3, err := NewCapUrnFromString(testUrn("type=image;extract"))
 	require.NoError(t, err)
 
 	assert.False(t, cap1.Accepts(cap2))
@@ -499,7 +499,7 @@ func Test024_directional_accepts(t *testing.T) {
 	assert.False(t, cap3.Accepts(cap1))
 
 	// Routing: general request(op) accepts specific cap(op,ext) — instance has op → match
-	cap4, err := NewCapUrnFromString(testUrn("op=generate"))
+	cap4, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 	assert.True(t, cap4.Accepts(cap1)) // cap4 only requires op, cap1 has it
 	// Reverse: specific cap(op,ext) rejects general request missing ext
@@ -521,15 +521,15 @@ func Test025_best_match(t *testing.T) {
 	require.NoError(t, err)
 	caps = append(caps, cap1)
 
-	cap2, err := NewCapUrnFromString(testUrn("op=generate"))
+	cap2, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 	caps = append(caps, cap2)
 
-	cap3, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	cap3, err := NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	require.NoError(t, err)
 	caps = append(caps, cap3)
 
-	request, err := NewCapUrnFromString(testUrn("op=generate"))
+	request, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 
 	best := matcher.FindBestMatch(caps, request)
@@ -542,7 +542,7 @@ func Test025_best_match(t *testing.T) {
 
 // TEST026: Test merge combines tags from both caps, subset keeps only specified tags
 func Test026_merge_and_subset(t *testing.T) {
-	cap1, err := NewCapUrnFromString(testUrn("op=generate"))
+	cap1, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 
 	cap2, err := NewCapUrnFromString(`cap:in="media:binary";out="media:integer";ext=pdf;output=binary`)
@@ -558,7 +558,7 @@ func Test026_merge_and_subset(t *testing.T) {
 	assert.Equal(t, "pdf", ext)
 
 	// Subset test
-	cap, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf;output=binary;target=thumbnail"))
+	cap, err := NewCapUrnFromString(testUrn("generate;ext=pdf;output=binary;target=thumbnail"))
 	require.NoError(t, err)
 
 	subset := cap.Subset([]string{"type", "ext"})
@@ -766,10 +766,10 @@ func Test039_get_tag_returns_direction_specs(t *testing.T) {
 
 // TEST040: Matching semantics - exact match succeeds
 func Test040_matching_semantics_exact_match(t *testing.T) {
-	cap, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	cap, err := NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	require.NoError(t, err)
 
-	request, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	request, err := NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	require.NoError(t, err)
 
 	assert.True(t, cap.Accepts(request), "Test 1: Exact match should succeed")
@@ -777,44 +777,44 @@ func Test040_matching_semantics_exact_match(t *testing.T) {
 
 // TEST041: Matching semantics - cap missing tag matches (implicit wildcard)
 func Test041_matching_semantics_cap_missing_tag(t *testing.T) {
-	cap, err := NewCapUrnFromString(testUrn("op=generate"))
+	cap, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 
-	request, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	request, err := NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	require.NoError(t, err)
 
 	// A general cap (op only) CAN handle specific requests (op + ext)
 	// The cap doesn't constrain ext, so any ext is fine
 	assert.True(t, cap.Accepts(request), "General cap accepts specific request")
 
-	cap2, err := NewCapUrnFromString(testUrn("ext=*;op=generate"))
+	cap2, err := NewCapUrnFromString(testUrn("ext=*;generate"))
 	require.NoError(t, err)
 	assert.True(t, cap2.Accepts(request), "Cap with ext=* also accepts request with ext=pdf")
 }
 
 // TEST042: Pattern rejects instance missing required tags
 func Test042_matching_semantics_cap_has_extra_tag(t *testing.T) {
-	cap, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf;version=2"))
+	cap, err := NewCapUrnFromString(testUrn("generate;ext=pdf;version=2"))
 	require.NoError(t, err)
 
-	request, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	request, err := NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	require.NoError(t, err)
 
 	// Cap requires version=2, but request doesn't have it - reject
 	assert.False(t, cap.Accepts(request), "Specific cap rejects request missing required tag")
 
 	// But a request WITH version=2 is accepted
-	request2, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf;version=2"))
+	request2, err := NewCapUrnFromString(testUrn("generate;ext=pdf;version=2"))
 	require.NoError(t, err)
 	assert.True(t, cap.Accepts(request2), "Request with all required tags is accepted")
 }
 
 // TEST043: Matching semantics - request wildcard matches specific cap value
 func Test043_matching_semantics_request_has_wildcard(t *testing.T) {
-	cap, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	cap, err := NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	require.NoError(t, err)
 
-	request, err := NewCapUrnFromString(testUrn("op=generate;ext=*"))
+	request, err := NewCapUrnFromString(testUrn("generate;ext=*"))
 	require.NoError(t, err)
 
 	assert.True(t, cap.Accepts(request), "Test 4: Request wildcard should match")
@@ -822,10 +822,10 @@ func Test043_matching_semantics_request_has_wildcard(t *testing.T) {
 
 // TEST044: Matching semantics - cap wildcard matches specific request value
 func Test044_matching_semantics_cap_has_wildcard(t *testing.T) {
-	cap, err := NewCapUrnFromString(testUrn("op=generate;ext=*"))
+	cap, err := NewCapUrnFromString(testUrn("generate;ext=*"))
 	require.NoError(t, err)
 
-	request, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	request, err := NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	require.NoError(t, err)
 
 	assert.True(t, cap.Accepts(request), "Test 5: Cap wildcard should match")
@@ -833,10 +833,10 @@ func Test044_matching_semantics_cap_has_wildcard(t *testing.T) {
 
 // TEST045: Matching semantics - value mismatch does not match
 func Test045_matching_semantics_value_mismatch(t *testing.T) {
-	cap, err := NewCapUrnFromString(testUrn("op=generate;ext=pdf"))
+	cap, err := NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	require.NoError(t, err)
 
-	request, err := NewCapUrnFromString(testUrn("op=generate;ext=docx"))
+	request, err := NewCapUrnFromString(testUrn("generate;ext=docx"))
 	require.NoError(t, err)
 
 	assert.False(t, cap.Accepts(request), "Test 6: Value mismatch should not match")
@@ -844,16 +844,16 @@ func Test045_matching_semantics_value_mismatch(t *testing.T) {
 
 // TEST046: Matching semantics - fallback pattern (cap missing tag = implicit wildcard)
 func Test046_matching_semantics_fallback_pattern(t *testing.T) {
-	cap, err := NewCapUrnFromString(`cap:in="media:binary";op=generate_thumbnail;out="media:binary"`)
+	cap, err := NewCapUrnFromString(`cap:in="media:binary";generate-thumbnail;out="media:binary"`)
 	require.NoError(t, err)
 
-	request, err := NewCapUrnFromString(`cap:ext=wav;in="media:binary";op=generate_thumbnail;out="media:binary"`)
+	request, err := NewCapUrnFromString(`cap:ext=wav;in="media:binary";generate-thumbnail;out="media:binary"`)
 	require.NoError(t, err)
 
 	// Cap missing ext DOES accept request with ext=wav - general caps accept specific requests
 	assert.True(t, cap.Accepts(request), "Cap without ext accepts request with ext=wav (implicit wildcard)")
 
-	capWithWildcard, err := NewCapUrnFromString(`cap:ext=*;in="media:binary";op=generate_thumbnail;out="media:binary"`)
+	capWithWildcard, err := NewCapUrnFromString(`cap:ext=*;in="media:binary";generate-thumbnail;out="media:binary"`)
 	require.NoError(t, err)
 	assert.True(t, capWithWildcard.Accepts(request), "Cap with ext=* also accepts request with ext=wav")
 }
@@ -861,16 +861,16 @@ func Test046_matching_semantics_fallback_pattern(t *testing.T) {
 // TEST047: Matching semantics - thumbnail fallback with void input
 func Test047_matching_semantics_thumbnail_void_input(t *testing.T) {
 	outBin := "media:binary"
-	cap, err := NewCapUrnFromString(fmt.Sprintf(`cap:in="%s";op=generate_thumbnail;out="%s"`, standard.MediaVoid, outBin))
+	cap, err := NewCapUrnFromString(fmt.Sprintf(`cap:in="%s";generate-thumbnail;out="%s"`, standard.MediaVoid, outBin))
 	require.NoError(t, err)
 
-	request, err := NewCapUrnFromString(fmt.Sprintf(`cap:ext=wav;in="%s";op=generate_thumbnail;out="%s"`, standard.MediaVoid, outBin))
+	request, err := NewCapUrnFromString(fmt.Sprintf(`cap:ext=wav;in="%s";generate-thumbnail;out="%s"`, standard.MediaVoid, outBin))
 	require.NoError(t, err)
 
 	// Cap missing ext DOES accept request with ext=wav - general caps accept specific requests
 	assert.True(t, cap.Accepts(request), "Cap without ext accepts request with ext=wav (implicit wildcard)")
 
-	capWithWildcard, err := NewCapUrnFromString(fmt.Sprintf(`cap:ext=*;in="%s";op=generate_thumbnail;out="%s"`, standard.MediaVoid, outBin))
+	capWithWildcard, err := NewCapUrnFromString(fmt.Sprintf(`cap:ext=*;in="%s";generate-thumbnail;out="%s"`, standard.MediaVoid, outBin))
 	require.NoError(t, err)
 	assert.True(t, capWithWildcard.Accepts(request), "Cap with ext=* also accepts request with ext=wav")
 }
@@ -880,7 +880,7 @@ func Test048_matching_semantics_wildcard_direction_matches_anything(t *testing.T
 	cap, err := NewCapUrnFromString("cap:in=*;out=*")
 	require.NoError(t, err)
 
-	request, err := NewCapUrnFromString(`cap:in="media:string";op=generate;out="media:object";ext=pdf`)
+	request, err := NewCapUrnFromString(`cap:in="media:string";generate;out="media:object";ext=pdf`)
 	require.NoError(t, err)
 
 	// Wildcard cap (no tags) accepts any request - this is the identity/universal cap
@@ -893,7 +893,7 @@ func Test048_matching_semantics_wildcard_direction_matches_anything(t *testing.T
 
 // TEST049: Non-overlapping tags — neither direction accepts
 func Test049_matching_semantics_cross_dimension_independence(t *testing.T) {
-	cap, err := NewCapUrnFromString(testUrn("op=generate"))
+	cap, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 
 	request, err := NewCapUrnFromString(testUrn("ext=pdf"))
@@ -901,19 +901,19 @@ func Test049_matching_semantics_cross_dimension_independence(t *testing.T) {
 
 	assert.False(t, cap.Accepts(request), "Test 9: Cap missing ext should NOT match request with ext=pdf")
 
-	cap2, err := NewCapUrnFromString(testUrn("op=generate"))
+	cap2, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
-	request2, err := NewCapUrnFromString(testUrn("op=generate"))
+	request2, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 	assert.True(t, cap2.Accepts(request2), "Test 9b: Same tags should match")
 }
 
 // TEST050: Matching semantics - direction mismatch prevents matching
 func Test050_matching_semantics_direction_mismatch(t *testing.T) {
-	cap, err := NewCapUrnFromString(`cap:in="media:string";op=generate;out="` + standard.MediaObject + `"`)
+	cap, err := NewCapUrnFromString(`cap:in="media:string";generate;out="` + standard.MediaObject + `"`)
 	require.NoError(t, err)
 
-	request, err := NewCapUrnFromString(`cap:in="media:";op=generate;out="` + standard.MediaObject + `"`)
+	request, err := NewCapUrnFromString(`cap:in="media:";generate;out="` + standard.MediaObject + `"`)
 	require.NoError(t, err)
 
 	assert.False(t, cap.Accepts(request), "Test 10: Direction mismatch should not match")
@@ -922,29 +922,29 @@ func Test050_matching_semantics_direction_mismatch(t *testing.T) {
 // TEST890: Semantic direction matching - generic provider matches specific request
 func Test890_direction_semantic_matching(t *testing.T) {
 	genericCap, err := NewCapUrnFromString(
-		`cap:in="media:";op=generate_thumbnail;out="media:image;png;thumbnail"`,
+		`cap:in="media:";generate-thumbnail;out="media:image;png;thumbnail"`,
 	)
 	require.NoError(t, err)
 	pdfRequest, err := NewCapUrnFromString(
-		`cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`,
+		`cap:in="media:pdf";generate-thumbnail;out="media:image;png;thumbnail"`,
 	)
 	require.NoError(t, err)
 	assert.True(t, genericCap.Accepts(pdfRequest),
 		"Generic provider must match specific pdf request")
 
 	epubRequest, err := NewCapUrnFromString(
-		`cap:in="media:epub";op=generate_thumbnail;out="media:image;png;thumbnail"`,
+		`cap:in="media:epub";generate-thumbnail;out="media:image;png;thumbnail"`,
 	)
 	require.NoError(t, err)
 	assert.True(t, genericCap.Accepts(epubRequest),
 		"Generic provider must match epub request")
 
 	pdfCap, err := NewCapUrnFromString(
-		`cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`,
+		`cap:in="media:pdf";generate-thumbnail;out="media:image;png;thumbnail"`,
 	)
 	require.NoError(t, err)
 	genericRequest, err := NewCapUrnFromString(
-		`cap:in="media:";op=generate_thumbnail;out="media:image;png;thumbnail"`,
+		`cap:in="media:";generate-thumbnail;out="media:image;png;thumbnail"`,
 	)
 	require.NoError(t, err)
 	assert.False(t, pdfCap.Accepts(genericRequest),
@@ -954,22 +954,22 @@ func Test890_direction_semantic_matching(t *testing.T) {
 		"PDF-specific cap must NOT match epub request (epub lacks pdf marker)")
 
 	specificOutCap, err := NewCapUrnFromString(
-		`cap:in="media:";op=generate_thumbnail;out="media:image;png;thumbnail"`,
+		`cap:in="media:";generate-thumbnail;out="media:image;png;thumbnail"`,
 	)
 	require.NoError(t, err)
 	genericOutRequest, err := NewCapUrnFromString(
-		`cap:in="media:";op=generate_thumbnail;out="media:image"`,
+		`cap:in="media:";generate-thumbnail;out="media:image"`,
 	)
 	require.NoError(t, err)
 	assert.True(t, specificOutCap.Accepts(genericOutRequest),
 		"Cap producing image;png;thumbnail must satisfy request for image")
 
 	genericOutCap, err := NewCapUrnFromString(
-		`cap:in="media:";op=generate_thumbnail;out="media:image"`,
+		`cap:in="media:";generate-thumbnail;out="media:image"`,
 	)
 	require.NoError(t, err)
 	specificOutRequest, err := NewCapUrnFromString(
-		`cap:in="media:";op=generate_thumbnail;out="media:image;png;thumbnail"`,
+		`cap:in="media:";generate-thumbnail;out="media:image;png;thumbnail"`,
 	)
 	require.NoError(t, err)
 	assert.False(t, genericOutCap.Accepts(specificOutRequest),
@@ -979,11 +979,11 @@ func Test890_direction_semantic_matching(t *testing.T) {
 // TEST891: Semantic direction specificity - more media URN tags = higher specificity
 func Test891_direction_semantic_specificity(t *testing.T) {
 	genericCap, err := NewCapUrnFromString(
-		`cap:in="media:";op=generate_thumbnail;out="media:image;png;thumbnail"`,
+		`cap:in="media:";generate-thumbnail;out="media:image;png;thumbnail"`,
 	)
 	require.NoError(t, err)
 	specificCap, err := NewCapUrnFromString(
-		`cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`,
+		`cap:in="media:pdf";generate-thumbnail;out="media:image;png;thumbnail"`,
 	)
 	require.NoError(t, err)
 
@@ -997,7 +997,7 @@ func Test891_direction_semantic_specificity(t *testing.T) {
 		"pdf cap must be more specific than wildcard cap")
 
 	pdfRequest, err := NewCapUrnFromString(
-		`cap:in="media:pdf";op=generate_thumbnail;out="media:image;png;thumbnail"`,
+		`cap:in="media:pdf";generate-thumbnail;out="media:image;png;thumbnail"`,
 	)
 	require.NoError(t, err)
 	caps := []*CapUrn{genericCap, specificCap}
@@ -1011,7 +1011,7 @@ func Test891_direction_semantic_specificity(t *testing.T) {
 // TEST559: without_tag removes tag, ignores in/out, case-insensitive for keys
 func Test559_without_tag(t *testing.T) {
 	cap, err := NewCapUrnFromString(
-		`cap:in="media:void";op=test;ext=pdf;out="media:void"`,
+		`cap:in="media:void";test;ext=pdf;out="media:void"`,
 	)
 	require.NoError(t, err)
 	removed := cap.WithoutTag("ext")
@@ -1040,7 +1040,7 @@ func Test559_without_tag(t *testing.T) {
 // TEST560: with_in_spec and with_out_spec change direction specs
 func Test560_with_in_out_spec(t *testing.T) {
 	cap, err := NewCapUrnFromString(
-		`cap:in="media:void";op=test;out="media:void"`,
+		`cap:in="media:void";test;out="media:void"`,
 	)
 	require.NoError(t, err)
 
@@ -1066,22 +1066,22 @@ func Test560_with_in_out_spec(t *testing.T) {
 // TEST563: CapMatcher::find_all_matches returns all matching caps sorted by specificity
 func Test563_find_all_matches(t *testing.T) {
 	caps := []*CapUrn{}
-	c1, err := NewCapUrnFromString(`cap:in="media:void";op=test;out="media:void"`)
+	c1, err := NewCapUrnFromString(`cap:in="media:void";test;out="media:void"`)
 	require.NoError(t, err)
 	caps = append(caps, c1)
-	c2, err := NewCapUrnFromString(`cap:in="media:void";op=test;ext=pdf;out="media:void"`)
+	c2, err := NewCapUrnFromString(`cap:in="media:void";test;ext=pdf;out="media:void"`)
 	require.NoError(t, err)
 	caps = append(caps, c2)
-	c3, err := NewCapUrnFromString(`cap:in="media:void";op=different;out="media:void"`)
+	c3, err := NewCapUrnFromString(`cap:in="media:void";different;out="media:void"`)
 	require.NoError(t, err)
 	caps = append(caps, c3)
 
-	request, err := NewCapUrnFromString(`cap:in="media:void";op=test;out="media:void"`)
+	request, err := NewCapUrnFromString(`cap:in="media:void";test;out="media:void"`)
 	require.NoError(t, err)
 	matcher := &CapMatcher{}
 	matches := matcher.FindAllMatches(caps, request)
 
-	// Should find 2 matches (op=test and op=test;ext=pdf), not op=different
+	// Should find 2 matches (op=test and test;ext=pdf), not op=different
 	assert.Equal(t, 2, len(matches))
 	// Sorted by specificity descending: ext=pdf first (more specific)
 	assert.True(t, matches[0].Specificity() >= matches[1].Specificity())
@@ -1093,23 +1093,23 @@ func Test563_find_all_matches(t *testing.T) {
 // TEST564: CapMatcher::are_compatible detects bidirectional overlap
 func Test564_are_compatible(t *testing.T) {
 	caps1 := []*CapUrn{}
-	c1, err := NewCapUrnFromString(`cap:in="media:void";op=test;out="media:void"`)
+	c1, err := NewCapUrnFromString(`cap:in="media:void";test;out="media:void"`)
 	require.NoError(t, err)
 	caps1 = append(caps1, c1)
 
 	caps2 := []*CapUrn{}
-	c2, err := NewCapUrnFromString(`cap:in="media:void";op=test;ext=pdf;out="media:void"`)
+	c2, err := NewCapUrnFromString(`cap:in="media:void";test;ext=pdf;out="media:void"`)
 	require.NoError(t, err)
 	caps2 = append(caps2, c2)
 
 	caps3 := []*CapUrn{}
-	c3, err := NewCapUrnFromString(`cap:in="media:void";op=different;out="media:void"`)
+	c3, err := NewCapUrnFromString(`cap:in="media:void";different;out="media:void"`)
 	require.NoError(t, err)
 	caps3 = append(caps3, c3)
 
 	matcher := &CapMatcher{}
 
-	// caps1 (op=test) accepts caps2 (op=test;ext=pdf) -> compatible
+	// caps1 (op=test) accepts caps2 (test;ext=pdf) -> compatible
 	assert.True(t, matcher.AreCompatible(caps1, caps2))
 
 	// caps1 (op=test) vs caps3 (op=different) -> not compatible
@@ -1123,19 +1123,19 @@ func Test564_are_compatible(t *testing.T) {
 // TEST565: tags_to_string returns only tags portion without prefix
 func Test565_tags_to_string(t *testing.T) {
 	cap, err := NewCapUrnFromString(
-		`cap:in="media:void";op=test;out="media:void"`,
+		`cap:in="media:void";test;out="media:void"`,
 	)
 	require.NoError(t, err)
 	tagsStr := cap.ToString()
 	// The full string starts with "cap:"
 	assert.True(t, len(tagsStr) > 4)
-	assert.Contains(t, tagsStr, "op=test")
+	assert.Contains(t, tagsStr, "test")
 }
 
 // TEST566: with_tag silently ignores in/out keys
 func Test566_with_tag_ignores_in_out(t *testing.T) {
 	cap, err := NewCapUrnFromString(
-		`cap:in="media:void";op=test;out="media:void"`,
+		`cap:in="media:void";test;out="media:void"`,
 	)
 	require.NoError(t, err)
 	// Attempting to set in/out via WithTag is silently ignored
@@ -1149,16 +1149,16 @@ func Test566_with_tag_ignores_in_out(t *testing.T) {
 // TEST567: conforms_to_str and accepts_str work with string arguments
 func Test567_str_variants(t *testing.T) {
 	cap, err := NewCapUrnFromString(
-		`cap:in="media:void";op=test;out="media:void"`,
+		`cap:in="media:void";test;out="media:void"`,
 	)
 	require.NoError(t, err)
 
 	// AcceptsStr
-	assert.True(t, cap.AcceptsStr(`cap:in="media:void";op=test;ext=pdf;out="media:void"`))
-	assert.False(t, cap.AcceptsStr(`cap:in="media:void";op=different;out="media:void"`))
+	assert.True(t, cap.AcceptsStr(`cap:in="media:void";test;ext=pdf;out="media:void"`))
+	assert.False(t, cap.AcceptsStr(`cap:in="media:void";different;out="media:void"`))
 
 	// ConformsTo via AcceptsStr (cap.ConformsTo(pattern) == pattern.Accepts(cap))
-	pattern, err := NewCapUrnFromString(`cap:in="media:void";op=test;out="media:void"`)
+	pattern, err := NewCapUrnFromString(`cap:in="media:void";test;out="media:void"`)
 	require.NoError(t, err)
 	assert.True(t, cap.ConformsTo(pattern))
 
@@ -1224,7 +1224,7 @@ func Test652_cap_identity_constant_works(t *testing.T) {
 	identity, err := NewCapUrnFromTags(map[string]string{})
 	require.NoError(t, err)
 
-	specific, err := NewCapUrnFromString("cap:in=media:pdf;out=media:text;op=test")
+	specific, err := NewCapUrnFromString("cap:in=media:pdf;out=media:text;test")
 	require.NoError(t, err)
 
 	// Identity accepts everything (no constraints)
@@ -1237,7 +1237,7 @@ func Test653_identity_routing_isolation(t *testing.T) {
 	identity, err := NewCapUrnFromTags(map[string]string{})
 	require.NoError(t, err)
 
-	specificRequest, err := NewCapUrnFromString(`cap:in="media:void";op=test;out="media:void"`)
+	specificRequest, err := NewCapUrnFromString(`cap:in="media:void";test;out="media:void"`)
 	require.NoError(t, err)
 
 	// Routing direction: request.Accepts(cap)
@@ -1254,27 +1254,27 @@ func Test653_identity_routing_isolation(t *testing.T) {
 
 // TEST823: is_dispatchable — exact match provider dispatches request
 func Test823_dispatch_exact_match(t *testing.T) {
-	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
+	provider, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:record;textable"`)
 	require.NoError(t, err)
-	request, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
+	request, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.True(t, provider.IsDispatchable(request))
 }
 
 // TEST824: is_dispatchable — provider with broader input handles specific request (contravariance)
 func Test824_dispatch_contravariant_input(t *testing.T) {
-	provider, err := NewCapUrnFromString(`cap:in="media:";op=analyze;out="media:record;textable"`)
+	provider, err := NewCapUrnFromString(`cap:in="media:";analyze;out="media:record;textable"`)
 	require.NoError(t, err)
-	request, err := NewCapUrnFromString(`cap:in="media:pdf";op=analyze;out="media:record;textable"`)
+	request, err := NewCapUrnFromString(`cap:in="media:pdf";analyze;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.True(t, provider.IsDispatchable(request))
 }
 
 // TEST825: is_dispatchable — request with unconstrained input dispatches to specific provider media: on the request input axis means "unconstrained" — vacuously true
 func Test825_dispatch_request_unconstrained_input(t *testing.T) {
-	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=analyze;out="media:record;textable"`)
+	provider, err := NewCapUrnFromString(`cap:in="media:pdf";analyze;out="media:record;textable"`)
 	require.NoError(t, err)
-	request, err := NewCapUrnFromString(`cap:in="media:";op=analyze;out="media:record;textable"`)
+	request, err := NewCapUrnFromString(`cap:in="media:";analyze;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.True(t, provider.IsDispatchable(request),
 		"Request in=media: is unconstrained — axis is vacuously true")
@@ -1282,9 +1282,9 @@ func Test825_dispatch_request_unconstrained_input(t *testing.T) {
 
 // TEST826: is_dispatchable — provider output must satisfy request output (covariance)
 func Test826_dispatch_covariant_output(t *testing.T) {
-	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
+	provider, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:record;textable"`)
 	require.NoError(t, err)
-	request, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:textable"`)
+	request, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:textable"`)
 	require.NoError(t, err)
 	assert.True(t, provider.IsDispatchable(request),
 		"Provider output record;textable conforms to request output textable")
@@ -1292,9 +1292,9 @@ func Test826_dispatch_covariant_output(t *testing.T) {
 
 // TEST827: is_dispatchable — provider with generic output cannot satisfy specific request
 func Test827_dispatch_generic_output_fails(t *testing.T) {
-	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:"`)
+	provider, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:"`)
 	require.NoError(t, err)
-	request, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
+	request, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.False(t, provider.IsDispatchable(request),
 		"Provider out=media: cannot guarantee specific output")
@@ -1302,9 +1302,9 @@ func Test827_dispatch_generic_output_fails(t *testing.T) {
 
 // TEST828: is_dispatchable — wildcard * tag in request, provider missing tag → reject
 func Test828_dispatch_wildcard_requires_tag_presence(t *testing.T) {
-	provider, err := NewCapUrnFromString(`cap:in="media:model-spec";op=run-inference;out="media:record;textable"`)
+	provider, err := NewCapUrnFromString(`cap:in="media:model-spec";run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
-	request, err := NewCapUrnFromString(`cap:candle=*;in="media:model-spec";op=run-inference;out="media:record;textable"`)
+	request, err := NewCapUrnFromString(`cap:candle=*;in="media:model-spec";run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.False(t, provider.IsDispatchable(request),
 		"Wildcard * means tag must be present — provider has no candle tag")
@@ -1312,9 +1312,9 @@ func Test828_dispatch_wildcard_requires_tag_presence(t *testing.T) {
 
 // TEST829: is_dispatchable — wildcard * tag in request, provider has tag → accept
 func Test829_dispatch_wildcard_with_tag_present(t *testing.T) {
-	provider, err := NewCapUrnFromString(`cap:candle=metal;in="media:model-spec";op=run-inference;out="media:record;textable"`)
+	provider, err := NewCapUrnFromString(`cap:candle=metal;in="media:model-spec";run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
-	request, err := NewCapUrnFromString(`cap:candle=*;in="media:model-spec";op=run-inference;out="media:record;textable"`)
+	request, err := NewCapUrnFromString(`cap:candle=*;in="media:model-spec";run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.True(t, provider.IsDispatchable(request),
 		"Provider has candle=metal, request has candle=* — tag present, any value OK")
@@ -1322,9 +1322,9 @@ func Test829_dispatch_wildcard_with_tag_present(t *testing.T) {
 
 // TEST830: is_dispatchable — provider extra tags are refinement, always OK
 func Test830_dispatch_provider_extra_tags(t *testing.T) {
-	provider, err := NewCapUrnFromString(`cap:candle=metal;in="media:model-spec";op=run-inference;out="media:record;textable"`)
+	provider, err := NewCapUrnFromString(`cap:candle=metal;in="media:model-spec";run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
-	request, err := NewCapUrnFromString(`cap:in="media:model-spec";op=run-inference;out="media:record;textable"`)
+	request, err := NewCapUrnFromString(`cap:in="media:model-spec";run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.True(t, provider.IsDispatchable(request),
 		"Provider extra tag candle=metal is refinement — always OK")
@@ -1332,9 +1332,9 @@ func Test830_dispatch_provider_extra_tags(t *testing.T) {
 
 // TEST831: is_dispatchable — cross-backend mismatch prevented
 func Test831_dispatch_cross_backend_mismatch(t *testing.T) {
-	ggufProvider, err := NewCapUrnFromString(`cap:gguf=q4_k_m;in="media:model-spec";op=run-inference;out="media:record;textable"`)
+	ggufProvider, err := NewCapUrnFromString(`cap:gguf=q4_k_m;in="media:model-spec";run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
-	candleRequest, err := NewCapUrnFromString(`cap:candle=*;in="media:model-spec";op=run-inference;out="media:record;textable"`)
+	candleRequest, err := NewCapUrnFromString(`cap:candle=*;in="media:model-spec";run-inference;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.False(t, ggufProvider.IsDispatchable(candleRequest),
 		"GGUF provider has no candle tag — cross-backend mismatch")
@@ -1342,9 +1342,9 @@ func Test831_dispatch_cross_backend_mismatch(t *testing.T) {
 
 // TEST832: is_dispatchable is NOT symmetric
 func Test832_dispatch_asymmetric(t *testing.T) {
-	broad, err := NewCapUrnFromString(`cap:in="media:";op=process;out="media:record;textable"`)
+	broad, err := NewCapUrnFromString(`cap:in="media:";process;out="media:record;textable"`)
 	require.NoError(t, err)
-	narrow, err := NewCapUrnFromString(`cap:in="media:pdf";op=process;out="media:textable"`)
+	narrow, err := NewCapUrnFromString(`cap:in="media:pdf";process;out="media:textable"`)
 	require.NoError(t, err)
 	assert.True(t, broad.IsDispatchable(narrow))
 	assert.False(t, narrow.IsDispatchable(broad))
@@ -1352,9 +1352,9 @@ func Test832_dispatch_asymmetric(t *testing.T) {
 
 // TEST833: is_comparable — both directions checked
 func Test833_comparable_symmetric(t *testing.T) {
-	a, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:textable"`)
+	a, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:textable"`)
 	require.NoError(t, err)
-	b, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
+	b, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.True(t, a.IsComparable(b))
 	assert.True(t, b.IsComparable(a))
@@ -1362,9 +1362,9 @@ func Test833_comparable_symmetric(t *testing.T) {
 
 // TEST834: is_comparable — unrelated caps are NOT comparable
 func Test834_comparable_unrelated(t *testing.T) {
-	a, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:textable"`)
+	a, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:textable"`)
 	require.NoError(t, err)
-	b, err := NewCapUrnFromString(`cap:in="media:audio";op=transcribe;out="media:record;textable"`)
+	b, err := NewCapUrnFromString(`cap:in="media:audio";transcribe;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.False(t, a.IsComparable(b))
 	assert.False(t, b.IsComparable(a))
@@ -1372,9 +1372,9 @@ func Test834_comparable_unrelated(t *testing.T) {
 
 // TEST835: is_equivalent — identical caps
 func Test835_equivalent_identical(t *testing.T) {
-	a, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
+	a, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:record;textable"`)
 	require.NoError(t, err)
-	b, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
+	b, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.True(t, a.IsEquivalent(b))
 	assert.True(t, b.IsEquivalent(a))
@@ -1382,9 +1382,9 @@ func Test835_equivalent_identical(t *testing.T) {
 
 // TEST836: is_equivalent — non-equivalent comparable caps
 func Test836_equivalent_non_equivalent(t *testing.T) {
-	a, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:textable"`)
+	a, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:textable"`)
 	require.NoError(t, err)
-	b, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
+	b, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.True(t, a.IsComparable(b))
 	assert.False(t, a.IsEquivalent(b))
@@ -1392,18 +1392,18 @@ func Test836_equivalent_non_equivalent(t *testing.T) {
 
 // TEST837: is_dispatchable — op tag mismatch rejects
 func Test837_dispatch_op_mismatch(t *testing.T) {
-	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
+	provider, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:record;textable"`)
 	require.NoError(t, err)
-	request, err := NewCapUrnFromString(`cap:in="media:pdf";op=summarize;out="media:record;textable"`)
+	request, err := NewCapUrnFromString(`cap:in="media:pdf";summarize;out="media:record;textable"`)
 	require.NoError(t, err)
 	assert.False(t, provider.IsDispatchable(request))
 }
 
 // TEST838: is_dispatchable — request with wildcard output accepts any provider output
 func Test838_dispatch_request_wildcard_output(t *testing.T) {
-	provider, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:record;textable"`)
+	provider, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:record;textable"`)
 	require.NoError(t, err)
-	request, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:"`)
+	request, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:"`)
 	require.NoError(t, err)
 	assert.True(t, provider.IsDispatchable(request),
 		"Request out=media: is unconstrained — any provider output accepted")
@@ -1411,7 +1411,7 @@ func Test838_dispatch_request_wildcard_output(t *testing.T) {
 
 // JSON serialization test (not numbered in Rust)
 func TestCapUrn_JSONSerialization(t *testing.T) {
-	original, err := NewCapUrnFromString(testUrn("op=generate"))
+	original, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 
 	data, err := json.Marshal(original)
@@ -1426,7 +1426,7 @@ func TestCapUrn_JSONSerialization(t *testing.T) {
 
 // TEST561: in_media_urn and out_media_urn parse direction specs into MediaUrn
 func Test561_in_out_media_urn(t *testing.T) {
-	cap, err := NewCapUrnFromString(`cap:in="media:pdf";op=extract;out="media:txt;textable"`)
+	cap, err := NewCapUrnFromString(`cap:in="media:pdf";extract;out="media:txt;textable"`)
 	require.NoError(t, err)
 
 	inUrn, err := cap.InMediaUrn()
@@ -1455,7 +1455,7 @@ func Test562_canonical_option(t *testing.T) {
 	assert.Nil(t, result)
 
 	// Valid input -> canonical form
-	input := `cap:op=test;in="media:void";out="media:void"`
+	input := `cap:test;in="media:void";out="media:void"`
 	result, err = CanonicalOption(&input)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -1476,11 +1476,11 @@ func Test562_canonical_option(t *testing.T) {
 // TEST568: is_dispatchable with different tag order in output spec
 func Test568_dispatch_output_tag_order(t *testing.T) {
 	provider, err := NewCapUrnFromString(
-		`cap:in="media:model-spec;textable";op=download-model;out="media:download-result;record;textable"`)
+		`cap:in="media:model-spec;textable";download-model;out="media:download-result;record;textable"`)
 	require.NoError(t, err)
 
 	request, err := NewCapUrnFromString(
-		`cap:in="media:model-spec;textable";op=download-model;out="media:download-result;textable;record"`)
+		`cap:in="media:model-spec;textable";download-model;out="media:download-result;textable;record"`)
 	require.NoError(t, err)
 
 	// After parsing, both should be normalized to same canonical form
@@ -1554,7 +1554,7 @@ func Test647_wildcard_009_invalid_out_spec_fails(t *testing.T) {
 
 // TEST650: cap:in;out;op=test preserves other tags
 func Test650_wildcard_012_preserve_other_tags(t *testing.T) {
-	cap, err := NewCapUrnFromString("cap:in;out;op=test")
+	cap, err := NewCapUrnFromString("cap:in;out;test")
 	require.NoError(t, err)
 	assert.Equal(t, "media:", cap.InSpec())
 	assert.Equal(t, "media:", cap.OutSpec())

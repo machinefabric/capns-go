@@ -409,7 +409,7 @@ func Test328_cartridge_repo_server_get_by_category(t *testing.T) {
 
 // TEST329: CartridgeRepoServer.get_suggestions_for_cap() finds cartridges providing a given cap URN
 func Test329_cartridge_repo_server_get_by_cap(t *testing.T) {
-	capUrn := `cap:in="media:pdf";op=disbind;out="media:disbound-page;textable;list"`
+	capUrn := `cap:in="media:pdf";disbind;out="media:disbound-page;textable;list"`
 	entry := CartridgeRegistryEntry{
 		Name:          "PDF Cartridge",
 		Description:   "Process PDFs",
@@ -447,7 +447,7 @@ func Test329_cartridge_repo_server_get_by_cap(t *testing.T) {
 	// Same cap URN, same in/out, same op, but the out-spec's tags appear
 	// in a different declared order. Tagged-URN equivalence treats them
 	// as identical, so the lookup must still resolve.
-	reorderedUrn := `cap:in="media:pdf";op=disbind;out="media:list;disbound-page;textable"`
+	reorderedUrn := `cap:in="media:pdf";disbind;out="media:list;disbound-page;textable"`
 	reordered, err := server.GetCartridgesByCap(reorderedUrn)
 	if err != nil {
 		t.Fatalf("Failed to get by reordered cap: %v", err)
@@ -457,7 +457,7 @@ func Test329_cartridge_repo_server_get_by_cap(t *testing.T) {
 	}
 
 	// Well-formed but no provider in the registry matches it.
-	noMatch, err := server.GetCartridgesByCap(`cap:in="media:bogus";op=nope;out="media:nonexistent"`)
+	noMatch, err := server.GetCartridgesByCap(`cap:in="media:bogus";nope;out="media:nonexistent"`)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -509,7 +509,7 @@ func Test330_cartridge_repo_client_update_cache(t *testing.T) {
 func Test331_cartridge_repo_client_get_suggestions(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
-	capUrn := `cap:in="media:pdf";op=disbind;out="media:disbound-page;textable;list"`
+	capUrn := `cap:in="media:pdf";disbind;out="media:disbound-page;textable;list"`
 	registry := &CartridgeRegistryResponse{
 		Cartridges: []CartridgeInfo{
 			{
@@ -601,8 +601,8 @@ func Test332_cartridge_repo_client_get_cartridge(t *testing.T) {
 func Test333_cartridge_repo_client_get_all_caps(t *testing.T) {
 	repo := NewCartridgeRepo(3600)
 
-	cap1 := `cap:in="media:pdf";op=disbind;out="media:disbound-page;textable;list"`
-	cap2 := `cap:in="media:txt;textable";op=disbind;out="media:disbound-page;textable;list"`
+	cap1 := `cap:in="media:pdf";disbind;out="media:disbound-page;textable;list"`
+	cap2 := `cap:in="media:txt;textable";disbind;out="media:disbound-page;textable;list"`
 
 	registry := &CartridgeRegistryResponse{
 		Cartridges: []CartridgeInfo{
@@ -683,7 +683,7 @@ func Test334_cartridge_repo_client_needs_sync(t *testing.T) {
 
 // TEST335: Server creates registry response and client consumes it end-to-end
 func Test335_cartridge_repo_server_client_integration(t *testing.T) {
-	capUrn := `cap:in="media:test";op=test;out="media:result"`
+	capUrn := `cap:in="media:test";test;out="media:result"`
 	entry := CartridgeRegistryEntry{
 		Name:          "Test Cartridge",
 		Description:   "A test cartridge",

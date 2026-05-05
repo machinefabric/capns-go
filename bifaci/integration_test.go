@@ -38,7 +38,7 @@ func intTestUrn(tags string) string {
 func TestIntegrationVersionlessCapCreation(t *testing.T) {
 	// Test case 1: Create cap without version parameter
 	// Use type=data_processing key=value instead of flag
-	capUrn, err := urn.NewCapUrnFromString(intTestUrn("op=transform;format=json;type=data_processing"))
+	capUrn, err := urn.NewCapUrnFromString(intTestUrn("transform;format=json;type=data_processing"))
 	require.NoError(t, err)
 
 	capDef := cap.NewCap(capUrn, "Data Transformer", "transform-command")
@@ -57,7 +57,7 @@ func TestIntegrationVersionlessCapCreation(t *testing.T) {
 	assert.True(t, capDef.Equals(capDef))
 
 	// Different caps should not be equal
-	urn2, _ := urn.NewCapUrnFromString(intTestUrn("op=generate;format=pdf"))
+	urn2, _ := urn.NewCapUrnFromString(intTestUrn("generate;format=pdf"))
 	capDef3 := cap.NewCap(urn2, "PDF Generator", "generate-command")
 	assert.False(t, capDef.Equals(capDef3))
 }
@@ -68,7 +68,7 @@ func TestIntegrationCaseInsensitiveUrns(t *testing.T) {
 	urn1, err := urn.NewCapUrnFromString(intTestUrn("OP=Transform;FORMAT=JSON;Type=Data_Processing"))
 	require.NoError(t, err)
 
-	urn2, err := urn.NewCapUrnFromString(intTestUrn("op=transform;format=json;type=data_processing"))
+	urn2, err := urn.NewCapUrnFromString(intTestUrn("transform;format=json;type=data_processing"))
 	require.NoError(t, err)
 
 	// URNs should be equal (case-insensitive keys and unquoted values)
@@ -111,7 +111,7 @@ func TestIntegrationCapValidation(t *testing.T) {
 	coordinator := cap.NewCapValidationCoordinator()
 
 	// Create a cap with arguments - use proper tags
-	urn, err := urn.NewCapUrnFromString(`cap:in="media:void";op=process;out="media:json;record;textable";target=data`)
+	urn, err := urn.NewCapUrnFromString(`cap:in="media:void";process;out="media:json;record;textable";target=data`)
 	require.NoError(t, err)
 
 	capDef := cap.NewCap(urn, "Data Processor", "process-data")
@@ -216,7 +216,7 @@ func TestIntegrationMediaSpecDefConstruction(t *testing.T) {
 // CBOR Integration Tests (TEST284-303)
 // These tests verify the CBOR cartridge communication protocol between host and cartridge
 
-const testCBORManifest = `{"name":"TestCartridge","version":"1.0.0","channel":"release","description":"Test cartridge","cap_groups":[{"name":"default","caps":[{"urn":"cap:in=\"media:void\";op=test;out=\"media:void\"","title":"Test","command":"test"}]}]}`
+const testCBORManifest = `{"name":"TestCartridge","version":"1.0.0","channel":"release","description":"Test cartridge","cap_groups":[{"name":"default","caps":[{"urn":"cap:in=\"media:void\";test;out=\"media:void\"","title":"Test","command":"test"}]}]}`
 
 // createPipePair creates a pair of connected Unix socket streams for testing
 func createPipePair(t *testing.T) (hostWrite, cartridgeRead, cartridgeWrite, hostRead net.Conn) {
@@ -406,7 +406,7 @@ func Test286_StreamingChunks(t *testing.T) {
 
 	// Send request
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=stream", []byte("go"), "application/json")
+	request := NewReq(requestID, "cap:stream", []byte("go"), "application/json")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -512,7 +512,7 @@ func TestCartridgeErrorResponse(t *testing.T) {
 		require.NoError(t, err)
 
 		// Send error
-		errFrame := NewErr(frame.Id, "NOT_FOUND", "cap.Cap not found: cap:op=missing")
+		errFrame := NewErr(frame.Id, "NOT_FOUND", "cap.Cap not found: cap:missing")
 		err = writer.WriteFrame(errFrame)
 		require.NoError(t, err)
 	}()
@@ -528,7 +528,7 @@ func TestCartridgeErrorResponse(t *testing.T) {
 
 	// Send request
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=missing", []byte(""), "application/json")
+	request := NewReq(requestID, "cap:missing", []byte(""), "application/json")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -595,7 +595,7 @@ func TestLogFramesDuringRequest(t *testing.T) {
 
 	// Send request
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", []byte(""), "application/json")
+	request := NewReq(requestID, "cap:test", []byte(""), "application/json")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -714,7 +714,7 @@ func Test291_BinaryPayloadRoundtrip(t *testing.T) {
 
 	// Send binary data
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=binary", binaryData, "application/octet-stream")
+	request := NewReq(requestID, "cap:binary", binaryData, "application/octet-stream")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -783,7 +783,7 @@ func Test292_MessageIdUniqueness(t *testing.T) {
 	// Send 3 requests
 	for i := 0; i < 3; i++ {
 		requestID := NewMessageIdRandom()
-		request := NewReq(requestID, "cap:op=test", []byte(""), "application/json")
+		request := NewReq(requestID, "cap:test", []byte(""), "application/json")
 		err = writer.WriteFrame(request)
 		require.NoError(t, err)
 
@@ -817,17 +817,17 @@ func Test293_CartridgeRuntimeHandlerRegistration(t *testing.T) {
 			return emitter.EmitCbor(payload)
 		})
 
-	runtime.Register(`cap:in="media:void";op=transform;out="media:void"`,
+	runtime.Register(`cap:in="media:void";transform;out="media:void"`,
 		func(frames <-chan Frame, emitter StreamEmitter, peer PeerInvoker) error {
 			return emitter.EmitCbor("transformed")
 		})
 
 	// Exact match
 	assert.NotNil(t, runtime.FindHandler(standard.CapIdentity))
-	assert.NotNil(t, runtime.FindHandler(`cap:in="media:void";op=transform;out="media:void"`))
+	assert.NotNil(t, runtime.FindHandler(`cap:in="media:void";transform;out="media:void"`))
 
 	// Non-existent
-	assert.Nil(t, runtime.FindHandler(`cap:in="media:void";op=unknown;out="media:void"`))
+	assert.Nil(t, runtime.FindHandler(`cap:in="media:void";unknown;out="media:void"`))
 }
 
 // Mirror-specific coverage: Test cartridge-initiated heartbeat mid-stream is handled transparently by host
@@ -897,7 +897,7 @@ func TestHeartbeatDuringStreaming(t *testing.T) {
 
 	// Send request
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=stream", []byte(""), "application/json")
+	request := NewReq(requestID, "cap:stream", []byte(""), "application/json")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -986,7 +986,7 @@ func TestHostInitiatedHeartbeatNoPingPong(t *testing.T) {
 
 	// Send request
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", []byte(""), "application/json")
+	request := NewReq(requestID, "cap:test", []byte(""), "application/json")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -1075,7 +1075,7 @@ func TestArgumentsRoundtrip(t *testing.T) {
 
 	// Send request with CBOR arguments
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", argsData, "application/cbor")
+	request := NewReq(requestID, "cap:test", argsData, "application/cbor")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -1127,7 +1127,7 @@ func TestCartridgeSuddenDisconnect(t *testing.T) {
 
 	// Send request
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", []byte(""), "application/json")
+	request := NewReq(requestID, "cap:test", []byte(""), "application/json")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -1183,7 +1183,7 @@ func Test299_EmptyPayloadRoundtrip(t *testing.T) {
 
 	// Send empty request
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=empty", []byte{}, "application/json")
+	request := NewReq(requestID, "cap:empty", []byte{}, "application/json")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -1238,7 +1238,7 @@ func TestEndFrameNoPayload(t *testing.T) {
 
 	// Send request
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", []byte(""), "application/json")
+	request := NewReq(requestID, "cap:test", []byte(""), "application/json")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -1304,7 +1304,7 @@ func TestStreamingSequenceNumbers(t *testing.T) {
 
 	// Send request
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", []byte(""), "text/plain")
+	request := NewReq(requestID, "cap:test", []byte(""), "text/plain")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -1365,7 +1365,7 @@ func TestRequestAfterShutdown(t *testing.T) {
 
 	// Try to send request on closed connection - should fail
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", []byte(""), "application/json")
+	request := NewReq(requestID, "cap:test", []byte(""), "application/json")
 	err = writer.WriteFrame(request)
 	assert.Error(t, err, "must fail on closed connection")
 }
@@ -1430,7 +1430,7 @@ func TestArgumentsMultiple(t *testing.T) {
 
 	// Send request
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", argsData, "application/cbor")
+	request := NewReq(requestID, "cap:test", argsData, "application/cbor")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -1489,7 +1489,7 @@ func TestAutoChunkingReassembly(t *testing.T) {
 	writer.SetLimits(limits)
 
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", nil, "text/plain")
+	request := NewReq(requestID, "cap:test", nil, "text/plain")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -1572,7 +1572,7 @@ func TestExactMaxChunkSingleEnd(t *testing.T) {
 	writer.SetLimits(limits)
 
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", nil, "text/plain")
+	request := NewReq(requestID, "cap:test", nil, "text/plain")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -1637,7 +1637,7 @@ func TestMaxChunkPlusOneSplitsIntoTwo(t *testing.T) {
 	writer.SetLimits(limits)
 
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", nil, "text/plain")
+	request := NewReq(requestID, "cap:test", nil, "text/plain")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 
@@ -1742,7 +1742,7 @@ func TestChunkingDataIntegrity3x(t *testing.T) {
 	writer.SetLimits(limits)
 
 	requestID := NewMessageIdRandom()
-	request := NewReq(requestID, "cap:op=test", nil, "text/plain")
+	request := NewReq(requestID, "cap:test", nil, "text/plain")
 	err = writer.WriteFrame(request)
 	require.NoError(t, err)
 

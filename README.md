@@ -33,7 +33,7 @@ import (
 
 func main() {
     // Parse a Cap URN
-    cap, err := capdag.NewCapUrnFromString(`cap:in="media:binary";op=extract;out="media:object"`)
+    cap, err := capdag.NewCapUrnFromString(`cap:in="media:binary";extract;out="media:object"`)
     if err != nil {
         log.Fatal(err)
     }
@@ -50,7 +50,7 @@ func main() {
         MustBuild()
 
     // Check matching
-    pattern, _ := capdag.NewCapUrnFromString(`cap:in="media:binary";op=extract;out="media:object"`)
+    pattern, _ := capdag.NewCapUrnFromString(`cap:in="media:binary";extract;out="media:object"`)
     if cap.Accepts(pattern) {
         fmt.Println("Cap matches pattern")
     }
@@ -87,7 +87,7 @@ matrix := capdag.NewCapMatrix()
 matrix.RegisterCapSet("my-cartridge", myHandler, []*capdag.Cap{capDef})
 
 // Find matching capabilities
-caps, err := matrix.FindCapSets(`cap:in="media:binary";op=extract;out=*`)
+caps, err := matrix.FindCapSets(`cap:in="media:binary";extract;out=*`)
 
 // Find the best match by specificity
 host, cap, err := matrix.FindBestCapSet(requestUrn)

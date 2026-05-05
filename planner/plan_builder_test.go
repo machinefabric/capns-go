@@ -14,7 +14,7 @@ import (
 
 // makeTestCap creates a test cap with given op/in/out specs.
 func makeTestCap(op, inSpec, outSpec, title string) (*cap.Cap, error) {
-	capUrnStr := fmt.Sprintf(`cap:in=%s;op=%s;out="%s"`, inSpec, op, outSpec)
+	capUrnStr := fmt.Sprintf(`cap:%s;in=%s;out="%s"`, op, inSpec, outSpec)
 	capUrnParsed, err := urn.NewCapUrnFromString(capUrnStr)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func Test767_argument_resolution_string_representations(t *testing.T) {
 // cap's stdin arg media URN matches the cap's in_spec.
 func Test768_analyze_path_arguments_stdin_is_from_input_file(t *testing.T) {
 	// Build a cap whose stdin arg is the cap's in_spec (media:pdf) — should resolve as FromInputFile
-	capUrnStr := `cap:in="media:pdf";op=extract;out="media:txt;textable"`
+	capUrnStr := `cap:in="media:pdf";extract;out="media:txt;textable"`
 	capUrnParsed, err := urn.NewCapUrnFromString(capUrnStr)
 	require.NoError(t, err)
 
@@ -109,7 +109,7 @@ func Test768_analyze_path_arguments_stdin_is_from_input_file(t *testing.T) {
 // Verifies that caps with non-stdin, non-default arguments are identified as requiring user input,
 // appear in slots, and the requirements reflect that execution cannot proceed without them.
 func Test769_analyze_path_arguments_user_input_arg_appears_in_slots(t *testing.T) {
-	capUrnStr := `cap:in="media:txt;textable";op=translate;out="media:translated;textable"`
+	capUrnStr := `cap:in="media:txt;textable";translate;out="media:translated;textable"`
 	capUrnParsed, err := urn.NewCapUrnFromString(capUrnStr)
 	require.NoError(t, err)
 
@@ -187,7 +187,7 @@ func Test766_validation_to_json_with_constraints(t *testing.T) {
 // Verifies that arguments with defaults return HasDefault regardless of step position
 func Test886_optional_non_io_arg_with_default_has_default(t *testing.T) {
 	defaultVal := 300
-	resolution := determineResolutionWithIOCheck(standard.MediaInteger, "media:pdf", "media:png", 0, defaultVal)
+	resolution := determineResolutionWithIOCheck(standard.MediaInteger, "media:pdf", "media:image;png", 0, defaultVal)
 	assert.Equal(t, ResolutionHasDefault, resolution)
 }
 
@@ -217,7 +217,7 @@ func Test991_detects_duplicate_cap_urns(t *testing.T) {
 	_, err = checkForDuplicateCaps([]*cap.Cap{c1, c2})
 	require.Error(t, err, "Should detect duplicate cap URN")
 	assert.Contains(t, err.Error(), "Duplicate cap_urn detected")
-	assert.Contains(t, err.Error(), "op=disbind")
+	assert.Contains(t, err.Error(), "disbind")
 	assert.Contains(t, err.Error(), "media:pdf")
 }
 
@@ -250,38 +250,38 @@ func Test993_same_op_different_input_types_not_duplicates(t *testing.T) {
 // TEST994: Tests first cap's input argument is automatically resolved from input file
 // Verifies that determineResolutionWithIOCheck() returns FromInputFile for the first cap in a chain
 func Test994_input_arg_first_cap_auto_resolved_from_input(t *testing.T) {
-	resolution := determineResolutionWithIOCheck("media:pdf", "media:pdf", "media:png", 0, nil)
+	resolution := determineResolutionWithIOCheck("media:pdf", "media:pdf", "media:image;png", 0, nil)
 	assert.Equal(t, ResolutionFromInputFile, resolution)
 }
 
 // TEST995: Tests subsequent caps' input arguments are automatically resolved from previous output
 // Verifies that determineResolutionWithIOCheck() returns FromPreviousOutput for caps after the first
 func Test995_input_arg_subsequent_cap_auto_resolved_from_previous(t *testing.T) {
-	resolution := determineResolutionWithIOCheck("media:pdf", "media:pdf", "media:png", 1, nil)
+	resolution := determineResolutionWithIOCheck("media:pdf", "media:pdf", "media:image;png", 1, nil)
 	assert.Equal(t, ResolutionFromPreviousOutput, resolution)
 
-	resolution = determineResolutionWithIOCheck("media:pdf", "media:pdf", "media:png", 2, nil)
+	resolution = determineResolutionWithIOCheck("media:pdf", "media:pdf", "media:image;png", 2, nil)
 	assert.Equal(t, ResolutionFromPreviousOutput, resolution)
 }
 
 // TEST996: Tests output arguments are automatically resolved from previous cap's output
 // Verifies that arguments matching the output spec are always resolved as FromPreviousOutput
 func Test996_output_arg_auto_resolved(t *testing.T) {
-	resolution := determineResolutionWithIOCheck("media:png", "media:pdf", "media:png", 0, nil)
+	resolution := determineResolutionWithIOCheck("media:image;png", "media:pdf", "media:image;png", 0, nil)
 	assert.Equal(t, ResolutionFromPreviousOutput, resolution)
 }
 
 // TEST997: Tests MEDIA_FILE_PATH argument type resolves to input file for first cap
 // Verifies that generic file-path arguments are bound to input file in the first cap
 func Test997_file_path_type_fallback_first_cap(t *testing.T) {
-	resolution := determineResolutionWithIOCheck(standard.MediaFilePath, "media:pdf", "media:png", 0, nil)
+	resolution := determineResolutionWithIOCheck(standard.MediaFilePath, "media:pdf", "media:image;png", 0, nil)
 	assert.Equal(t, ResolutionFromInputFile, resolution)
 }
 
 // TEST998: Tests MEDIA_FILE_PATH argument type resolves to previous output for subsequent caps
 // Verifies that generic file-path arguments are bound to previous cap's output after the first cap
 func Test998_file_path_type_fallback_subsequent_cap(t *testing.T) {
-	resolution := determineResolutionWithIOCheck(standard.MediaFilePath, "media:pdf", "media:png", 1, nil)
+	resolution := determineResolutionWithIOCheck(standard.MediaFilePath, "media:pdf", "media:image;png", 1, nil)
 	assert.Equal(t, ResolutionFromPreviousOutput, resolution)
 }
 
@@ -289,21 +289,21 @@ func Test998_file_path_type_fallback_subsequent_cap(t *testing.T) {
 // Verifies that arguments like integers with defaults don't require user input
 func Test1009_non_io_arg_with_default_has_default(t *testing.T) {
 	defaultVal := 200
-	resolution := determineResolutionWithIOCheck(standard.MediaInteger, "media:pdf", "media:png", 0, defaultVal)
+	resolution := determineResolutionWithIOCheck(standard.MediaInteger, "media:pdf", "media:image;png", 0, defaultVal)
 	assert.Equal(t, ResolutionHasDefault, resolution)
 }
 
 // TEST1012: Tests required non-IO arguments without defaults require user input
 // Verifies that arguments like strings without defaults are marked as RequiresUserInput
 func Test1012_non_io_arg_without_default_requires_user_input(t *testing.T) {
-	resolution := determineResolutionWithIOCheck("media:string", "media:pdf", "media:png", 0, nil)
+	resolution := determineResolutionWithIOCheck("media:string", "media:pdf", "media:image;png", 0, nil)
 	assert.Equal(t, ResolutionRequiresUserInput, resolution)
 }
 
 // TEST1015: Tests optional non-IO arguments without defaults still require user input
 // Verifies that optional arguments without defaults must be explicitly provided or skipped
 func Test1015_optional_non_io_arg_without_default_requires_user_input(t *testing.T) {
-	resolution := determineResolutionWithIOCheck("media:boolean", "media:pdf", "media:png", 0, nil)
+	resolution := determineResolutionWithIOCheck("media:boolean", "media:pdf", "media:image;png", 0, nil)
 	assert.Equal(t, ResolutionRequiresUserInput, resolution)
 }
 
@@ -317,9 +317,9 @@ func Test1019_validation_to_json_nil(t *testing.T) {
 // TEST1100: Tests that CapUrn normalizes media URN tags to canonical order
 // Two CapUrns with different tag ordering in out spec must produce the same canonical string.
 func Test1100_cap_urn_normalizes_media_urn_tag_order(t *testing.T) {
-	urn1, err := urn.NewCapUrnFromString(`cap:in=media:pdf;op=extract_metadata;out="media:file-metadata;record;textable"`)
+	urn1, err := urn.NewCapUrnFromString(`cap:in=media:pdf;extract-metadata;out="media:file-metadata;record;textable"`)
 	require.NoError(t, err)
-	urn2, err := urn.NewCapUrnFromString(`cap:in=media:pdf;op=extract_metadata;out="media:file-metadata;textable;record"`)
+	urn2, err := urn.NewCapUrnFromString(`cap:in=media:pdf;extract-metadata;out="media:file-metadata;textable;record"`)
 	require.NoError(t, err)
 
 	assert.Equal(t, urn1.String(), urn2.String(),
@@ -334,10 +334,10 @@ func Test1100_cap_urn_normalizes_media_urn_tag_order(t *testing.T) {
 // TEST1103: Tests that IsDispatchable has correct directionality
 // A specific provider is dispatchable for a general request; the reverse is false.
 func Test1103_is_dispatchable_uses_correct_directionality(t *testing.T) {
-	generalRequest, err := urn.NewCapUrnFromString("cap:in=media:pdf;op=extract;out=media:text")
+	generalRequest, err := urn.NewCapUrnFromString("cap:in=media:pdf;extract;out=media:text")
 	require.NoError(t, err)
 
-	specificProvider, err := urn.NewCapUrnFromString("cap:in=media:pdf;op=extract;out=media:text;version=2")
+	specificProvider, err := urn.NewCapUrnFromString("cap:in=media:pdf;extract;out=media:text;version=2")
 	require.NoError(t, err)
 
 	assert.True(t, specificProvider.IsDispatchable(generalRequest),
@@ -349,10 +349,10 @@ func Test1103_is_dispatchable_uses_correct_directionality(t *testing.T) {
 // TEST1104: Tests that IsDispatchable rejects when provider is missing a required cap tag
 // Provider without required=yes cannot handle a request that demands required=yes.
 func Test1104_is_dispatchable_rejects_non_dispatchable(t *testing.T) {
-	request, err := urn.NewCapUrnFromString("cap:in=media:pdf;op=extract;out=media:text;required=yes")
+	request, err := urn.NewCapUrnFromString("cap:in=media:pdf;extract;out=media:text;required=yes")
 	require.NoError(t, err)
 
-	provider, err := urn.NewCapUrnFromString("cap:in=media:pdf;op=extract;out=media:text")
+	provider, err := urn.NewCapUrnFromString("cap:in=media:pdf;extract;out=media:text")
 	require.NoError(t, err)
 
 	assert.False(t, provider.IsDispatchable(request),

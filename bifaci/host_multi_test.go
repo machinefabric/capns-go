@@ -33,15 +33,15 @@ func simulateCartridge(t *testing.T, cartridgeRead, cartridgeWrite net.Conn, man
 // TEST413: Register cartridge adds entries to cap_table
 func Test413_register_cartridge_adds_cap_table(t *testing.T) {
 	host := NewCartridgeHost()
-	host.RegisterCartridge("/path/to/converter", []string{"cap:op=convert", "cap:op=analyze"})
+	host.RegisterCartridge("/path/to/converter", []string{"cap:convert", "cap:analyze"})
 
 	host.mu.Lock()
 	defer host.mu.Unlock()
 
 	assert.Equal(t, 2, len(host.capTable), "must have 2 cap table entries")
-	assert.Equal(t, "cap:op=convert", host.capTable[0].capUrn)
+	assert.Equal(t, "cap:convert", host.capTable[0].capUrn)
 	assert.Equal(t, 0, host.capTable[0].cartridgeIdx)
-	assert.Equal(t, "cap:op=analyze", host.capTable[1].capUrn)
+	assert.Equal(t, "cap:analyze", host.capTable[1].capUrn)
 	assert.Equal(t, 0, host.capTable[1].cartridgeIdx)
 
 	assert.Equal(t, 1, len(host.cartridges))
@@ -55,14 +55,14 @@ func Test414_capabilities_empty_initially(t *testing.T) {
 	assert.Nil(t, host.Capabilities(), "no cartridges → nil capabilities")
 
 	// Case 2: Cartridge registered but not running
-	host.RegisterCartridge("/path/to/cartridge", []string{"cap:op=test"})
+	host.RegisterCartridge("/path/to/cartridge", []string{"cap:test"})
 	assert.Nil(t, host.Capabilities(), "registered but not running → nil capabilities")
 }
 
 // TEST415: REQ for known cap triggers spawn attempt (verified by expected spawn error for non-existent binary)
 func Test415_req_triggers_spawn(t *testing.T) {
 	host := NewCartridgeHost()
-	host.RegisterCartridge("/nonexistent/cartridge/binary", []string{"cap:op=test"})
+	host.RegisterCartridge("/nonexistent/cartridge/binary", []string{"cap:test"})
 
 	// Set up relay pipes
 	relayRead, engineWrite := net.Pipe()
@@ -74,7 +74,7 @@ func Test415_req_triggers_spawn(t *testing.T) {
 	go func() {
 		writer := NewFrameWriter(engineWrite)
 		reqId := NewMessageIdRandom()
-		req := NewReq(reqId, "cap:op=test", []byte("hello"), "text/plain")
+		req := NewReq(reqId, "cap:test", []byte("hello"), "text/plain")
 		writer.WriteFrame(req)
 
 		// Read the ERR response
@@ -136,8 +136,8 @@ func Test416_attach_cartridge_handshake(t *testing.T) {
 
 // TEST417: Route REQ to correct cartridge by cap_urn (with two attached cartridges)
 func Test417_route_req_by_cap_urn(t *testing.T) {
-	manifestA := `{"name":"CartridgeA","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=convert"}]}]}`
-	manifestB := `{"name":"CartridgeB","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=analyze"}]}]}`
+	manifestA := `{"name":"CartridgeA","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:convert"}]}]}`
+	manifestB := `{"name":"CartridgeB","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:analyze"}]}]}`
 
 	// Cartridge A pipes
 	hostReadA, cartridgeWriteA := net.Pipe()
@@ -210,7 +210,7 @@ func Test417_route_req_by_cap_urn(t *testing.T) {
 
 		reqId := NewMessageIdRandom()
 		xid := NewMessageIdFromUint(1)
-		req := NewReq(reqId, "cap:op=convert", []byte{}, "text/plain")
+		req := NewReq(reqId, "cap:convert", []byte{}, "text/plain")
 		req.RoutingId = &xid
 		writer.WriteFrame(req)
 		end := NewEnd(reqId, nil)
@@ -243,7 +243,7 @@ func Test417_route_req_by_cap_urn(t *testing.T) {
 
 // TEST418: Route STREAM_START/CHUNK/STREAM_END/END by req_id (not cap_urn) Verifies that after the initial REQ→cartridge routing, all subsequent continuation frames with the same req_id are routed to the same cartridge — even though no cap_urn is present on those frames.
 func Test418_route_continuation_by_req_id(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=cont"}]}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:cont"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()
@@ -306,7 +306,7 @@ func Test418_route_continuation_by_req_id(t *testing.T) {
 		reqId := NewMessageIdRandom()
 		xid := NewMessageIdFromUint(1)
 		stamp := func(f *Frame) *Frame { f.RoutingId = &xid; return f }
-		writer.WriteFrame(stamp(NewReq(reqId, "cap:op=cont", []byte{}, "text/plain")))
+		writer.WriteFrame(stamp(NewReq(reqId, "cap:cont", []byte{}, "text/plain")))
 		writer.WriteFrame(stamp(NewStreamStart(reqId, "arg-0", "media:", nil)))
 		payload := []byte("payload-data")
 		checksum := ComputeChecksum(payload)
@@ -334,7 +334,7 @@ func Test418_route_continuation_by_req_id(t *testing.T) {
 
 // TEST419: Cartridge HEARTBEAT handled locally (not forwarded to relay)
 func Test419_heartbeat_local_handling(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=hb"}]}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:hb"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()
@@ -415,7 +415,7 @@ func Test419_heartbeat_local_handling(t *testing.T) {
 
 // TEST420: Cartridge non-HELLO/non-HB frames forwarded to relay (pass-through)
 func Test420_cartridge_frames_forwarded_to_relay(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=fwd"}]}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:fwd"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()
@@ -467,7 +467,7 @@ func Test420_cartridge_frames_forwarded_to_relay(t *testing.T) {
 		// Send REQ + END
 		reqId := NewMessageIdRandom()
 		xid := NewMessageIdFromUint(1)
-		req := NewReq(reqId, "cap:op=fwd", []byte{}, "text/plain")
+		req := NewReq(reqId, "cap:fwd", []byte{}, "text/plain")
 		req.RoutingId = &xid
 		writer.WriteFrame(req)
 		end := NewEnd(reqId, nil)
@@ -510,7 +510,7 @@ func Test420_cartridge_frames_forwarded_to_relay(t *testing.T) {
 
 // TEST421: Cartridge death updates capability list (caps removed)
 func Test421_cartridge_death_updates_caps(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=die"}]}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:die"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()
@@ -534,7 +534,7 @@ func Test421_cartridge_death_updates_caps(t *testing.T) {
 	// Before death: caps must be present
 	caps := host.Capabilities()
 	assert.NotNil(t, caps)
-	assert.Contains(t, string(caps), "cap:op=die")
+	assert.Contains(t, string(caps), "cap:die")
 
 	relayRead, engineWrite := net.Pipe()
 	engineRead, relayWrite := net.Pipe()
@@ -565,7 +565,7 @@ func Test421_cartridge_death_updates_caps(t *testing.T) {
 
 // TEST422: Cartridge death sends ERR for all pending requests via relay
 func Test422_cartridge_death_sends_err(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=die"}]}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:die"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()
@@ -603,7 +603,7 @@ func Test422_cartridge_death_sends_err(t *testing.T) {
 		// Send REQ + END
 		reqId := NewMessageIdRandom()
 		xid := NewMessageIdFromUint(1)
-		req := NewReq(reqId, "cap:op=die", []byte("hello"), "text/plain")
+		req := NewReq(reqId, "cap:die", []byte("hello"), "text/plain")
 		req.RoutingId = &xid
 		writer.WriteFrame(req)
 		end := NewEnd(reqId, nil)
@@ -639,8 +639,8 @@ func Test422_cartridge_death_sends_err(t *testing.T) {
 
 // TEST423: Multiple cartridges registered with distinct caps route independently
 func Test423_multi_cartridge_distinct_caps(t *testing.T) {
-	manifestA := `{"name":"CartridgeA","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=alpha"}]}]}`
-	manifestB := `{"name":"CartridgeB","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=beta"}]}]}`
+	manifestA := `{"name":"CartridgeA","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:alpha"}]}]}`
+	manifestB := `{"name":"CartridgeB","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:beta"}]}]}`
 
 	// Cartridge A pipes
 	hostReadA, cartridgeWriteA := net.Pipe()
@@ -714,7 +714,7 @@ func Test423_multi_cartridge_distinct_caps(t *testing.T) {
 		// Send REQ for alpha
 		alphaId := NewMessageIdRandom()
 		alphaXid := NewMessageIdFromUint(1)
-		alphaReq := NewReq(alphaId, "cap:op=alpha", []byte{}, "text/plain")
+		alphaReq := NewReq(alphaId, "cap:alpha", []byte{}, "text/plain")
 		alphaReq.RoutingId = &alphaXid
 		writer.WriteFrame(alphaReq)
 		alphaEnd := NewEnd(alphaId, nil)
@@ -724,7 +724,7 @@ func Test423_multi_cartridge_distinct_caps(t *testing.T) {
 		// Send REQ for beta
 		betaId := NewMessageIdRandom()
 		betaXid := NewMessageIdFromUint(2)
-		betaReq := NewReq(betaId, "cap:op=beta", []byte{}, "text/plain")
+		betaReq := NewReq(betaId, "cap:beta", []byte{}, "text/plain")
 		betaReq.RoutingId = &betaXid
 		writer.WriteFrame(betaReq)
 		betaEnd := NewEnd(betaId, nil)
@@ -770,7 +770,7 @@ func Test423_multi_cartridge_distinct_caps(t *testing.T) {
 
 // TEST424: Concurrent requests to the same cartridge are handled independently
 func Test424_concurrent_requests_same_cartridge(t *testing.T) {
-	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:op=conc"}]}]}`
+	manifest := `{"name":"Test","version":"1.0","cap_groups":[{"name":"default","caps":[{"urn":"cap:conc"}]}]}`
 
 	hostReadP, cartridgeWriteP := net.Pipe()
 	cartridgeReadP, hostWriteP := net.Pipe()
@@ -837,14 +837,14 @@ func Test424_concurrent_requests_same_cartridge(t *testing.T) {
 		xid0 := NewMessageIdFromUint(1)
 		xid1 := NewMessageIdFromUint(2)
 
-		req0 := NewReq(id0, "cap:op=conc", []byte{}, "text/plain")
+		req0 := NewReq(id0, "cap:conc", []byte{}, "text/plain")
 		req0.RoutingId = &xid0
 		writer.WriteFrame(req0)
 		end0 := NewEnd(id0, nil)
 		end0.RoutingId = &xid0
 		writer.WriteFrame(end0)
 
-		req1 := NewReq(id1, "cap:op=conc", []byte{}, "text/plain")
+		req1 := NewReq(id1, "cap:conc", []byte{}, "text/plain")
 		req1.RoutingId = &xid1
 		writer.WriteFrame(req1)
 		end1 := NewEnd(id1, nil)
@@ -889,12 +889,12 @@ func Test424_concurrent_requests_same_cartridge(t *testing.T) {
 // TEST425: find_cartridge_for_cap returns None for unregistered cap
 func Test425_find_cartridge_for_cap_unknown(t *testing.T) {
 	host := NewCartridgeHost()
-	host.RegisterCartridge("/path/to/cartridge", []string{"cap:op=known"})
+	host.RegisterCartridge("/path/to/cartridge", []string{"cap:known"})
 
-	idx, found := host.FindCartridgeForCap("cap:op=known")
+	idx, found := host.FindCartridgeForCap("cap:known")
 	assert.True(t, found, "known cap must be found")
 	assert.Equal(t, 0, idx)
 
-	_, found = host.FindCartridgeForCap("cap:op=unknown")
+	_, found = host.FindCartridgeForCap("cap:unknown")
 	assert.False(t, found, "unknown cap must not be found")
 }

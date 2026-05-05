@@ -21,7 +21,7 @@ func manifestTestUrn(tags string) string {
 
 // TEST148: Manifest creation with cap groups
 func Test148_cap_manifest_creation(t *testing.T) {
-	id, err := urn.NewCapUrnFromString(manifestTestUrn("op=extract;target=metadata"))
+	id, err := urn.NewCapUrnFromString(manifestTestUrn("extract;target=metadata"))
 	require.NoError(t, err)
 
 	capDef := cap.NewCap(id, "Metadata Extractor", "extract-metadata")
@@ -43,7 +43,7 @@ func Test148_cap_manifest_creation(t *testing.T) {
 
 // TEST149: Author field
 func Test149_cap_manifest_with_author(t *testing.T) {
-	id, err := urn.NewCapUrnFromString(manifestTestUrn("op=extract;target=metadata"))
+	id, err := urn.NewCapUrnFromString(manifestTestUrn("extract;target=metadata"))
 	require.NoError(t, err)
 
 	capDef := cap.NewCap(id, "Metadata Extractor", "extract-metadata")
@@ -59,7 +59,7 @@ func Test149_cap_manifest_with_author(t *testing.T) {
 }
 
 func TestCapManifestWithPageURL(t *testing.T) {
-	id, err := urn.NewCapUrnFromString(manifestTestUrn("op=extract;target=metadata"))
+	id, err := urn.NewCapUrnFromString(manifestTestUrn("extract;target=metadata"))
 	require.NoError(t, err)
 
 	capDef := cap.NewCap(id, "Metadata Extractor", "extract-metadata")
@@ -82,7 +82,7 @@ func TestCapManifestWithPageURL(t *testing.T) {
 
 // TEST150: JSON roundtrip
 func Test150_cap_manifest_json_serialization(t *testing.T) {
-	id, err := urn.NewCapUrnFromString(manifestTestUrn("op=extract;target=metadata"))
+	id, err := urn.NewCapUrnFromString(manifestTestUrn("extract;target=metadata"))
 	require.NoError(t, err)
 
 	capDef := cap.NewCap(id, "Metadata Extractor", "extract-metadata")
@@ -126,11 +126,11 @@ func Test151_cap_manifest_required_fields(t *testing.T) {
 
 // TEST152: Multiple caps across groups
 func Test152_cap_manifest_with_multiple_caps(t *testing.T) {
-	id1, err := urn.NewCapUrnFromString(manifestTestUrn("op=extract;target=metadata"))
+	id1, err := urn.NewCapUrnFromString(manifestTestUrn("extract;target=metadata"))
 	require.NoError(t, err)
 	cap1 := cap.NewCap(id1, "Metadata Extractor", "extract-metadata")
 
-	id2, err := urn.NewCapUrnFromString(manifestTestUrn("op=extract;target=outline"))
+	id2, err := urn.NewCapUrnFromString(manifestTestUrn("extract;target=outline"))
 	require.NoError(t, err)
 	metadata := map[string]string{"supports_outline": "true"}
 	cap2 := cap.NewCapWithMetadata(id2, "Outline Extractor", "extract-outline", metadata)
@@ -169,7 +169,7 @@ func Test153_cap_manifest_empty_cap_groups(t *testing.T) {
 
 // TEST154: Optional author field omitted in serialization
 func Test154_cap_manifest_optional_fields(t *testing.T) {
-	id, err := urn.NewCapUrnFromString(manifestTestUrn("op=validate;file"))
+	id, err := urn.NewCapUrnFromString(manifestTestUrn("validate;file"))
 	require.NoError(t, err)
 	capDef := cap.NewCap(id, "File Validator", "validate")
 
@@ -211,7 +211,7 @@ func (tc *testComponent) Caps() []cap.Cap {
 
 // TEST155: ComponentMetadata interface
 func Test155_component_metadata_interface(t *testing.T) {
-	id, err := urn.NewCapUrnFromString(manifestTestUrn("op=test;type=component"))
+	id, err := urn.NewCapUrnFromString(manifestTestUrn("test;type=component"))
 	require.NoError(t, err)
 	capDef := cap.NewCap(id, "Test Component", "test")
 
@@ -222,11 +222,11 @@ func Test155_component_metadata_interface(t *testing.T) {
 
 	caps := component.Caps()
 	assert.Len(t, caps, 1)
-	assert.Contains(t, caps[0].UrnString(), "op=test")
+	assert.Contains(t, caps[0].UrnString(), "test")
 }
 
 func TestCapManifestValidation(t *testing.T) {
-	id, err := urn.NewCapUrnFromString(manifestTestUrn("op=extract;target=metadata"))
+	id, err := urn.NewCapUrnFromString(manifestTestUrn("extract;target=metadata"))
 	require.NoError(t, err)
 
 	capDef := cap.NewCap(id, "Metadata Extractor", "extract-metadata")
@@ -255,7 +255,7 @@ func TestCapManifestValidation(t *testing.T) {
 }
 
 func TestCapManifestCompatibility(t *testing.T) {
-	id, err := urn.NewCapUrnFromString(manifestTestUrn("op=process"))
+	id, err := urn.NewCapUrnFromString(manifestTestUrn("process"))
 	require.NoError(t, err)
 	capDef := cap.NewCap(id, "Data Processor", "process")
 
@@ -306,7 +306,7 @@ func Test475_validate_passes_with_identity(t *testing.T) {
 
 // TEST476: validate() fails without CAP_IDENTITY
 func Test476_validate_fails_without_identity(t *testing.T) {
-	specificUrn, err := urn.NewCapUrnFromString(manifestTestUrn("op=convert"))
+	specificUrn, err := urn.NewCapUrnFromString(manifestTestUrn("convert"))
 	require.NoError(t, err)
 	specificCap := cap.NewCap(specificUrn, "Convert", "convert")
 
@@ -318,7 +318,7 @@ func Test476_validate_fails_without_identity(t *testing.T) {
 
 // TEST1284: Cap group with adapter URNs serializes and deserializes correctly
 func Test1284_cap_group_with_adapter_urns(t *testing.T) {
-	id, err := urn.NewCapUrnFromString(manifestTestUrn("op=convert"))
+	id, err := urn.NewCapUrnFromString(manifestTestUrn("convert"))
 	require.NoError(t, err)
 	capDef := cap.NewCap(id, "Convert", "convert")
 

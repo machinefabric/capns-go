@@ -614,7 +614,7 @@ func Test852_lub_identical(t *testing.T) {
 func Test853_lub_no_common_tags(t *testing.T) {
 	pdf, err := NewMediaUrnFromString("media:pdf")
 	require.NoError(t, err)
-	png, err := NewMediaUrnFromString("media:png")
+	png, err := NewMediaUrnFromString("media:image;png")
 	require.NoError(t, err)
 	lub := LeastUpperBound([]*MediaUrn{pdf, png})
 	universal, err := NewMediaUrnFromString("media:")

@@ -98,7 +98,7 @@ func Test777_type_mismatch_pdf_cap_does_not_match_png_input(t *testing.T) {
 	pdfToText := makeTestCapForGraph("media:pdf", "media:textable", "pdf2text", "PDF to Text")
 	graph.AddCap(pdfToText)
 
-	source, err := urn.NewMediaUrnFromString("media:png")
+	source, err := urn.NewMediaUrnFromString("media:image;png")
 	require.NoError(t, err)
 	target, err := urn.NewMediaUrnFromString("media:textable")
 	require.NoError(t, err)
@@ -110,7 +110,7 @@ func Test777_type_mismatch_pdf_cap_does_not_match_png_input(t *testing.T) {
 // TEST778: Tests type checking prevents using PNG-specific cap with PDF input
 func Test778_type_mismatch_png_cap_does_not_match_pdf_input(t *testing.T) {
 	graph := NewLiveCapFab()
-	pngToThumb := makeTestCapForGraph("media:png", "media:thumbnail", "png2thumb", "PNG to Thumbnail")
+	pngToThumb := makeTestCapForGraph("media:image;png", "media:thumbnail", "png2thumb", "PNG to Thumbnail")
 	graph.AddCap(pngToThumb)
 
 	source, err := urn.NewMediaUrnFromString("media:pdf")
@@ -126,7 +126,7 @@ func Test778_type_mismatch_png_cap_does_not_match_pdf_input(t *testing.T) {
 func Test779_get_reachable_targets_respects_type_matching(t *testing.T) {
 	graph := NewLiveCapFab()
 	pdfToText := makeTestCapForGraph("media:pdf", "media:textable", "pdf2text", "PDF to Text")
-	pngToThumb := makeTestCapForGraph("media:png", "media:thumbnail", "png2thumb", "PNG to Thumbnail")
+	pngToThumb := makeTestCapForGraph("media:image;png", "media:thumbnail", "png2thumb", "PNG to Thumbnail")
 	graph.AddCap(pdfToText)
 	graph.AddCap(pngToThumb)
 
@@ -145,7 +145,7 @@ func Test779_get_reachable_targets_respects_type_matching(t *testing.T) {
 	}
 
 	// PNG should reach thumbnail but NOT textable
-	pngSource, err := urn.NewMediaUrnFromString("media:png")
+	pngSource, err := urn.NewMediaUrnFromString("media:image;png")
 	require.NoError(t, err)
 	pngTargets := graph.GetReachableTargets(pngSource, false, 5)
 	assert.True(t, reaches(pngTargets, mediaThumbnail), "PNG should reach thumbnail")
@@ -162,12 +162,12 @@ func Test779_get_reachable_targets_respects_type_matching(t *testing.T) {
 // TEST781: Tests find_paths_to_exact_target() enforces type compatibility across multi-step chains
 func Test781_find_paths_respects_type_chain(t *testing.T) {
 	graph := NewLiveCapFab()
-	resizePng := makeTestCapForGraph("media:png", "media:resized-png", "resize", "Resize PNG")
+	resizePng := makeTestCapForGraph("media:image;png", "media:resized-png", "resize", "Resize PNG")
 	toThumb := makeTestCapForGraph("media:resized-png", "media:thumbnail", "thumb", "To Thumbnail")
 	graph.AddCap(resizePng)
 	graph.AddCap(toThumb)
 
-	pngSource, err := urn.NewMediaUrnFromString("media:png")
+	pngSource, err := urn.NewMediaUrnFromString("media:image;png")
 	require.NoError(t, err)
 	thumbTarget, err := urn.NewMediaUrnFromString("media:thumbnail")
 	require.NoError(t, err)
@@ -605,7 +605,7 @@ func Test1293_roundtrip_requires_cap_steps(t *testing.T) {
 // TEST789: Tests that caps loaded from JSON have correct in_spec/out_spec
 func Test789_cap_from_json_has_valid_specs(t *testing.T) {
 	jsonStr := `{
-		"urn": "cap:in=media:pdf;op=disbind;out=\"media:disbound-page;textable\"",
+		"urn": "cap:in=media:pdf;disbind;out=\"media:disbound-page;textable\"",
 		"command": "disbind",
 		"title": "Disbind PDF",
 		"args": [],
@@ -634,7 +634,7 @@ func Test790_identity_urn_is_specific(t *testing.T) {
 	assert.Equal(t, "media:", identityUrn.OutSpec())
 
 	// A specific cap should NOT be equivalent to identity
-	specificCap, err := urn.NewCapUrnFromString(`cap:in=media:pdf;op=disbind;out="media:disbound-page;textable"`)
+	specificCap, err := urn.NewCapUrnFromString(`cap:in=media:pdf;disbind;out="media:disbound-page;textable"`)
 	require.NoError(t, err)
 
 	assert.False(t, specificCap.IsEquivalent(identityUrn),

@@ -29,17 +29,17 @@ const CapAdapterSelection = `cap:in="media:";out="media:adapter-selection;json;r
 
 // LlmGenerateTextUrn builds the URN for generic text-generation capability.
 func LlmGenerateTextUrn() string {
-	return fmt.Sprintf(`cap:in="%s";llm;ml-model;op=generate_text;out="%s"`, MediaString, MediaString)
+	return fmt.Sprintf(`cap:in="%s";llm;ml-model;generate-text;out="%s"`, MediaString, MediaString)
 }
 
 // ModelAvailabilityUrn builds a URN string for model-availability capability
 func ModelAvailabilityUrn() string {
-	return "cap:op=model-availability;in=media:model-spec;out=media:availability-output"
+	return "cap:model-availability;in=media:model-spec;out=media:availability-output"
 }
 
 // ModelPathUrn builds a URN string for model-path capability
 func ModelPathUrn() string {
-	return "cap:op=model-path;in=media:model-spec;out=media:path-output"
+	return "cap:model-path;in=media:model-spec;out=media:path-output"
 }
 
 // MediaUrnForType maps a type name to its media URN constant.
@@ -77,7 +77,7 @@ func MediaUrnForType(typeName string) string {
 func CoercionUrn(sourceType, targetType string) string {
 	inSpec := MediaUrnForType(sourceType)
 	outSpec := MediaUrnForType(targetType)
-	return fmt.Sprintf(`cap:in="%s";op=coerce;out="%s"`, inSpec, outSpec)
+	return fmt.Sprintf(`cap:in="%s";coerce;out="%s"`, inSpec, outSpec)
 }
 
 // AllCoercionPaths returns all valid coercion (source, target) pairs.
@@ -111,7 +111,7 @@ func AllCoercionPaths() [][2]string {
 
 // FormatConversionUrn builds a URN for converting between formats.
 func FormatConversionUrn(inMedia, outMedia string) string {
-	return fmt.Sprintf(`cap:in="%s";op=convert_format;out="%s"`, inMedia, outMedia)
+	return fmt.Sprintf(`cap:in="%s";convert-format;out="%s"`, inMedia, outMedia)
 }
 
 // FormatConversionPath describes a single format conversion path.

@@ -14,7 +14,7 @@ func Test638_no_peer_router_rejects_all(t *testing.T) {
 	reqId := [16]byte{}
 
 	handle, err := router.BeginRequest(
-		`cap:in="media:void";op=test;out="media:void"`,
+		`cap:in="media:void";test;out="media:void"`,
 		reqId,
 	)
 

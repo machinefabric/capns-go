@@ -222,7 +222,7 @@ func Test181_frame_hello_with_manifest(t *testing.T) {
 // TEST182: Test Frame::req stores cap URN, payload, and content_type correctly
 func Test182_frame_req(t *testing.T) {
 	id := NewMessageIdRandom()
-	cap := `cap:in="media:void";op=test;out="media:void"`
+	cap := `cap:in="media:void";test;out="media:void"`
 	payload := []byte("request data")
 	contentType := "application/json"
 
@@ -409,7 +409,7 @@ func Test190_frame_heartbeat(t *testing.T) {
 
 // TEST191: Test error_code and error_message return None for non-Err frame types
 func Test191_error_accessors_on_non_err_frame(t *testing.T) {
-	req := NewReq(NewMessageIdRandom(), "cap:op=test", []byte{}, "text/plain")
+	req := NewReq(NewMessageIdRandom(), "cap:test", []byte{}, "text/plain")
 	if req.ErrorCode() != "" {
 		t.Error("REQ must have no error_code")
 	}
@@ -425,7 +425,7 @@ func Test191_error_accessors_on_non_err_frame(t *testing.T) {
 
 // TEST192: Test log_level and log_message return None for non-Log frame types
 func Test192_log_accessors_on_non_log_frame(t *testing.T) {
-	req := NewReq(NewMessageIdRandom(), "cap:op=test", []byte{}, "text/plain")
+	req := NewReq(NewMessageIdRandom(), "cap:test", []byte{}, "text/plain")
 	if req.LogLevel() != "" {
 		t.Error("REQ must have no log_level")
 	}
@@ -639,7 +639,7 @@ func Test203_message_id_cross_variant_inequality(t *testing.T) {
 
 // TEST204: Test Frame::req with empty payload stores Some(empty vec) not None
 func Test204_req_frame_empty_payload(t *testing.T) {
-	frame := NewReq(NewMessageIdRandom(), "cap:op=test", []byte{}, "text/plain")
+	frame := NewReq(NewMessageIdRandom(), "cap:test", []byte{}, "text/plain")
 	if frame.Payload == nil {
 		t.Error("Empty payload should be empty slice, not nil")
 	}
@@ -757,7 +757,7 @@ func Test400_relay_state_discriminant_roundtrip(t *testing.T) {
 
 // TEST401: Verify relay_notify factory stores manifest and limits, and accessors extract them
 func Test401_relay_notify_factory_and_accessors(t *testing.T) {
-	manifest := []byte(`{"caps":["cap:op=test"]}`)
+	manifest := []byte(`{"caps":["cap:test"]}`)
 	maxFrame := 2_000_000
 	maxChunk := 128_000
 
@@ -789,7 +789,7 @@ func Test401_relay_notify_factory_and_accessors(t *testing.T) {
 	}
 
 	// Test accessors on wrong frame type return nil
-	req := NewReq(NewMessageIdRandom(), "cap:op=test", []byte{}, "text/plain")
+	req := NewReq(NewMessageIdRandom(), "cap:test", []byte{}, "text/plain")
 	if req.RelayNotifyManifest() != nil {
 		t.Error("RelayNotifyManifest on REQ must return nil")
 	}
@@ -880,7 +880,7 @@ func Test442_seq_assigner_monotonic_same_rid(t *testing.T) {
 	assigner := NewSeqAssigner()
 	rid := NewMessageIdRandom()
 
-	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0 := NewReq(rid, "cap:test", nil, "")
 	f1 := NewStreamStart(rid, "s1", "media:", nil)
 	f2 := NewChunk(rid, "s1", 0, []byte("data"), 0, 0)
 	f3 := NewEnd(rid, nil)
@@ -910,10 +910,10 @@ func Test443_seq_assigner_independent_rids(t *testing.T) {
 	ridA := NewMessageIdRandom()
 	ridB := NewMessageIdRandom()
 
-	a0 := NewReq(ridA, "cap:op=a", nil, "")
+	a0 := NewReq(ridA, "cap:a", nil, "")
 	a1 := NewChunk(ridA, "", 0, nil, 0, 0)
 	a2 := NewEnd(ridA, nil)
-	b0 := NewReq(ridB, "cap:op=b", nil, "")
+	b0 := NewReq(ridB, "cap:b", nil, "")
 	b1 := NewChunk(ridB, "", 0, nil, 0, 0)
 
 	assigner.Assign(a0)
@@ -965,13 +965,13 @@ func Test445_seq_assigner_remove_by_flow_key(t *testing.T) {
 	xid := NewMessageIdRandom()
 
 	// Flow 1: (rid, no xid) — assign seq 0, 1
-	f1a := NewReq(rid, "cap:op=test", nil, "")
+	f1a := NewReq(rid, "cap:test", nil, "")
 	f1b := NewChunk(rid, "", 0, nil, 0, 0)
 	assigner.Assign(f1a)
 	assigner.Assign(f1b)
 
 	// Flow 2: (rid, xid) — assign seq 0, 1
-	f2a := NewReq(rid, "cap:op=test", nil, "")
+	f2a := NewReq(rid, "cap:test", nil, "")
 	f2a.RoutingId = &xid
 	f2b := NewChunk(rid, "", 0, nil, 0, 0)
 	f2b.RoutingId = &xid
@@ -989,7 +989,7 @@ func Test445_seq_assigner_remove_by_flow_key(t *testing.T) {
 	assigner.Remove(FlowKey{rid: rid.ToString(), xid: ""})
 
 	// Flow 1 restarts at 0
-	f1c := NewReq(rid, "cap:op=test", nil, "")
+	f1c := NewReq(rid, "cap:test", nil, "")
 	assigner.Assign(f1c)
 	if f1c.Seq != 0 {
 		t.Errorf("Flow 1 after remove should restart at 0, got %d", f1c.Seq)
@@ -1012,17 +1012,17 @@ func Test860_seq_assigner_same_rid_different_xids_independent(t *testing.T) {
 	xidB := NewMessageIdRandom()
 
 	// Flow (rid, xidA)
-	fA0 := NewReq(rid, "cap:op=a", nil, "")
+	fA0 := NewReq(rid, "cap:a", nil, "")
 	fA0.RoutingId = &xidA
 	fA1 := NewChunk(rid, "", 0, nil, 0, 0)
 	fA1.RoutingId = &xidA
 
 	// Flow (rid, xidB)
-	fB0 := NewReq(rid, "cap:op=b", nil, "")
+	fB0 := NewReq(rid, "cap:b", nil, "")
 	fB0.RoutingId = &xidB
 
 	// Flow (rid, no xid)
-	fNone0 := NewReq(rid, "cap:op=c", nil, "")
+	fNone0 := NewReq(rid, "cap:c", nil, "")
 
 	assigner.Assign(fA0)
 	assigner.Assign(fA1)
@@ -1045,7 +1045,7 @@ func Test446_seq_assigner_mixed_types(t *testing.T) {
 	assigner := NewSeqAssigner()
 	rid := NewMessageIdRandom()
 
-	req := NewReq(rid, "cap:op=test", nil, "")
+	req := NewReq(rid, "cap:test", nil, "")
 	log := NewLog(rid, "progress", "test")
 	chunk := NewChunk(rid, "", 0, []byte("data"), 0, 0)
 	end := NewEnd(rid, nil)
@@ -1066,7 +1066,7 @@ func Test447_flow_key_with_xid(t *testing.T) {
 	rid := NewMessageIdRandom()
 	xid := NewMessageIdRandom()
 
-	frame := NewReq(rid, "cap:op=test", nil, "")
+	frame := NewReq(rid, "cap:test", nil, "")
 	frame.RoutingId = &xid
 
 	key := FlowKeyFromFrame(frame)
@@ -1081,7 +1081,7 @@ func Test447_flow_key_with_xid(t *testing.T) {
 // TEST448: FlowKey::from_frame extracts (rid, None) when routing_id absent
 func Test448_flow_key_without_xid(t *testing.T) {
 	rid := NewMessageIdRandom()
-	frame := NewReq(rid, "cap:op=test", nil, "")
+	frame := NewReq(rid, "cap:test", nil, "")
 
 	key := FlowKeyFromFrame(frame)
 	if key.rid != rid.ToString() {
@@ -1133,7 +1133,7 @@ func Test451_reorder_buffer_in_order(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
 
-	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0 := NewReq(rid, "cap:test", nil, "")
 	f0.Seq = 0
 	f1 := NewChunk(rid, "", 0, nil, 0, 0)
 	f1.Seq = 1
@@ -1158,7 +1158,7 @@ func Test452_reorder_buffer_out_of_order(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
 
-	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0 := NewReq(rid, "cap:test", nil, "")
 	f0.Seq = 0
 	f1 := NewChunk(rid, "", 0, nil, 0, 0)
 	f1.Seq = 1
@@ -1181,7 +1181,7 @@ func Test453_reorder_buffer_gap_fill(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
 
-	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0 := NewReq(rid, "cap:test", nil, "")
 	f0.Seq = 0
 	f1 := NewChunk(rid, "", 0, nil, 0, 0)
 	f1.Seq = 1
@@ -1208,7 +1208,7 @@ func Test454_reorder_buffer_stale_seq(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
 
-	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0 := NewReq(rid, "cap:test", nil, "")
 	f0.Seq = 0
 	f1 := NewChunk(rid, "", 0, nil, 0, 0)
 	f1.Seq = 1
@@ -1258,14 +1258,14 @@ func Test456_reorder_buffer_independent_flows(t *testing.T) {
 	assert.Len(t, rA1, 0, "A seq=1 buffered")
 
 	// Flow B: submit seq=0 (in order) — independent of A
-	fB0 := NewReq(ridB, "cap:op=b", nil, "")
+	fB0 := NewReq(ridB, "cap:b", nil, "")
 	fB0.Seq = 0
 	rB0, err := rb.Accept(fB0)
 	require.NoError(t, err)
 	assert.Len(t, rB0, 1, "B seq=0 delivers immediately regardless of A's gap")
 
 	// Flow A: submit seq=0 — releases both A frames
-	fA0 := NewReq(ridA, "cap:op=a", nil, "")
+	fA0 := NewReq(ridA, "cap:a", nil, "")
 	fA0.Seq = 0
 	rA0, err := rb.Accept(fA0)
 	require.NoError(t, err)
@@ -1277,7 +1277,7 @@ func Test457_reorder_buffer_cleanup(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
 
-	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0 := NewReq(rid, "cap:test", nil, "")
 	f0.Seq = 0
 	rb.Accept(f0)
 
@@ -1290,7 +1290,7 @@ func Test457_reorder_buffer_cleanup(t *testing.T) {
 	rb.CleanupFlow(key)
 
 	// Same RID can start over at seq=0 without stale error
-	f0b := NewReq(rid, "cap:op=test", nil, "")
+	f0b := NewReq(rid, "cap:test", nil, "")
 	f0b.Seq = 0
 	r, err := rb.Accept(f0b)
 	require.NoError(t, err)
@@ -1318,7 +1318,7 @@ func Test459_reorder_buffer_end_frame(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
 
-	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0 := NewReq(rid, "cap:test", nil, "")
 	f0.Seq = 0
 	rb.Accept(f0)
 
@@ -1358,7 +1358,7 @@ func Test1162_heartbeat_frame_with_memory_meta(t *testing.T) {
 // makeFlowFrame creates a test flow frame with the given seq and optional routing_id (XID).
 // Used for reorder buffer tests — mirrors Rust's make_flow_frame helper.
 func makeFlowFrame(rid MessageId, xid *MessageId, seq uint64) *Frame {
-	f := NewReq(rid, "cap:op=test", nil, "")
+	f := NewReq(rid, "cap:test", nil, "")
 	f.Seq = seq
 	if xid != nil {
 		f.RoutingId = xid
@@ -1474,7 +1474,7 @@ func Test498_routing_id_cbor_roundtrip(t *testing.T) {
 	reqId := NewMessageIdRandom()
 	routingId := NewMessageIdRandom()
 
-	frame := NewReq(reqId, `cap:in="media:void";op=test;out="media:void"`, nil, "text/plain")
+	frame := NewReq(reqId, `cap:in="media:void";test;out="media:void"`, nil, "text/plain")
 	frame.RoutingId = &routingId
 
 	encoded, err := EncodeFrame(frame)
@@ -1526,7 +1526,7 @@ func Test500_chunk_count_cbor_roundtrip(t *testing.T) {
 
 // TEST501: Frame creation initializes optional fields to nil
 func Test501_frame_new_initializes_optional_fields_none(t *testing.T) {
-	frame := NewReq(NewMessageIdRandom(), "cap:op=test", nil, "")
+	frame := NewReq(NewMessageIdRandom(), "cap:test", nil, "")
 
 	assert.Nil(t, frame.RoutingId)
 	assert.Nil(t, frame.ChunkIndex)
@@ -1735,7 +1735,7 @@ func Test513_reorder_buffer_mixed_types_same_flow(t *testing.T) {
 	rb := NewReorderBuffer(64)
 	rid := NewMessageIdRandom()
 
-	req := NewReq(rid, "cap:op=test", nil, "")
+	req := NewReq(rid, "cap:test", nil, "")
 	req.Seq = 1
 	log := NewLog(rid, "info", "test log")
 	log.Seq = 2
@@ -1884,7 +1884,7 @@ func Test520_reorder_buffer_per_flow_limit(t *testing.T) {
 
 // TEST521: RelayNotify CBOR roundtrip preserves manifest and limits
 func Test521_relay_notify_cbor_roundtrip(t *testing.T) {
-	manifest := []byte(`{"name":"Test","version":"1.0","description":"Test","cap_groups":[{"name":"default","caps":[{"urn":"cap:in=\"media:void\";op=convert;out=\"media:image\"","title":"Convert","command":"convert"}]}]}`)
+	manifest := []byte(`{"name":"Test","version":"1.0","description":"Test","cap_groups":[{"name":"default","caps":[{"urn":"cap:in=\"media:void\";convert;out=\"media:image\"","title":"Convert","command":"convert"}]}]}`)
 
 	frame := NewRelayNotify(manifest, 3_000_000, 256_000, 128)
 	encoded, err := EncodeFrame(frame)
@@ -1976,7 +1976,7 @@ func Test460_reorder_buffer_err_frame(t *testing.T) {
 	rb := NewReorderBuffer(10)
 	rid := NewMessageIdRandom()
 
-	f0 := NewReq(rid, "cap:op=test", nil, "")
+	f0 := NewReq(rid, "cap:test", nil, "")
 	f0.Seq = 0
 	rb.Accept(f0)
 

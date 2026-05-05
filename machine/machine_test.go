@@ -122,7 +122,7 @@ func strandFromSteps(steps []*planner.StrandStep, description string) *planner.S
 
 func extractCapDef() *cap.Cap {
 	return buildCap(
-		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+		`cap:in=media:pdf;extract;out="media:txt;textable"`,
 		"extract",
 		[]string{"media:pdf"},
 		`media:txt;textable`,
@@ -131,7 +131,7 @@ func extractCapDef() *cap.Cap {
 
 func embedCapDef() *cap.Cap {
 	return buildCap(
-		`cap:in=media:textable;op=embed;out="media:vec;record"`,
+		`cap:in=media:textable;embed;out="media:vec;record"`,
 		"embed",
 		[]string{"media:textable"},
 		`media:vec;record`,
@@ -142,7 +142,7 @@ func pdfToTxtStrand() *planner.Strand {
 	return strandFromSteps(
 		[]*planner.StrandStep{
 			capStep(
-				`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+				`cap:in=media:pdf;extract;out="media:txt;textable"`,
 				"extract",
 				"media:pdf",
 				`media:txt;textable`,
@@ -156,7 +156,7 @@ func txtToVecStrand() *planner.Strand {
 	return strandFromSteps(
 		[]*planner.StrandStep{
 			capStep(
-				`cap:in=media:textable;op=embed;out="media:vec;record"`,
+				`cap:in=media:textable;embed;out="media:vec;record"`,
 				"embed",
 				`media:txt;textable`,
 				`media:vec;record`,
@@ -206,10 +206,10 @@ func Test1156_FromStrandsKeepStrandsDisjoint(t *testing.T) {
 		t.Fatalf("strand 1: expected 1 edge, got %d", len(m.Strands()[1].Edges()))
 	}
 	// Strand order must match input order.
-	if !containsStr(m.Strands()[0].Edges()[0].CapUrn.String(), "op=extract") {
+	if !containsStr(m.Strands()[0].Edges()[0].CapUrn.String(), "extract") {
 		t.Errorf("strand 0 should use extract cap, got %s", m.Strands()[0].Edges()[0].CapUrn)
 	}
-	if !containsStr(m.Strands()[1].Edges()[0].CapUrn.String(), "op=embed") {
+	if !containsStr(m.Strands()[1].Edges()[0].CapUrn.String(), "embed") {
 		t.Errorf("strand 1 should use embed cap, got %s", m.Strands()[1].Edges()[0].CapUrn)
 	}
 }
@@ -311,7 +311,7 @@ func Test1160_InputOutputAnchors(t *testing.T) {
 // TEST1169: Loop markers in notation set the resolved edge loop flag on the following cap step.
 func Test1169_ForEachSetsIsLoop(t *testing.T) {
 	loopCap := buildCap(
-		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+		`cap:in=media:pdf;extract;out="media:txt;textable"`,
 		"extract",
 		[]string{"media:pdf"},
 		`media:txt;textable`,
@@ -326,7 +326,7 @@ func Test1169_ForEachSetsIsLoop(t *testing.T) {
 			MediaSpec: mediaUrn("media:pdf"),
 		},
 		capStep(
-			`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+			`cap:in=media:pdf;extract;out="media:txt;textable"`,
 			"extract",
 			"media:pdf",
 			`media:txt;textable`,
@@ -348,7 +348,7 @@ func Test1169_ForEachSetsIsLoop(t *testing.T) {
 // TEST1170: Parsing and then serializing machine notation round-trips to the canonical form.
 func Test1170_CollectIsElided(t *testing.T) {
 	loopCap := buildCap(
-		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+		`cap:in=media:pdf;extract;out="media:txt;textable"`,
 		"extract",
 		[]string{"media:pdf"},
 		`media:txt;textable`,
@@ -357,7 +357,7 @@ func Test1170_CollectIsElided(t *testing.T) {
 
 	steps := []*planner.StrandStep{
 		capStep(
-			`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+			`cap:in=media:pdf;extract;out="media:txt;textable"`,
 			"extract",
 			"media:pdf",
 			`media:txt;textable`,
@@ -388,8 +388,8 @@ func Test1170_CollectIsElided(t *testing.T) {
 // TEST1163: Parsing one connected strand yields a single machine strand with both caps connected by the shared node.
 func Test1163_ParseSingleStrandTwoCapsConnectedViaSharedNode(t *testing.T) {
 	registry := pdfExtractEmbedRegistry()
-	notation := `[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
-		`[embed cap:in=media:textable;op=embed;out="media:vec;record"]` +
+	notation := `[extract cap:in=media:pdf;extract;out="media:txt;textable"]` +
+		`[embed cap:in=media:textable;embed;out="media:vec;record"]` +
 		`[doc -> extract -> txt]` +
 		`[txt -> embed -> vec]`
 
@@ -418,21 +418,21 @@ func Test1163_ParseSingleStrandTwoCapsConnectedViaSharedNode(t *testing.T) {
 // TEST1164: Parsing two disconnected strand definitions yields two separate machine strands.
 func Test1164_ParseTwoDisconnectedStrandsYieldsTwoMachineStrands(t *testing.T) {
 	convertA := buildCap(
-		"cap:in=media:json;op=convert_a;out=media:csv",
+		"cap:in=media:json;convert-a;out=media:csv",
 		"convert_a",
 		[]string{"media:json"},
 		"media:csv",
 	)
 	convertB := buildCap(
-		"cap:in=media:html;op=convert_b;out=media:txt",
+		"cap:in=media:html;convert-b;out=media:txt",
 		"convert_b",
 		[]string{"media:html"},
 		"media:txt",
 	)
 	registry := registryWith([]*cap.Cap{convertA, convertB})
 
-	notation := `[ca cap:in=media:json;op=convert_a;out=media:csv]` +
-		`[cb cap:in=media:html;op=convert_b;out=media:txt]` +
+	notation := `[ca cap:in=media:json;convert-a;out=media:csv]` +
+		`[cb cap:in=media:html;convert-b;out=media:txt]` +
 		`[input_a -> ca -> output_a]` +
 		`[input_b -> cb -> output_b]`
 
@@ -476,7 +476,7 @@ func Test1171_ParseEmptyInputReturnsError(t *testing.T) {
 // TestParseHeadersWithNoWiringsReturnsNoEdgesError verifies the ErrNoEdges case.
 func TestParseHeadersWithNoWiringsReturnsNoEdgesError(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef()})
-	notation := `[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]`
+	notation := `[extract cap:in=media:pdf;extract;out="media:txt;textable"]`
 	_, err := ParseMachine(notation, registry)
 	if err == nil {
 		t.Fatal("expected error for headers with no wirings")
@@ -491,8 +491,8 @@ func TestParseHeadersWithNoWiringsReturnsNoEdgesError(t *testing.T) {
 // TEST1166: Duplicate header aliases are reported as syntax errors.
 func Test1166_ParseDuplicateAliasReturnsError(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef()})
-	notation := `[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
-		`[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
+	notation := `[extract cap:in=media:pdf;extract;out="media:txt;textable"]` +
+		`[extract cap:in=media:pdf;extract;out="media:txt;textable"]` +
 		`[doc -> extract -> txt]`
 	_, err := ParseMachine(notation, registry)
 	if err == nil {
@@ -522,7 +522,7 @@ func Test1167_ParseUndefinedAliasReturnsError(t *testing.T) {
 func Test1165_ParseUnknownCapInRegistryReturnsAbstractionError(t *testing.T) {
 	// Empty registry — cap won't be found during resolution.
 	registry := registryWith([]*cap.Cap{})
-	notation := `[ex cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
+	notation := `[ex cap:in=media:pdf;extract;out="media:txt;textable"]` +
 		`[doc -> ex -> txt]`
 	_, err := ParseMachine(notation, registry)
 	if err == nil {
@@ -539,7 +539,7 @@ func Test1165_ParseUnknownCapInRegistryReturnsAbstractionError(t *testing.T) {
 func Test1168_ParseNodeNameCollidesWithCapAlias(t *testing.T) {
 	registry := registryWith([]*cap.Cap{extractCapDef()})
 	// Node name 'extract' collides with cap alias 'extract'.
-	notation := `[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
+	notation := `[extract cap:in=media:pdf;extract;out="media:txt;textable"]` +
 		`[extract -> extract -> txt]`
 	_, err := ParseMachine(notation, registry)
 	if err == nil {
@@ -559,8 +559,8 @@ func Test1168_ParseNodeNameCollidesWithCapAlias(t *testing.T) {
 // TEST1173: Serializing and reparsing a machine preserves strict machine equivalence.
 func Test1173_ToMachineNotationRoundTrips(t *testing.T) {
 	registry := pdfExtractEmbedRegistry()
-	notation := `[extract cap:in=media:pdf;op=extract;out="media:txt;textable"]` +
-		`[embed cap:in=media:textable;op=embed;out="media:vec;record"]` +
+	notation := `[extract cap:in=media:pdf;extract;out="media:txt;textable"]` +
+		`[embed cap:in=media:textable;embed;out="media:vec;record"]` +
 		`[doc -> extract -> txt]` +
 		`[txt -> embed -> vec]`
 
@@ -629,13 +629,13 @@ func Test1189_StrandEquivalenceWithDifferentNodeAllocationOrders(t *testing.T) {
 
 	// A two-step chain: extract then embed.
 	twoStepCap := buildCap(
-		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+		`cap:in=media:pdf;extract;out="media:txt;textable"`,
 		"extract",
 		[]string{"media:pdf"},
 		`media:txt;textable`,
 	)
 	twoStepEmbed := buildCap(
-		`cap:in=media:textable;op=embed;out="media:vec;record"`,
+		`cap:in=media:textable;embed;out="media:vec;record"`,
 		"embed",
 		[]string{"media:textable"},
 		`media:vec;record`,
@@ -644,8 +644,8 @@ func Test1189_StrandEquivalenceWithDifferentNodeAllocationOrders(t *testing.T) {
 
 	twoStepStrand := strandFromSteps(
 		[]*planner.StrandStep{
-			capStep(`cap:in=media:pdf;op=extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
-			capStep(`cap:in=media:textable;op=embed;out="media:vec;record"`, "embed", `media:txt;textable`, `media:vec;record`),
+			capStep(`cap:in=media:pdf;extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
+			capStep(`cap:in=media:textable;embed;out="media:vec;record"`, "embed", `media:txt;textable`, `media:vec;record`),
 		},
 		"extract then embed",
 	)
@@ -667,19 +667,19 @@ func Test1189_StrandEquivalenceWithDifferentNodeAllocationOrders(t *testing.T) {
 // cap URNs are not equivalent.
 // TEST1187: Strand resolution fails when a referenced cap is not found in the registry.
 func Test1187_StrandNonEquivalenceDifferentCap(t *testing.T) {
-	cap1 := buildCap("cap:in=media:pdf;op=extract;out=media:txt", "extract", []string{"media:pdf"}, "media:txt")
-	cap2 := buildCap("cap:in=media:pdf;op=convert;out=media:txt", "convert", []string{"media:pdf"}, "media:txt")
+	cap1 := buildCap("cap:in=media:pdf;extract;out=media:txt", "extract", []string{"media:pdf"}, "media:txt")
+	cap2 := buildCap("cap:in=media:pdf;convert;out=media:txt", "convert", []string{"media:pdf"}, "media:txt")
 	reg1 := registryWith([]*cap.Cap{cap1})
 	reg2 := registryWith([]*cap.Cap{cap2})
 
 	s1, err1 := FromStrand(
 		strandFromSteps([]*planner.StrandStep{
-			capStep("cap:in=media:pdf;op=extract;out=media:txt", "extract", "media:pdf", "media:txt"),
+			capStep("cap:in=media:pdf;extract;out=media:txt", "extract", "media:pdf", "media:txt"),
 		}, "s1"), reg1,
 	)
 	s2, err2 := FromStrand(
 		strandFromSteps([]*planner.StrandStep{
-			capStep("cap:in=media:pdf;op=convert;out=media:txt", "convert", "media:pdf", "media:txt"),
+			capStep("cap:in=media:pdf;convert;out=media:txt", "convert", "media:pdf", "media:txt"),
 		}, "s2"), reg2,
 	)
 	if err1 != nil || err2 != nil {
@@ -694,7 +694,7 @@ func Test1187_StrandNonEquivalenceDifferentCap(t *testing.T) {
 // Smoke test the registry-threaded API end-to-end.
 func Test1119_FromStrand_returns_single_strand_machine(t *testing.T) {
 	c := buildCap(
-		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+		`cap:in=media:pdf;extract;out="media:txt;textable"`,
 		"Extract",
 		[]string{"media:pdf"},
 		`media:txt;textable`,
@@ -702,7 +702,7 @@ func Test1119_FromStrand_returns_single_strand_machine(t *testing.T) {
 	registry := registryWith([]*cap.Cap{c})
 
 	strand := strandFromSteps([]*planner.StrandStep{
-		capStep(`cap:in=media:pdf;op=extract;out="media:txt;textable"`, "Extract", "media:pdf", `media:txt;textable`),
+		capStep(`cap:in=media:pdf;extract;out="media:txt;textable"`, "Extract", "media:pdf", `media:txt;textable`),
 	}, "pdf to txt")
 
 	machine, err := FromStrand(strand, registry)
@@ -724,7 +724,7 @@ func Test1120_FromStrand_unknown_cap_fails_hard(t *testing.T) {
 	registry := registryWith(nil) // empty registry — no caps
 
 	strand := strandFromSteps([]*planner.StrandStep{
-		capStep(`cap:in=media:pdf;op=ghost;out="media:txt;textable"`, "Ghost", "media:pdf", `media:txt;textable`),
+		capStep(`cap:in=media:pdf;ghost;out="media:txt;textable"`, "Ghost", "media:pdf", `media:txt;textable`),
 	}, "ghost strand")
 
 	_, err := FromStrand(strand, registry)
@@ -788,8 +788,8 @@ func Test1174_line_based_format_round_trips(t *testing.T) {
 	registry := pdfExtractEmbedRegistry()
 
 	strand := strandFromSteps([]*planner.StrandStep{
-		capStep(`cap:in=media:pdf;op=extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
-		capStep(`cap:in=media:textable;op=embed;out="media:vec;record"`, "embed", `media:txt;textable`, `media:vec;record`),
+		capStep(`cap:in=media:pdf;extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
+		capStep(`cap:in=media:textable;embed;out="media:vec;record"`, "embed", `media:txt;textable`, `media:vec;record`),
 	}, "pdf to vec")
 
 	m1, aerr := FromStrand(strand, registry)
@@ -815,7 +815,7 @@ func Test1174_line_based_format_round_trips(t *testing.T) {
 func Test1178_match_single_source_picks_unique_arg(t *testing.T) {
 	sources := []*urn.MediaUrn{mediaUrn("media:pdf")}
 	args := []*urn.MediaUrn{mediaUrn("media:pdf")}
-	capUrnStr := `cap:in=media:pdf;op=extract;out="media:txt;textable"`
+	capUrnStr := `cap:in=media:pdf;extract;out="media:txt;textable"`
 
 	pairs, err := matchSourcesToArgs(sources, args, capUrnStr, 0)
 	require.Nil(t, err, "trivial single-source match must succeed")
@@ -828,7 +828,7 @@ func Test1178_match_single_source_picks_unique_arg(t *testing.T) {
 func Test1179_match_more_specific_source_assigned_to_general_arg(t *testing.T) {
 	sources := []*urn.MediaUrn{mediaUrn("media:page;textable")}
 	args := []*urn.MediaUrn{mediaUrn("media:textable")}
-	capUrnStr := `cap:in=media:textable;op=make_decision;out="media:decision;textable"`
+	capUrnStr := `cap:in=media:textable;make-decision;out="media:decision;textable"`
 
 	pairs, err := matchSourcesToArgs(sources, args, capUrnStr, 0)
 	require.Nil(t, err, "more-specific source must be matched to its arg")
@@ -841,7 +841,7 @@ func Test1179_match_more_specific_source_assigned_to_general_arg(t *testing.T) {
 func Test1180_match_unmatched_source_fails_hard(t *testing.T) {
 	sources := []*urn.MediaUrn{mediaUrn("media:numeric")}
 	args := []*urn.MediaUrn{mediaUrn("media:textable")}
-	capUrnStr := "cap:in=media:textable;op=t;out=media:textable"
+	capUrnStr := "cap:in=media:textable;t;out=media:textable"
 
 	_, err := matchSourcesToArgs(sources, args, capUrnStr, 7)
 	require.NotNil(t, err, "unmatched source must fail hard")
@@ -852,7 +852,7 @@ func Test1180_match_unmatched_source_fails_hard(t *testing.T) {
 func Test1181_match_two_sources_disambiguated_by_specificity(t *testing.T) {
 	sources := []*urn.MediaUrn{mediaUrn("media:image;png"), mediaUrn("media:model-spec;textable")}
 	args := []*urn.MediaUrn{mediaUrn("media:image;png"), mediaUrn("media:textable")}
-	capUrnStr := `cap:in="media:image;png";op=describe;out="media:image-description;textable"`
+	capUrnStr := `cap:in="media:image;png";describe;out="media:image-description;textable"`
 
 	pairs, err := matchSourcesToArgs(sources, args, capUrnStr, 0)
 	require.Nil(t, err, "two sources disambiguated by specificity must succeed")
@@ -876,7 +876,7 @@ func Test1181_match_two_sources_disambiguated_by_specificity(t *testing.T) {
 func Test1182_match_ambiguous_when_two_sources_could_swap(t *testing.T) {
 	sources := []*urn.MediaUrn{mediaUrn("media:textable"), mediaUrn("media:textable")}
 	args := []*urn.MediaUrn{mediaUrn("media:textable"), mediaUrn("media:textable")}
-	capUrnStr := "cap:in=media:textable;op=t;out=media:textable"
+	capUrnStr := "cap:in=media:textable;t;out=media:textable"
 
 	_, err := matchSourcesToArgs(sources, args, capUrnStr, 0)
 	require.NotNil(t, err, "ambiguous matching must fail hard")
@@ -887,7 +887,7 @@ func Test1182_match_ambiguous_when_two_sources_could_swap(t *testing.T) {
 func Test1183_match_more_sources_than_args_fails_hard(t *testing.T) {
 	sources := []*urn.MediaUrn{mediaUrn("media:pdf"), mediaUrn("media:pdf"), mediaUrn("media:pdf")}
 	args := []*urn.MediaUrn{mediaUrn("media:pdf"), mediaUrn("media:pdf")}
-	capUrnStr := "cap:in=media:pdf;op=t;out=media:pdf"
+	capUrnStr := "cap:in=media:pdf;t;out=media:pdf"
 
 	_, err := matchSourcesToArgs(sources, args, capUrnStr, 0)
 	require.NotNil(t, err, "more sources than args must fail hard")
@@ -897,14 +897,14 @@ func Test1183_match_more_sources_than_args_fails_hard(t *testing.T) {
 // TEST1184: resolveStrand with one cap produces one edge with correct input/output anchors.
 func Test1184_resolve_strand_single_cap_produces_one_edge(t *testing.T) {
 	c := buildCap(
-		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+		`cap:in=media:pdf;extract;out="media:txt;textable"`,
 		"extract",
 		[]string{"media:pdf"},
 		`media:txt;textable`,
 	)
 	registry := registryWith([]*cap.Cap{c})
 	strand := strandFromSteps([]*planner.StrandStep{
-		capStep(`cap:in=media:pdf;op=extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
+		capStep(`cap:in=media:pdf;extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
 	}, "pdf to txt")
 
 	resolved, err := resolveStrand(strand, registry, 0)
@@ -930,8 +930,8 @@ func Test1184_resolve_strand_single_cap_produces_one_edge(t *testing.T) {
 func Test1185_resolve_strand_chained_caps_share_intermediate_node(t *testing.T) {
 	registry := pdfExtractEmbedRegistry()
 	strand := strandFromSteps([]*planner.StrandStep{
-		capStep(`cap:in=media:pdf;op=extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
-		capStep(`cap:in=media:textable;op=embed;out="media:vec;record"`, "embed", `media:txt;textable`, `media:vec;record`),
+		capStep(`cap:in=media:pdf;extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
+		capStep(`cap:in=media:textable;embed;out="media:vec;record"`, "embed", `media:txt;textable`, `media:vec;record`),
 	}, "pdf to vec")
 
 	resolved, err := resolveStrand(strand, registry, 0)
@@ -957,13 +957,13 @@ func Test1185_resolve_strand_chained_caps_share_intermediate_node(t *testing.T) 
 // TEST1186: resolveStrand with ForEach marks the following cap edge as IsLoop=true.
 func Test1186_resolve_strand_foreach_marks_following_cap_as_loop(t *testing.T) {
 	disbind := buildCap(
-		`cap:in=media:pdf;op=disbind;out="media:page;textable"`,
+		`cap:in=media:pdf;disbind;out="media:page;textable"`,
 		"disbind",
 		[]string{"media:pdf"},
 		`media:page;textable`,
 	)
 	makeDecision := buildCap(
-		`cap:in=media:textable;op=make_decision;out="media:decision;json;record;textable"`,
+		`cap:in=media:textable;make-decision;out="media:decision;json;record;textable"`,
 		"make_decision",
 		[]string{"media:textable"},
 		`media:decision;json;record;textable`,
@@ -971,9 +971,9 @@ func Test1186_resolve_strand_foreach_marks_following_cap_as_loop(t *testing.T) {
 	registry := registryWith([]*cap.Cap{disbind, makeDecision})
 
 	strand := strandFromSteps([]*planner.StrandStep{
-		capStep(`cap:in=media:pdf;op=disbind;out="media:page;textable"`, "disbind", "media:pdf", `media:page;textable`),
+		capStep(`cap:in=media:pdf;disbind;out="media:page;textable"`, "disbind", "media:pdf", `media:page;textable`),
 		foreachStep(`media:page;textable`),
-		capStep(`cap:in=media:textable;op=make_decision;out="media:decision;json;record;textable"`, "make_decision", `media:textable`, `media:decision;json;record;textable`),
+		capStep(`cap:in=media:textable;make-decision;out="media:decision;json;record;textable"`, "make_decision", `media:textable`, `media:decision;json;record;textable`),
 		collectStep(`media:decision;json;record;textable`),
 	}, "disbind+foreach+make_decision")
 
@@ -1020,13 +1020,13 @@ func Test1188_resolve_strand_no_cap_steps_fails_hard(t *testing.T) {
 // TEST1190: resolveStrand with inverse format converters produces 3 distinct nodes, no cycle.
 func Test1190_resolve_strand_inverse_format_converters_no_cycle(t *testing.T) {
 	toInt := buildCap(
-		`cap:in="media:numeric;textable";op=coerce_int;out="media:integer;numeric;textable"`,
+		`cap:in="media:numeric;textable";coerce-int;out="media:integer;numeric;textable"`,
 		"coerce_int",
 		[]string{`media:numeric;textable`},
 		`media:integer;numeric;textable`,
 	)
 	toNum := buildCap(
-		`cap:in="media:integer;numeric;textable";op=coerce_num;out="media:numeric;textable"`,
+		`cap:in="media:integer;numeric;textable";coerce-num;out="media:numeric;textable"`,
 		"coerce_num",
 		[]string{`media:integer;numeric;textable`},
 		`media:numeric;textable`,
@@ -1034,8 +1034,8 @@ func Test1190_resolve_strand_inverse_format_converters_no_cycle(t *testing.T) {
 	registry := registryWith([]*cap.Cap{toInt, toNum})
 
 	strand := strandFromSteps([]*planner.StrandStep{
-		capStep(`cap:in="media:numeric;textable";op=coerce_int;out="media:integer;numeric;textable"`, "coerce_int", `media:numeric;textable`, `media:integer;numeric;textable`),
-		capStep(`cap:in="media:integer;numeric;textable";op=coerce_num;out="media:numeric;textable"`, "coerce_num", `media:integer;numeric;textable`, `media:numeric;textable`),
+		capStep(`cap:in="media:numeric;textable";coerce-int;out="media:integer;numeric;textable"`, "coerce_int", `media:numeric;textable`, `media:integer;numeric;textable`),
+		capStep(`cap:in="media:integer;numeric;textable";coerce-num;out="media:numeric;textable"`, "coerce_num", `media:integer;numeric;textable`, `media:numeric;textable`),
 	}, "round-trip numeric coercion")
 
 	resolved, err := resolveStrand(strand, registry, 0)
@@ -1060,7 +1060,7 @@ func Test1191_resolve_strand_disbind_pdf_with_file_path_slot_identity(t *testing
 	filePathSlot := "media:file-path;textable"
 	stdinUrn := "media:pdf"
 	disbind := &cap.Cap{
-		Urn:     capUrnVal(`cap:in=media:pdf;op=disbind;out="media:textable;page"`),
+		Urn:     capUrnVal(`cap:in=media:pdf;disbind;out="media:textable;page"`),
 		Title:   "disbind",
 		Command: "disbind",
 		Args: []cap.CapArg{
@@ -1071,7 +1071,7 @@ func Test1191_resolve_strand_disbind_pdf_with_file_path_slot_identity(t *testing
 	registry := registryWith([]*cap.Cap{disbind})
 
 	strand := strandFromSteps([]*planner.StrandStep{
-		capStep(`cap:in=media:pdf;op=disbind;out="media:textable;page"`, "disbind", "media:pdf", `media:textable;page`),
+		capStep(`cap:in=media:pdf;disbind;out="media:textable;page"`, "disbind", "media:pdf", `media:textable;page`),
 	}, "pdf to pages")
 
 	resolved, err := resolveStrand(strand, registry, 0)
@@ -1095,8 +1095,8 @@ func Test1176_render_payload_json_includes_strand_with_anchors(t *testing.T) {
 	registry := pdfExtractEmbedRegistry()
 
 	strand := strandFromSteps([]*planner.StrandStep{
-		capStep(`cap:in=media:pdf;op=extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
-		capStep(`cap:in=media:textable;op=embed;out="media:vec;record"`, "embed", `media:txt;textable`, `media:vec;record`),
+		capStep(`cap:in=media:pdf;extract;out="media:txt;textable"`, "extract", "media:pdf", `media:txt;textable`),
+		capStep(`cap:in=media:textable;embed;out="media:vec;record"`, "embed", `media:txt;textable`, `media:vec;record`),
 	}, "pdf to vec")
 
 	m, aerr := FromStrand(strand, registry)
@@ -1121,10 +1121,10 @@ func Test1176_render_payload_json_includes_strand_with_anchors(t *testing.T) {
 	if !containsStr(payload, `"output_anchor_nodes":[`) {
 		t.Errorf("payload must contain output_anchor_nodes, got: %q", payload)
 	}
-	if !containsStr(payload, "op=extract") {
+	if !containsStr(payload, "extract") {
 		t.Errorf("payload must contain extract cap URN, got: %q", payload)
 	}
-	if !containsStr(payload, "op=embed") {
+	if !containsStr(payload, "embed") {
 		t.Errorf("payload must contain embed cap URN, got: %q", payload)
 	}
 }
@@ -1144,13 +1144,13 @@ func Test1177_render_payload_for_empty_machine_has_empty_strands_array(t *testin
 
 func pdfExtractEmbedRegistry() *cap.CapRegistry {
 	extract := buildCap(
-		`cap:in=media:pdf;op=extract;out="media:txt;textable"`,
+		`cap:in=media:pdf;extract;out="media:txt;textable"`,
 		"extract",
 		[]string{"media:pdf"},
 		`media:txt;textable`,
 	)
 	embed := buildCap(
-		`cap:in=media:textable;op=embed;out="media:vec;record"`,
+		`cap:in=media:textable;embed;out="media:vec;record"`,
 		"embed",
 		[]string{"media:textable"},
 		`media:vec;record`,

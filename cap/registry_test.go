@@ -34,9 +34,9 @@ func Test136_cache_key_generation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Use URNs with required in/out
-	urn1 := `cap:in="media:void";op=extract;out="media:json;record;textable;target=metadata"`
-	urn2 := `cap:in="media:void";op=extract;out="media:json;record;textable;target=metadata"`
-	urn3 := `cap:in="media:void";op=different;out="media:json;record;textable"`
+	urn1 := `cap:in="media:void";extract;out="media:json;record;textable;target=metadata"`
+	urn2 := `cap:in="media:void";extract;out="media:json;record;textable;target=metadata"`
+	urn3 := `cap:in="media:void";different;out="media:json;record;textable"`
 
 	key1 := registry.cacheKey(urn1)
 	key2 := registry.cacheKey(urn2)
@@ -51,7 +51,7 @@ func TestRegistryGetCap(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test with a fake URN that won't exist (still needs in/out)
-	testUrn := regTestUrn("op=test;target=fake")
+	testUrn := regTestUrn("test;target=fake")
 
 	_, err = registry.GetCap(testUrn)
 	// Should get an error since the cap doesn't exist
@@ -64,7 +64,7 @@ func TestRegistryValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a test cap
-	capUrn, err := urn.NewCapUrnFromString(regTestUrn("op=test;target=fake"))
+	capUrn, err := urn.NewCapUrnFromString(regTestUrn("test;target=fake"))
 	require.NoError(t, err)
 	cap := NewCap(capUrn, "Test Command", "test-cmd")
 
@@ -85,7 +85,7 @@ func TestCacheOperations(t *testing.T) {
 // TEST137: Test parsing registry JSON without stdin args verifies cap structure
 func Test137_parse_registry_json(t *testing.T) {
 	// JSON without stdin args - means cap doesn't accept stdin
-	jsonData := `{"urn":"cap:in=\"media:listing-id\";op=use_grinder;out=\"media:task;id\"","command":"grinder_task","title":"Create Grinder Tool Task","cap_description":"Create a task for initial document analysis - first glance phase","metadata":{},"media_specs":[{"urn":"media:listing-id","media_type":"text/plain","title":"Listing ID","profile_uri":"https://machinefabric.com/schema/listing-id","schema":{"type":"string","pattern":"[0-9a-f-]{36}","description":"MachineFabric listing UUID"}},{"urn":"media:task;id","media_type":"application/json","title":"Task ID","profile_uri":"https://capdag.com/schema/grinder_task-output","schema":{"type":"object","additionalProperties":false,"properties":{"task_id":{"type":"string","description":"ID of the created task"},"task_type":{"type":"string","description":"Type of task created"}},"required":["task_id","task_type"]}}],"args":[{"media_urn":"media:listing-id","required":true,"sources":[{"cli_flag":"--listing-id"}],"arg_description":"ID of the listing to analyze"}],"output":{"media_urn":"media:task;id","output_description":"Created task information"},"registered_by":{"username":"joeharshamshiri","registered_at":"2026-01-15T00:44:29.851Z"}}`
+	jsonData := `{"urn":"cap:in=\"media:listing-id\";use-grinder;out=\"media:task;id\"","command":"grinder_task","title":"Create Grinder Tool Task","cap_description":"Create a task for initial document analysis - first glance phase","metadata":{},"media_specs":[{"urn":"media:listing-id","media_type":"text/plain","title":"Listing ID","profile_uri":"https://machinefabric.com/schema/listing-id","schema":{"type":"string","pattern":"[0-9a-f-]{36}","description":"MachineFabric listing UUID"}},{"urn":"media:task;id","media_type":"application/json","title":"Task ID","profile_uri":"https://capdag.com/schema/grinder_task-output","schema":{"type":"object","additionalProperties":false,"properties":{"task_id":{"type":"string","description":"ID of the created task"},"task_type":{"type":"string","description":"Type of task created"}},"required":["task_id","task_type"]}}],"args":[{"media_urn":"media:listing-id","required":true,"sources":[{"cli_flag":"--listing-id"}],"arg_description":"ID of the listing to analyze"}],"output":{"media_urn":"media:task;id","output_description":"Created task information"},"registered_by":{"username":"joeharshamshiri","registered_at":"2026-01-15T00:44:29.851Z"}}`
 
 	var registryResp RegistryCapResponse
 	err := json.Unmarshal([]byte(jsonData), &registryResp)
@@ -101,7 +101,7 @@ func Test137_parse_registry_json(t *testing.T) {
 // TEST138: Test parsing registry JSON with stdin args verifies stdin media URN extraction
 func Test138_parse_registry_json_with_stdin(t *testing.T) {
 	// JSON with stdin args - means cap accepts stdin of specified media type
-	jsonData := `{"urn":"cap:in=\"media:pdf\";op=disbind;out=\"media:textable;page\"","command":"disbind","title":"Disbind PDF","args":[{"media_urn":"media:pdf","required":true,"sources":[{"stdin":"media:pdf"}]}]}`
+	jsonData := `{"urn":"cap:in=\"media:pdf\";disbind;out=\"media:textable;page\"","command":"disbind","title":"Disbind PDF","args":[{"media_urn":"media:pdf","required":true,"sources":[{"stdin":"media:pdf"}]}]}`
 
 	var registryResp RegistryCapResponse
 	err := json.Unmarshal([]byte(jsonData), &registryResp)
@@ -121,7 +121,7 @@ func TestCapExists(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test with a URN that doesn't exist
-	exists := registry.CapExists(regTestUrn("op=nonexistent;target=fake"))
+	exists := registry.CapExists(regTestUrn("nonexistent;target=fake"))
 	assert.False(t, exists)
 }
 
@@ -140,7 +140,7 @@ func buildRegistryURL(capUrn string) string {
 
 // TEST139: Test URL construction keeps cap prefix literal and only encodes tags part
 func Test139_url_keeps_cap_prefix_literal(t *testing.T) {
-	urn := `cap:in="media:string";op=test;out="media:object"`
+	urn := `cap:in="media:string";test;out="media:object"`
 	registryURL := buildRegistryURL(urn)
 
 	// URL must contain literal "/cap:" not encoded
@@ -152,7 +152,7 @@ func Test139_url_keeps_cap_prefix_literal(t *testing.T) {
 // TEST140: Test URL encodes media URNs with proper percent encoding for special characters
 func Test140_url_encodes_media_urns(t *testing.T) {
 	// Colons don't need quoting, so the canonical form won't have quotes
-	urn := `cap:in=media:listing-id;op=use_grinder;out=media:task;id`
+	urn := `cap:in=media:listing-id;use-grinder;out=media:task;id`
 	registryURL := buildRegistryURL(urn)
 
 	// URL should contain the media URN values
@@ -164,7 +164,7 @@ func Test140_url_encodes_media_urns(t *testing.T) {
 // TEST141: Test exact URL format contains properly encoded media URN components
 func Test141_url_format_is_valid(t *testing.T) {
 	// Colons don't need quoting, so the canonical form won't have quotes
-	urn := `cap:in=media:listing-id;op=use_grinder;out=media:task;id`
+	urn := `cap:in=media:listing-id;use-grinder;out=media:task;id`
 	registryURL := buildRegistryURL(urn)
 
 	// URL should be parseable
@@ -180,7 +180,7 @@ func Test141_url_format_is_valid(t *testing.T) {
 
 // TEST142: Test normalize handles different tag orders producing same canonical form
 func Test142_normalize_handles_different_tag_orders(t *testing.T) {
-	urn1 := `cap:op=test;in="media:string";out="media:object"`
+	urn1 := `cap:test;in="media:string";out="media:object"`
 	urn2 := `cap:in="media:string";out="media:object";op=test`
 
 	url1 := buildRegistryURL(urn1)
