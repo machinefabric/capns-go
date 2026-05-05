@@ -57,6 +57,34 @@ const (
 	CartridgeAttachmentErrorKindIdentityRejected  CartridgeAttachmentErrorKind = "identity_rejected"
 	CartridgeAttachmentErrorKindEntryPointMissing CartridgeAttachmentErrorKind = "entry_point_missing"
 	CartridgeAttachmentErrorKindQuarantined       CartridgeAttachmentErrorKind = "quarantined"
+	// CartridgeAttachmentErrorKindBadInstallation: the on-disk install
+	// context (slug folder, channel folder, name/version directory
+	// components) disagrees with what cartridge.json declares. The
+	// cartridge is structurally well-formed but cannot be trusted
+	// because its placement on disk does not match what it claims to
+	// be. Hosts grace-period the offending directory and then delete
+	// it; the record is surfaced so the operator sees what landed
+	// where before it disappears.
+	CartridgeAttachmentErrorKindBadInstallation CartridgeAttachmentErrorKind = "bad_installation"
+	// CartridgeAttachmentErrorKindDisabled: the operator explicitly
+	// disabled this cartridge through the host UI. The cartridge is
+	// on disk and would otherwise have attached cleanly; the host
+	// treats it as if the binary were yanked out of the system.
+	// Re-enabling is a UI-driven operator action. Enforced at the
+	// host level (machfab-mac's XPC service); the engine doesn't act
+	// on it differently from any other failed attachment, but
+	// preserves the kind so consumers can render the right reason
+	// and offer the right recovery action.
+	CartridgeAttachmentErrorKindDisabled CartridgeAttachmentErrorKind = "disabled"
+	// CartridgeAttachmentErrorKindRegistryUnreachable: the cartridge
+	// declares a non-null registry_url, but the host could not reach
+	// that registry to verify the cartridge is listed. Distinct from
+	// BadInstallation (= registry confirmed the version is missing) —
+	// Unreachable means we don't know. Recovery action is "check
+	// network + retry" rather than "rebuild as dev". The cartridge
+	// is held back from attaching until verification succeeds; the
+	// UI shows the actionable reason.
+	CartridgeAttachmentErrorKindRegistryUnreachable CartridgeAttachmentErrorKind = "registry_unreachable"
 )
 
 // CartridgeAttachmentError carries the details of a failed cartridge attachment.
@@ -65,6 +93,37 @@ type CartridgeAttachmentError struct {
 	Message               string                       `json:"message"`
 	DetectedAtUnixSeconds int64                        `json:"detected_at_unix_seconds"`
 }
+
+// CartridgeLifecycle is the positive lifecycle phase that runs
+// BEFORE a cartridge becomes dispatchable. See
+// `machfab-mac/docs/cartridge state machine.md` for the canonical
+// state diagram. Mutually exclusive with the AttachmentError on
+// InstalledCartridgeRecord: when the cartridge has a failed
+// terminal classification, AttachmentError is set and Lifecycle is
+// irrelevant. When AttachmentError is nil, Lifecycle carries the
+// in-progress phase and the cartridge is dispatchable iff
+// Lifecycle == CartridgeLifecycleOperational.
+type CartridgeLifecycle string
+
+const (
+	// CartridgeLifecycleDiscovered: discovery scan has found the
+	// version directory and is about to inspect it. Transient.
+	CartridgeLifecycleDiscovered CartridgeLifecycle = "discovered"
+	// CartridgeLifecycleInspecting: reading cartridge.json,
+	// computing directory hash, validating on-disk install
+	// context. Hashing can take seconds for large model
+	// cartridges; runs on a background queue so other
+	// cartridges' inspections proceed in parallel.
+	CartridgeLifecycleInspecting CartridgeLifecycle = "inspecting"
+	// CartridgeLifecycleVerifying: inspection succeeded; awaiting
+	// a verdict from the registry verifier service. Skipped for
+	// dev cartridges (registry_url == nil) and bundle cartridges.
+	CartridgeLifecycleVerifying CartridgeLifecycle = "verifying"
+	// CartridgeLifecycleOperational: cleared every gate. Caps are
+	// registered with the engine and dispatch can route requests
+	// to this cartridge.
+	CartridgeLifecycleOperational CartridgeLifecycle = "operational"
+)
 
 // CartridgeRuntimeStats holds live statistics for a managed cartridge.
 type CartridgeRuntimeStats struct {
@@ -83,7 +142,7 @@ func NotRunning() CartridgeRuntimeStats {
 	return CartridgeRuntimeStats{Running: false}
 }
 
-// InstalledCartridgeIdentity represents the identity of an installed
+// InstalledCartridgeRecord represents the identity of an installed
 // cartridge. `(RegistryURL, Channel, Id, Version)` is the
 // cartridge's full identity — installs of the same id from
 // different registries × channels are distinct artifacts that
@@ -95,7 +154,7 @@ func NotRunning() CartridgeRuntimeStats {
 // byte-wise; never normalized. The JSON field is required-but-
 // nullable: missing key is a parse error so old-schema payloads
 // surface immediately.
-type InstalledCartridgeIdentity struct {
+type InstalledCartridgeRecord struct {
 	RegistryURL *string `json:"registry_url"`
 	Id          string  `json:"id"`
 	Channel     string  `json:"channel"`
@@ -109,11 +168,31 @@ type InstalledCartridgeIdentity struct {
 	CapGroups       []CapGroup                `json:"cap_groups,omitempty"`
 	AttachmentError *CartridgeAttachmentError `json:"attachment_error,omitempty"`
 	RuntimeStats    *CartridgeRuntimeStats    `json:"runtime_stats,omitempty"`
+	// Lifecycle is the positive lifecycle phase. Mutually
+	// exclusive with AttachmentError: when AttachmentError != nil
+	// this field is irrelevant. When AttachmentError == nil, the
+	// cartridge is dispatchable iff Lifecycle ==
+	// CartridgeLifecycleOperational. Defaults (empty string) to
+	// CartridgeLifecycleDiscovered on the wire so a producer that
+	// forgets to set it never accidentally appears as Operational.
+	Lifecycle CartridgeLifecycle `json:"lifecycle,omitempty"`
+}
+
+// EffectiveLifecycle returns the lifecycle phase, defaulting to
+// CartridgeLifecycleDiscovered when the field is empty (producer
+// forgot to set it). Callers SHOULD use this rather than reading
+// Lifecycle directly so an unset field cannot be mistaken for
+// CartridgeLifecycleOperational.
+func (i *InstalledCartridgeRecord) EffectiveLifecycle() CartridgeLifecycle {
+	if i.Lifecycle == "" {
+		return CartridgeLifecycleDiscovered
+	}
+	return i.Lifecycle
 }
 
 // CapURNs returns the flat de-duplicated cap-URN list across this
 // cartridge's groups, preserving first-seen order. Computed view.
-func (i *InstalledCartridgeIdentity) CapURNs() []string {
+func (i *InstalledCartridgeRecord) CapURNs() []string {
 	seen := make(map[string]struct{}, 0)
 	out := make([]string, 0)
 	for _, group := range i.CapGroups {
@@ -132,8 +211,8 @@ func (i *InstalledCartridgeIdentity) CapURNs() []string {
 // UnmarshalJSON enforces "required-but-nullable" for RegistryURL
 // (see CartridgeJson.UnmarshalJSON for the same pattern). Missing
 // key is rejected.
-func (i *InstalledCartridgeIdentity) UnmarshalJSON(data []byte) error {
-	type rawIdentity InstalledCartridgeIdentity
+func (i *InstalledCartridgeRecord) UnmarshalJSON(data []byte) error {
+	type rawIdentity InstalledCartridgeRecord
 	var raw rawIdentity
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
@@ -144,17 +223,17 @@ func (i *InstalledCartridgeIdentity) UnmarshalJSON(data []byte) error {
 	}
 	if _, present := asMap["registry_url"]; !present {
 		return errors.New(
-			"InstalledCartridgeIdentity is missing required `registry_url` field. " +
+			"InstalledCartridgeRecord is missing required `registry_url` field. " +
 				"It must be present, with value null for dev installs or " +
 				"a URL string for registry installs.")
 	}
-	*i = InstalledCartridgeIdentity(raw)
+	*i = InstalledCartridgeRecord(raw)
 	return nil
 }
 
 // RegistrySlug returns the on-disk slug derived from RegistryURL.
 // nil → DevSlug; non-nil → SlugFor(*RegistryURL).
-func (i *InstalledCartridgeIdentity) RegistrySlug() string {
+func (i *InstalledCartridgeRecord) RegistrySlug() string {
 	return SlugFor(i.RegistryURL)
 }
 
@@ -162,7 +241,7 @@ func (i *InstalledCartridgeIdentity) RegistrySlug() string {
 // The flat cap-urn list is no longer carried on the wire — consumers derive
 // it from `InstalledCartridges[*].CapGroups` via `CapURNs()`.
 type RelayNotifyCapabilitiesPayload struct {
-	InstalledCartridges []InstalledCartridgeIdentity `json:"installed_cartridges"`
+	InstalledCartridges []InstalledCartridgeRecord `json:"installed_cartridges"`
 }
 
 // CapURNs returns the flat de-duplicated cap-URN union across every
@@ -195,7 +274,7 @@ type MasterConnection struct {
 	manifest            []byte
 	limits              Limits
 	caps                []string
-	installedCartridges []InstalledCartridgeIdentity
+	installedCartridges []InstalledCartridgeRecord
 	healthy             bool
 }
 
@@ -212,7 +291,7 @@ type RelaySwitch struct {
 	peerRequests                 map[string]bool
 	peerCallParents              map[string][]peerCallChild // parent key → list of child peer calls
 	capabilities                 []byte
-	aggregateInstalledCartridges []InstalledCartridgeIdentity
+	aggregateInstalledCartridges []InstalledCartridgeRecord
 	negotiatedLimits             Limits
 	frameRx                      chan MasterFrame
 	mu                           sync.Mutex
@@ -322,7 +401,7 @@ func NewRelaySwitch(sockets []SocketPair) (*RelaySwitch, error) {
 		requestRouting:               make(map[string]*RoutingEntry),
 		peerRequests:                 make(map[string]bool),
 		peerCallParents:              make(map[string][]peerCallChild),
-		aggregateInstalledCartridges: []InstalledCartridgeIdentity{},
+		aggregateInstalledCartridges: []InstalledCartridgeRecord{},
 		frameRx:                      frameRx,
 	}
 
@@ -349,10 +428,10 @@ func (sw *RelaySwitch) Capabilities() []byte {
 }
 
 // InstalledCartridges returns the aggregate installed cartridge identities of all healthy masters
-func (sw *RelaySwitch) InstalledCartridges() []InstalledCartridgeIdentity {
+func (sw *RelaySwitch) InstalledCartridges() []InstalledCartridgeRecord {
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
-	result := make([]InstalledCartridgeIdentity, len(sw.aggregateInstalledCartridges))
+	result := make([]InstalledCartridgeRecord, len(sw.aggregateInstalledCartridges))
 	copy(result, sw.aggregateInstalledCartridges)
 	return result
 }
@@ -767,7 +846,7 @@ func (sw *RelaySwitch) rebuildCapTable() {
 // rebuildInstalledCartridges rebuilds aggregate installed cartridge identities
 func (sw *RelaySwitch) rebuildInstalledCartridges() {
 	seen := make(map[string]bool)
-	result := []InstalledCartridgeIdentity{}
+	result := []InstalledCartridgeRecord{}
 	for _, master := range sw.masters {
 		if master.healthy {
 			for _, ic := range master.installedCartridges {
@@ -788,7 +867,7 @@ func (sw *RelaySwitch) rebuildInstalledCartridges() {
 // the engine sees one combined view.
 func (sw *RelaySwitch) rebuildCapabilities() {
 	manifest := RelayNotifyCapabilitiesPayload{
-		InstalledCartridges: append([]InstalledCartridgeIdentity{}, sw.aggregateInstalledCartridges...),
+		InstalledCartridges: append([]InstalledCartridgeRecord{}, sw.aggregateInstalledCartridges...),
 	}
 	data, _ := json.Marshal(manifest)
 	sw.capabilities = data
@@ -825,7 +904,7 @@ func (sw *RelaySwitch) rebuildLimits() {
 
 // parseRelayNotifyPayload parses caps and installed_cartridges from a RelayNotify manifest payload.
 // The payload JSON must contain:
-//   - "installed_cartridges": []InstalledCartridgeIdentity (required, may be empty)
+//   - "installed_cartridges": []InstalledCartridgeRecord (required, may be empty)
 //
 // The flat cap-urn list is no longer carried on the wire — callers
 // derive it from `payload.CapURNs()`.
@@ -846,7 +925,7 @@ func parseRelayNotifyPayload(manifest []byte) (*RelayNotifyCapabilitiesPayload, 
 		}
 	}
 
-	var installedCartridges []InstalledCartridgeIdentity
+	var installedCartridges []InstalledCartridgeRecord
 	if err := json.Unmarshal(icRaw, &installedCartridges); err != nil {
 		return nil, &RelaySwitchError{
 			Type:    RelaySwitchErrorTypeProtocol,
@@ -855,7 +934,7 @@ func parseRelayNotifyPayload(manifest []byte) (*RelayNotifyCapabilitiesPayload, 
 	}
 
 	if installedCartridges == nil {
-		installedCartridges = []InstalledCartridgeIdentity{}
+		installedCartridges = []InstalledCartridgeRecord{}
 	}
 
 	return &RelayNotifyCapabilitiesPayload{

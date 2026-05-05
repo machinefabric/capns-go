@@ -847,12 +847,12 @@ func (h *CartridgeHost) updateCapTable() {
 // one entry per running cartridge with a `cap_groups` view assembled
 // from the parsed manifest.
 func (h *CartridgeHost) rebuildCapabilities() {
-	var installed []InstalledCartridgeIdentity
+	var installed []InstalledCartridgeRecord
 	for idx, cartridge := range h.cartridges {
 		if !cartridge.running {
 			continue
 		}
-		installed = append(installed, InstalledCartridgeIdentity{
+		installed = append(installed, InstalledCartridgeRecord{
 			RegistryURL: nil,
 			Id:          fmt.Sprintf("cartridge-%d", idx),
 			Channel:     "release",

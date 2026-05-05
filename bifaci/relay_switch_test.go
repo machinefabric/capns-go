@@ -776,3 +776,130 @@ func Test439_generic_provider_can_dispatch_specific_request(t *testing.T) {
 		t.Errorf("Generic provider should dispatch specific request: got %d (err=%v)", idx, err)
 	}
 }
+
+// =============================================================
+// Wire-format tests for CartridgeAttachmentErrorKind
+// =============================================================
+//
+// The kind enum crosses three boundaries (relay socket JSON, gRPC
+// proto enum, and on the Mac side NSXPC dictionaries). Every
+// variant's string value MUST match its proto snake_case name
+// byte-for-byte; otherwise a Swift-side cartridge marked
+// `disabled` arrives at the engine as an unknown variant and the
+// whole RelayNotify aggregate fails to deserialize for that
+// master.
+//
+// Test1720/1721/1722 mirror the Rust counterparts in
+// capdag/src/bifaci/relay_switch.rs. Cross-language parity is the
+// whole point — these are not "test the language's enum" tests,
+// they're "test that the Go port hasn't drifted from the wire
+// contract" tests.
+
+// TestCartridgeAttachmentErrorKindMatchesProtoSnakeCase pins
+// every variant's string value against its proto snake_case
+// name. New variants must be added here AND in the Rust /
+// Swift / proto sides.
+func TestCartridgeAttachmentErrorKindMatchesProtoSnakeCase(t *testing.T) {
+	cases := []struct {
+		kind     CartridgeAttachmentErrorKind
+		expected string
+	}{
+		{CartridgeAttachmentErrorKindIncompatible, "incompatible"},
+		{CartridgeAttachmentErrorKindManifestInvalid, "manifest_invalid"},
+		{CartridgeAttachmentErrorKindHandshakeFailed, "handshake_failed"},
+		{CartridgeAttachmentErrorKindIdentityRejected, "identity_rejected"},
+		{CartridgeAttachmentErrorKindEntryPointMissing, "entry_point_missing"},
+		{CartridgeAttachmentErrorKindQuarantined, "quarantined"},
+		{CartridgeAttachmentErrorKindBadInstallation, "bad_installation"},
+		{CartridgeAttachmentErrorKindDisabled, "disabled"},
+		{CartridgeAttachmentErrorKindRegistryUnreachable, "registry_unreachable"},
+	}
+	for _, c := range cases {
+		if string(c.kind) != c.expected {
+			t.Errorf("variant %q must have string value %q to match cartridge.proto's CartridgeAttachmentErrorKind",
+				c.kind, c.expected)
+		}
+	}
+}
+
+// TestCartridgeAttachmentErrorJSONRoundTrips verifies a
+// CartridgeAttachmentError marshals to JSON and unmarshals back
+// without changing the kind for every variant. RelayNotify wire
+// payload is JSON; a single-variant regression breaks the entire
+// per-master parse.
+func TestCartridgeAttachmentErrorJSONRoundTrips(t *testing.T) {
+	cases := []CartridgeAttachmentErrorKind{
+		CartridgeAttachmentErrorKindIncompatible,
+		CartridgeAttachmentErrorKindManifestInvalid,
+		CartridgeAttachmentErrorKindHandshakeFailed,
+		CartridgeAttachmentErrorKindIdentityRejected,
+		CartridgeAttachmentErrorKindEntryPointMissing,
+		CartridgeAttachmentErrorKindQuarantined,
+		CartridgeAttachmentErrorKindBadInstallation,
+		CartridgeAttachmentErrorKindDisabled,
+		CartridgeAttachmentErrorKindRegistryUnreachable,
+	}
+	for _, kind := range cases {
+		original := CartridgeAttachmentError{
+			Kind:                  kind,
+			Message:               "round-trip test for " + string(kind),
+			DetectedAtUnixSeconds: 1700000000,
+		}
+		data, err := json.Marshal(original)
+		if err != nil {
+			t.Fatalf("marshal failed for kind %q: %v", kind, err)
+		}
+		var decoded CartridgeAttachmentError
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatalf("unmarshal failed for kind %q (json=%s): %v", kind, data, err)
+		}
+		if decoded.Kind != original.Kind {
+			t.Errorf("kind round-trip drift: original=%q decoded=%q (json=%s)",
+				original.Kind, decoded.Kind, data)
+		}
+		if decoded.Message != original.Message {
+			t.Errorf("message round-trip drift for kind %q: original=%q decoded=%q",
+				kind, original.Message, decoded.Message)
+		}
+		if decoded.DetectedAtUnixSeconds != original.DetectedAtUnixSeconds {
+			t.Errorf("detected_at_unix_seconds round-trip drift for kind %q: original=%d decoded=%d",
+				kind, original.DetectedAtUnixSeconds, decoded.DetectedAtUnixSeconds)
+		}
+	}
+}
+
+// TestCartridgeAttachmentErrorDecodesProtoSnakeCaseStrings is the
+// engine→Go-host (or Swift→Go-host) decode path: incoming JSON
+// uses the snake_case wire format, and the Go side must resolve
+// each string into the matching variant. CartridgeAttachmentErrorKind
+// is just `type ... string`, so this test is also a check that the
+// JSON unmarshaller doesn't normalise/lowercase/etc the bytes
+// behind our backs.
+func TestCartridgeAttachmentErrorDecodesProtoSnakeCaseStrings(t *testing.T) {
+	cases := []struct {
+		raw          string
+		expectedKind CartridgeAttachmentErrorKind
+	}{
+		{"incompatible", CartridgeAttachmentErrorKindIncompatible},
+		{"manifest_invalid", CartridgeAttachmentErrorKindManifestInvalid},
+		{"handshake_failed", CartridgeAttachmentErrorKindHandshakeFailed},
+		{"identity_rejected", CartridgeAttachmentErrorKindIdentityRejected},
+		{"entry_point_missing", CartridgeAttachmentErrorKindEntryPointMissing},
+		{"quarantined", CartridgeAttachmentErrorKindQuarantined},
+		{"bad_installation", CartridgeAttachmentErrorKindBadInstallation},
+		{"disabled", CartridgeAttachmentErrorKindDisabled},
+		{"registry_unreachable", CartridgeAttachmentErrorKindRegistryUnreachable},
+	}
+	for _, c := range cases {
+		jsonStr := `{"kind":"` + c.raw + `","message":"x","detected_at_unix_seconds":1}`
+		var decoded CartridgeAttachmentError
+		if err := json.Unmarshal([]byte(jsonStr), &decoded); err != nil {
+			t.Fatalf("unmarshal of %s failed: %v", jsonStr, err)
+		}
+		if decoded.Kind != c.expectedKind {
+			t.Errorf("wire kind %q must decode to %q, got %q",
+				c.raw, c.expectedKind, decoded.Kind)
+		}
+	}
+}
+

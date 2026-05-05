@@ -24,13 +24,19 @@ import (
 	"strings"
 )
 
-// CartridgeInstallSource describes how a cartridge was installed.
+// CartridgeInstallSource is opaque optional metadata describing how
+// a cartridge was installed. **Not consulted for any host or engine
+// routing decision** — kept around so downstream telemetry / audit
+// tooling can record install provenance. Within the codebase nothing
+// should branch on the variant; the dev-vs-not-dev signal the host
+// actually uses is RegistryURL (nil ⇔ dev).
 type CartridgeInstallSource string
 
 const (
-	CartridgeInstallSourceRegistry CartridgeInstallSource = "registry"
-	CartridgeInstallSourceDev      CartridgeInstallSource = "dev"
-	CartridgeInstallSourceBundle   CartridgeInstallSource = "bundle"
+	CartridgeInstallSourceRegistry     CartridgeInstallSource = "registry"
+	CartridgeInstallSourceDev          CartridgeInstallSource = "dev"
+	CartridgeInstallSourceBundle       CartridgeInstallSource = "bundle"
+	CartridgeInstallSourceAppInstaller CartridgeInstallSource = "app_installer"
 )
 
 // CartridgeJson holds install-context metadata stored in cartridge.json inside
@@ -69,8 +75,14 @@ type CartridgeJson struct {
 	Entry string `json:"entry"`
 	// InstalledAt is the RFC3339 timestamp of when the cartridge was installed.
 	InstalledAt string `json:"installed_at"`
-	// InstalledFrom describes how the cartridge was installed.
-	InstalledFrom CartridgeInstallSource `json:"installed_from"`
+	// InstalledFrom is optional install-provenance metadata. Not
+	// consulted for any routing or attachment decision — the
+	// dev-vs-not-dev signal the host uses is RegistryURL (nil ⇔
+	// dev). Stored as `*CartridgeInstallSource` so an absent field
+	// in the JSON parses to nil and a nil value is omitted on
+	// serialize. Kept around as opaque metadata for future
+	// telemetry / audit tooling.
+	InstalledFrom *CartridgeInstallSource `json:"installed_from,omitempty"`
 	// SourceURL is the URL the package was downloaded from (empty for dev/bundle installs).
 	SourceURL string `json:"source_url,omitempty"`
 	// PackageSha256 is the SHA256 hash of the original package (tarball or binary).
@@ -119,7 +131,7 @@ func (c CartridgeJson) MarshalJSON() ([]byte, error) {
 		RegistryURL   *string                `json:"registry_url"`
 		Entry         string                 `json:"entry"`
 		InstalledAt   string                 `json:"installed_at"`
-		InstalledFrom CartridgeInstallSource `json:"installed_from"`
+		InstalledFrom *CartridgeInstallSource `json:"installed_from,omitempty"`
 		SourceURL     string                 `json:"source_url,omitempty"`
 		PackageSha256 string                 `json:"package_sha256,omitempty"`
 		PackageSize   uint64                 `json:"package_size,omitempty"`
