@@ -406,8 +406,12 @@ func NewRelaySwitch(sockets []SocketPair) (*RelaySwitch, error) {
 	}
 
 	sw.rebuildCapTable()
-	sw.rebuildCapabilities()
+	// rebuildInstalledCartridges MUST run before rebuildCapabilities:
+	// rebuildCapabilities snapshots aggregateInstalledCartridges into
+	// the wire-bytes that consumers read via Capabilities(), so the
+	// aggregate must be current when that snapshot is taken.
 	sw.rebuildInstalledCartridges()
+	sw.rebuildCapabilities()
 	sw.rebuildLimits()
 
 	return sw, nil
@@ -794,9 +798,13 @@ func (sw *RelaySwitch) handleMasterFrame(sourceIdx int, frame *Frame) (*Frame, e
 			}
 		}
 
-		// Rebuild aggregate capability table and installed cartridges
+		// Rebuild aggregate capability table, installed cartridges, then
+		// the wire-byte snapshot. rebuildCapabilities must run last
+		// because it serializes aggregateInstalledCartridges, which
+		// rebuildInstalledCartridges populated above.
 		sw.rebuildCapTable()
 		sw.rebuildInstalledCartridges()
+		sw.rebuildCapabilities()
 
 		// RelayNotify is consumed internally, don't forward to engine
 		return nil, nil

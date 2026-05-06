@@ -450,12 +450,12 @@ func Test1164_ParseTwoDisconnectedStrandsYieldsTwoMachineStrands(t *testing.T) {
 	if len(m.Strands()[1].Edges()) != 1 {
 		t.Errorf("strand 1: expected 1 edge, got %d", len(m.Strands()[1].Edges()))
 	}
-	// First strand uses convert_a, second uses convert_b.
-	if !containsStr(m.Strands()[0].Edges()[0].CapUrn.String(), "convert_a") {
-		t.Errorf("strand 0 should use convert_a, got %s", m.Strands()[0].Edges()[0].CapUrn)
+	// First strand uses the convert-a cap (marker), second uses convert-b.
+	if !containsStr(m.Strands()[0].Edges()[0].CapUrn.String(), "convert-a") {
+		t.Errorf("strand 0 should use convert-a, got %s", m.Strands()[0].Edges()[0].CapUrn)
 	}
-	if !containsStr(m.Strands()[1].Edges()[0].CapUrn.String(), "convert_b") {
-		t.Errorf("strand 1 should use convert_b, got %s", m.Strands()[1].Edges()[0].CapUrn)
+	if !containsStr(m.Strands()[1].Edges()[0].CapUrn.String(), "convert-b") {
+		t.Errorf("strand 1 should use convert-b, got %s", m.Strands()[1].Edges()[0].CapUrn)
 	}
 }
 
@@ -986,14 +986,14 @@ func Test1186_resolve_strand_foreach_marks_following_cap_as_loop(t *testing.T) {
 		s := e.CapUrn.String()
 		if containsStr(s, "disbind") {
 			disbindEdge = e
-		} else if containsStr(s, "make_decision") {
+		} else if containsStr(s, "make-decision") {
 			decisionEdge = e
 		}
 	}
 	require.NotNil(t, disbindEdge, "disbind edge must be present")
-	require.NotNil(t, decisionEdge, "make_decision edge must be present")
+	require.NotNil(t, decisionEdge, "make-decision edge must be present")
 	assert.False(t, disbindEdge.IsLoop, "disbind is not in a loop")
-	assert.True(t, decisionEdge.IsLoop, "make_decision is inside ForEach")
+	assert.True(t, decisionEdge.IsLoop, "make-decision is inside ForEach")
 
 	// Intermediate node is shared (positional interning).
 	disbindTarget := disbindEdge.Target

@@ -24,6 +24,37 @@ import (
 	taggedurn "github.com/machinefabric/tagged-urn-go"
 )
 
+// CapKind is the functional category of a cap, derived from all
+// three axes (in, out, and remaining tags). The classification is
+// logical — the dispatch protocol does not branch on CapKind. Exposed
+// for tools, UIs, planners, and tests so callers can reason about a
+// cap's role without re-deriving the rules.
+//
+// media:void is the unit type (no meaningful value). media: is the
+// top type (universal wildcard). With those anchors the five kinds
+// fall out:
+//
+//	Kind        in            out           other tags  reads as
+//	Identity    media:        media:        none        A → A
+//	Source      media:void    not void      any         () → B
+//	Sink        not void      media:void    any         A → ()
+//	Effect      media:void    media:void    any         () → ()
+//	Transform   anything else
+//
+// Identity is the fully generic cap on every axis: input wide open,
+// output wide open, no operation/metadata tags. Adding any tag
+// specifies something on the third axis and demotes the morphism to
+// a Transform whose in/out happen to be the wildcards.
+type CapKind string
+
+const (
+	CapKindIdentity  CapKind = "identity"
+	CapKindSource    CapKind = "source"
+	CapKindSink      CapKind = "sink"
+	CapKindEffect    CapKind = "effect"
+	CapKindTransform CapKind = "transform"
+)
+
 // CapUrn represents a cap URN using flat, ordered tags with required direction specifiers
 //
 // Direction (in→out) is integral to a cap's identity. The `inSpec` and `outSpec`
@@ -339,6 +370,52 @@ func (c *CapUrn) InMediaUrn() (*MediaUrn, error) {
 // OutMediaUrn parses the output spec as a MediaUrn
 func (c *CapUrn) OutMediaUrn() (*MediaUrn, error) {
 	return NewMediaUrnFromString(c.outSpec)
+}
+
+// Kind classifies this cap into one of CapKind's five categories,
+// looking at all three axes:
+//   - in (parsed MediaUrn)
+//   - out (parsed MediaUrn)
+//   - the rest of the tags (the operation/metadata axis — c.tags
+//     does not include in/out, those live in their own fields)
+//
+// Identity requires every axis to be in its most generic form: in is
+// the top media URN (media:), out is the top media URN, and there
+// are no other tags. Source/Sink/Effect are decided by void on
+// either directional axis. Anything else is Transform.
+//
+// Returns an error if either in/out side is not a valid MediaUrn —
+// this only happens on internally inconsistent state since
+// construction validates both sides.
+func (c *CapUrn) Kind() (CapKind, error) {
+	inMedia, err := c.InMediaUrn()
+	if err != nil {
+		return "", fmt.Errorf("invalid in media URN: %w", err)
+	}
+	outMedia, err := c.OutMediaUrn()
+	if err != nil {
+		return "", fmt.Errorf("invalid out media URN: %w", err)
+	}
+
+	inVoid := inMedia.IsVoid()
+	outVoid := outMedia.IsVoid()
+	inTop := inMedia.IsTop()
+	outTop := outMedia.IsTop()
+	noExtraTags := len(c.tags) == 0
+
+	if inTop && outTop && noExtraTags {
+		return CapKindIdentity, nil
+	}
+	if inVoid && outVoid {
+		return CapKindEffect, nil
+	}
+	if inVoid {
+		return CapKindSource, nil
+	}
+	if outVoid {
+		return CapKindSink, nil
+	}
+	return CapKindTransform, nil
 }
 
 // CanonicalOption takes an optional cap URN string, parses and re-serializes it
@@ -791,18 +868,28 @@ func (c *CapUrn) Merge(other *CapUrn) *CapUrn {
 	return &CapUrn{inSpec: other.inSpec, outSpec: other.outSpec, tags: newTags}
 }
 
-// ToString returns the canonical string representation of this cap URN
-// Uses TaggedUrn for serialization to ensure consistency across implementations
+// ToString returns the canonical string representation of this cap URN.
+// Uses TaggedUrn for serialization to ensure consistency across
+// implementations.
+//
+// `in` and `out` segments are emitted only when they refine beyond the
+// trivial wildcard `media:`. A cap whose `in`/`out` are both `media:`
+// and which has no other tags has the canonical form `cap:` — the bare
+// identity URN. The canonicalizer collapses both written forms
+// (`cap:` and `cap:in=media:;out=media:`) to the same representative so
+// byte-equality matches semantic identity across language ports.
 func (c *CapUrn) ToString() string {
-	// Build complete tags map including in and out
 	allTags := make(map[string]string, len(c.tags)+2)
-	allTags["in"] = c.inSpec
-	allTags["out"] = c.outSpec
+	if c.inSpec != "media:" {
+		allTags["in"] = c.inSpec
+	}
+	if c.outSpec != "media:" {
+		allTags["out"] = c.outSpec
+	}
 	for k, v := range c.tags {
 		allTags[k] = v
 	}
 
-	// Use TaggedUrn for serialization
 	taggedUrn := taggedurn.NewTaggedUrnFromTags("cap", allTags)
 	return taggedUrn.ToString()
 }

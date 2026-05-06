@@ -94,7 +94,9 @@ func Test003_direction_matching(t *testing.T) {
 
 // TEST004: Test that unquoted keys and values are normalized to lowercase
 func Test004_unquoted_values_lowercased(t *testing.T) {
-	cap, err := NewCapUrnFromString(testUrn("OP=Generate;EXT=PDF;Target=Thumbnail"))
+	// Marker `Generate` (value-less) and keyed tags `EXT=PDF`, `Target=Thumbnail`.
+	// Unquoted keys AND values are lowercased; quoted values would keep case.
+	cap, err := NewCapUrnFromString(testUrn("Generate;EXT=PDF;Target=Thumbnail"))
 	require.NoError(t, err)
 
 	assert.True(t, cap.HasMarkerTag("generate"))
@@ -397,7 +399,9 @@ func Test019_missing_tag_handling(t *testing.T) {
 
 // TEST020: Test specificity calculation (direction specs use MediaUrn tag count, wildcards don't count)
 func Test020_specificity(t *testing.T) {
-	// Direction specs contribute their MediaUrn tag count:
+	// CapUrn specificity counts non-wildcard tags + direction-spec tag
+	// counts. Markers (value="*") do NOT count; only exact-valued tags
+	// and the direction specs' inner media-URN tag counts.
 	// MEDIA_VOID = "media:void" -> 1 tag (void)
 	// MEDIA_OBJECT = "media:record" -> 1 tag (record)
 	cap1, err := NewCapUrnFromString(testUrn("type=general"))
@@ -409,14 +413,14 @@ func Test020_specificity(t *testing.T) {
 	cap3, err := NewCapUrnFromString(testUrn("op;ext=pdf"))
 	require.NoError(t, err)
 
-	assert.Equal(t, 3, cap1.Specificity()) // void(1) + record(1) + type(1)
-	assert.Equal(t, 3, cap2.Specificity()) // void(1) + record(1) + op(1)
-	assert.Equal(t, 3, cap3.Specificity()) // void(1) + record(1) + ext(1) (wildcard op doesn't count)
+	assert.Equal(t, 3, cap1.Specificity()) // void(1) + record(1) + type=general(1)
+	assert.Equal(t, 2, cap2.Specificity()) // void(1) + record(1) + generate marker(0)
+	assert.Equal(t, 3, cap3.Specificity()) // void(1) + record(1) + ext=pdf(1) + op marker(0)
 
 	// Wildcard in direction doesn't count
 	cap4, err := NewCapUrnFromString(`cap:in=*;out="` + standard.MediaObject + `";test`)
 	require.NoError(t, err)
-	assert.Equal(t, 2, cap4.Specificity()) // record(1) + op(1) (in wildcard doesn't count)
+	assert.Equal(t, 1, cap4.Specificity()) // record(1) + test marker(0) (in wildcard doesn't count)
 }
 
 // TEST021: Test builder creates cap URN with correct tags and direction specs
@@ -424,7 +428,7 @@ func Test021_builder(t *testing.T) {
 	cap, err := NewCapUrnBuilder().
 		InSpec(standard.MediaVoid).
 		OutSpec(standard.MediaObject).
-		Tag("op", "generate").
+		Marker("generate").
 		Tag("target", "thumbnail").
 		Tag("ext", "pdf").
 		Build()
@@ -974,11 +978,13 @@ func Test891_direction_semantic_specificity(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Specificity: generate_thumbnail (+3) + in/out tags
-	// genericCap has in="media:" (0 tags) + out="media:image;png;thumbnail" (3 tags)
-	// specificCap has in="media:pdf" (1 tag) + out="media:image;png;thumbnail" (3 tags)
-	assert.Equal(t, 4, genericCap.Specificity())
-	assert.Equal(t, 5, specificCap.Specificity())
+	// CapUrn specificity = (in-spec media tag count) + (out-spec media tag
+	// count) + (count of non-wildcard cap tags). The `generate-thumbnail`
+	// marker (value="*") does NOT count.
+	// genericCap:  in="media:" (0 tags) + out="media:image;png;thumbnail" (3 tags) + 0 = 3
+	// specificCap: in="media:pdf" (1 tag) + out="media:image;png;thumbnail" (3 tags) + 0 = 4
+	assert.Equal(t, 3, genericCap.Specificity())
+	assert.Equal(t, 4, specificCap.Specificity())
 
 	assert.True(t, specificCap.Specificity() > genericCap.Specificity(),
 		"pdf cap must be more specific than wildcard cap")
@@ -991,7 +997,7 @@ func Test891_direction_semantic_specificity(t *testing.T) {
 	matcher := &CapMatcher{}
 	best := matcher.FindBestMatch(caps, pdfRequest)
 	require.NotNil(t, best)
-	assert.Equal(t, 5, best.Specificity(),
+	assert.Equal(t, 4, best.Specificity(),
 		"CapMatcher must prefer the more specific pdf provider")
 }
 
@@ -1542,4 +1548,149 @@ func Test650_wildcard_012_preserve_other_tags(t *testing.T) {
 	assert.Equal(t, "media:", cap.InSpec())
 	assert.Equal(t, "media:", cap.OutSpec())
 	assert.True(t, cap.HasMarkerTag("test"))
+}
+
+// -------------------------------------------------------------------
+// CapKind classifier tests (test1800–test1805).
+//
+// Mirrored across every language port (Rust, Go, Python, Swift/ObjC,
+// JS) under the SAME numbers. Any divergence is a wire-level
+// inconsistency — the kind taxonomy is part of the protocol's public
+// surface, not a per-port detail.
+// -------------------------------------------------------------------
+
+// TEST1800: Identity classifier — only the bare cap: form qualifies.
+// `cap:` is the fully generic morphism on every axis; adding any
+// tag (even one that doesn't constrain in/out) demotes the cap to
+// Transform because the operation/metadata axis is no longer fully
+// generic.
+func Test1800_kind_identity_only_for_bare_cap(t *testing.T) {
+	identity, err := NewCapUrnFromString("cap:")
+	require.NoError(t, err)
+	kind, err := identity.Kind()
+	require.NoError(t, err)
+	assert.Equal(t, CapKindIdentity, kind)
+
+	for _, spelling := range []string{
+		"cap:in=media:;out=media:",
+		"cap:in=*;out=*",
+		"cap:in=media:",
+		"cap:out=media:",
+	} {
+		cap, err := NewCapUrnFromString(spelling)
+		require.NoError(t, err, spelling)
+		k, err := cap.Kind()
+		require.NoError(t, err)
+		assert.Equal(t, CapKindIdentity, k,
+			"%s should classify as Identity (canonical form is `cap:`)", spelling)
+	}
+
+	withOp, err := NewCapUrnFromString("cap:passthrough")
+	require.NoError(t, err)
+	k, err := withOp.Kind()
+	require.NoError(t, err)
+	assert.Equal(t, CapKindTransform, k,
+		"cap:passthrough specifies the operation axis — not Identity")
+}
+
+// TEST1801: Source classifier — in=media:void, out non-void. The y
+// dimension may carry any tags; void on the input alone is what
+// matters.
+func Test1801_kind_source_when_input_is_void(t *testing.T) {
+	warm, err := NewCapUrnFromString(`cap:in=media:void;out="media:model-artifact";warm`)
+	require.NoError(t, err)
+	k, err := warm.Kind()
+	require.NoError(t, err)
+	assert.Equal(t, CapKindSource, k)
+
+	gen, err := NewCapUrnFromString("cap:in=media:void;out=media:textable")
+	require.NoError(t, err)
+	k, err = gen.Kind()
+	require.NoError(t, err)
+	assert.Equal(t, CapKindSource, k)
+}
+
+// TEST1802: Sink classifier — out=media:void, in non-void.
+func Test1802_kind_sink_when_output_is_void(t *testing.T) {
+	discard, err := NewCapUrnFromString("cap:discard;in=media:;out=media:void")
+	require.NoError(t, err)
+	k, err := discard.Kind()
+	require.NoError(t, err)
+	assert.Equal(t, CapKindSink, k)
+
+	logCap, err := NewCapUrnFromString(`cap:in="media:json;textable";log;out=media:void`)
+	require.NoError(t, err)
+	k, err = logCap.Kind()
+	require.NoError(t, err)
+	assert.Equal(t, CapKindSink, k)
+}
+
+// TEST1803: Effect classifier — both sides void. Reads as `() → ()`.
+func Test1803_kind_effect_when_both_sides_void(t *testing.T) {
+	ping, err := NewCapUrnFromString("cap:in=media:void;out=media:void;ping")
+	require.NoError(t, err)
+	k, err := ping.Kind()
+	require.NoError(t, err)
+	assert.Equal(t, CapKindEffect, k)
+
+	bare, err := NewCapUrnFromString("cap:in=media:void;out=media:void")
+	require.NoError(t, err)
+	k, err = bare.Kind()
+	require.NoError(t, err)
+	assert.Equal(t, CapKindEffect, k)
+}
+
+// TEST1804: Transform classifier — at least one side non-void, and
+// the cap is not the bare identity. The default kind for ordinary
+// data-processing caps.
+func Test1804_kind_transform_for_normal_data_processors(t *testing.T) {
+	extract, err := NewCapUrnFromString(`cap:extract;in=media:pdf;out="media:record;textable"`)
+	require.NoError(t, err)
+	k, err := extract.Kind()
+	require.NoError(t, err)
+	assert.Equal(t, CapKindTransform, k)
+
+	labeled, err := NewCapUrnFromString("cap:passthrough;in=media:;out=media:")
+	require.NoError(t, err)
+	k, err = labeled.Kind()
+	require.NoError(t, err)
+	assert.Equal(t, CapKindTransform, k)
+}
+
+// TEST1805: Kind is invariant under canonicalization. The same
+// morphism written in many surface forms must classify the same way
+// once parsed. Pins the rule that kind is a property of the cap as
+// a structured object, not of any particular spelling.
+func Test1805_kind_invariant_under_canonical_spellings(t *testing.T) {
+	cases := []struct {
+		a, b     string
+		expected CapKind
+	}{
+		{"cap:", "cap:in=media:;out=media:", CapKindIdentity},
+		{
+			"cap:extract;in=media:pdf;out=media:textable",
+			`cap:extract;in="media:pdf";out="media:textable"`,
+			CapKindTransform,
+		},
+		{
+			"cap:in=media:void;out=media:textable;warm",
+			"cap:warm;out=media:textable;in=media:void",
+			CapKindSource,
+		},
+	}
+
+	for _, c := range cases {
+		capA, err := NewCapUrnFromString(c.a)
+		require.NoError(t, err, c.a)
+		capB, err := NewCapUrnFromString(c.b)
+		require.NoError(t, err, c.b)
+		kindA, err := capA.Kind()
+		require.NoError(t, err)
+		kindB, err := capB.Kind()
+		require.NoError(t, err)
+		assert.Equal(t, c.expected, kindA, "%s should classify as %s", c.a, c.expected)
+		assert.Equal(t, c.expected, kindB, "%s should classify as %s", c.b, c.expected)
+		assert.Equal(t, kindA, kindB,
+			"%s and %s parse to the same cap and must classify identically", c.a, c.b)
+	}
 }

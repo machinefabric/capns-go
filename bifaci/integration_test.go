@@ -64,8 +64,11 @@ func TestIntegrationVersionlessCapCreation(t *testing.T) {
 
 // TestIntegrationCaseInsensitiveUrns verifies URNs are case-insensitive
 func TestIntegrationCaseInsensitiveUrns(t *testing.T) {
-	// Test case 1: Different case inputs should produce same URN
-	urn1, err := urn.NewCapUrnFromString(intTestUrn("OP=Transform;FORMAT=JSON;Type=Data_Processing"))
+	// Test case 1: Different case inputs should produce same URN.
+	// Both URNs use the same tag shape (a `transform` marker plus
+	// keyed `format=json` and `type=data_processing`). Only the case
+	// of keys / values differs.
+	urn1, err := urn.NewCapUrnFromString(intTestUrn("Transform;FORMAT=JSON;Type=Data_Processing"))
 	require.NoError(t, err)
 
 	urn2, err := urn.NewCapUrnFromString(intTestUrn("transform;format=json;type=data_processing"))
@@ -75,20 +78,18 @@ func TestIntegrationCaseInsensitiveUrns(t *testing.T) {
 	assert.True(t, urn1.Equals(urn2))
 	assert.Equal(t, urn1.ToString(), urn2.ToString())
 
-	// Test case 2: Case-insensitive tag operations
-	op, exists := urn1.GetTag("OP")
-	assert.True(t, exists)
-	assert.Equal(t, "transform", op) // Should be normalized to lowercase
+	// Test case 2: Case-insensitive marker tag lookup.
+	assert.True(t, urn1.HasMarkerTag("transform"))
+	assert.True(t, urn1.HasMarkerTag("TRANSFORM"))
+	assert.True(t, urn1.HasMarkerTag("Transform"))
 
-	op2, exists := urn1.GetTag("op")
-	assert.True(t, exists)
-	assert.Equal(t, "transform", op2)
-
-	// Test case 3: HasTag - keys case-insensitive, values case-sensitive
-	assert.True(t, urn1.HasTag("OP", "transform"))
-	assert.True(t, urn1.HasTag("op", "transform"))
-	assert.True(t, urn1.HasTag("Op", "transform"))
-	assert.False(t, urn1.HasTag("op", "TRANSFORM"))
+	// Test case 3: Case-insensitive keyed tag lookup with case-sensitive values.
+	assert.True(t, urn1.HasTag("FORMAT", "json"))
+	assert.True(t, urn1.HasTag("format", "json"))
+	assert.True(t, urn1.HasTag("Format", "json"))
+	// Value comparison is case-sensitive — the URN's value is "json" (lowercased
+	// because it was unquoted), so an uppercase comparison fails.
+	assert.False(t, urn1.HasTag("format", "JSON"))
 
 	// Test case 4: Builder preserves value case
 	urn3, err := urn.NewCapUrnBuilder().

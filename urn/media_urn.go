@@ -74,9 +74,22 @@ func (m *MediaUrn) IsTextable() bool {
 	return m.HasTag("textable")
 }
 
-// IsVoid returns true if this represents void/no data
+// IsVoid returns true if this represents void/no data — the **unit
+// type** in the type-theoretic reading. media:void is the nullary
+// value. NOT "invalid" or "absent".
 func (m *MediaUrn) IsVoid() bool {
 	return m.HasTag("void")
+}
+
+// IsTop returns true if this is the **top** media URN — the universal
+// wildcard `media:` with no tags. Order-theoretically every other
+// media URN conformsTo this one. Distinct from IsVoid: top means "any
+// data type accepted here," void means "no data flows here."
+func (m *MediaUrn) IsTop() bool {
+	if m.inner == nil {
+		return false
+	}
+	return len(m.inner.AllTags()) == 0
 }
 
 // IsJson returns true if this has the "json" tag

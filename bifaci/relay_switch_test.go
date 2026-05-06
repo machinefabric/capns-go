@@ -301,12 +301,29 @@ func Test429_relay_switch_find_master_for_cap(t *testing.T) {
 		t.Error("Expected error for unknown cap")
 	}
 
-	// Verify aggregate capabilities
-	var caps map[string]interface{}
-	json.Unmarshal(sw.capabilities, &caps)
-	capList := caps["caps"].([]interface{})
-	if len(capList) != 2 {
-		t.Errorf("Expected 2 capabilities, got %d", len(capList))
+	// Verify aggregate capabilities. The wire payload carries caps inside
+	// `installed_cartridges[*].cap_groups[*].caps` rather than a flat
+	// top-level `caps` array — count the union across both masters.
+	var payload map[string]interface{}
+	if err := json.Unmarshal(sw.capabilities, &payload); err != nil {
+		t.Fatalf("failed to parse aggregate capabilities JSON: %v", err)
+	}
+	installedCartridges, ok := payload["installed_cartridges"].([]interface{})
+	if !ok {
+		t.Fatalf("expected installed_cartridges array in aggregate capabilities, got %T", payload["installed_cartridges"])
+	}
+	totalCaps := 0
+	for _, c := range installedCartridges {
+		cart, _ := c.(map[string]interface{})
+		groups, _ := cart["cap_groups"].([]interface{})
+		for _, g := range groups {
+			grp, _ := g.(map[string]interface{})
+			capsInGroup, _ := grp["caps"].([]interface{})
+			totalCaps += len(capsInGroup)
+		}
+	}
+	if totalCaps != 2 {
+		t.Errorf("Expected 2 capabilities total across installed cartridges, got %d", totalCaps)
 	}
 }
 
@@ -515,13 +532,22 @@ func Test433_relay_switch_capability_aggregation_deduplicates(t *testing.T) {
 		{Read: engineRead2, Write: engineWrite2},
 	})
 
-	var caps map[string]interface{}
-	json.Unmarshal(sw.Capabilities(), &caps)
-	capList := caps["caps"].([]interface{})
-
-	// Should have 3 unique caps
-	if len(capList) != 3 {
-		t.Errorf("Expected 3 unique caps, got %d", len(capList))
+	// The wire payload carries caps inside
+	// installed_cartridges[*].cap_groups[*].caps; deduplication is a
+	// computed view via RelayNotifyCapabilitiesPayload.CapURNs(), not
+	// a property of the payload itself. Both source manifests survive
+	// in the aggregate; the dedup is observable through the computed
+	// flat view.
+	var payload RelayNotifyCapabilitiesPayload
+	if err := json.Unmarshal(sw.Capabilities(), &payload); err != nil {
+		t.Fatalf("failed to parse aggregate capabilities JSON: %v", err)
+	}
+	if got := len(payload.InstalledCartridges); got != 2 {
+		t.Errorf("Expected 2 installed cartridges in the aggregate (one per master), got %d", got)
+	}
+	uniqueCaps := payload.CapURNs()
+	if len(uniqueCaps) != 3 {
+		t.Errorf("Expected 3 unique caps after dedup, got %d: %v", len(uniqueCaps), uniqueCaps)
 	}
 }
 
