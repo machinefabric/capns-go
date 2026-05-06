@@ -962,6 +962,20 @@ func (b *CapUrnBuilder) Tag(key, value string) *CapUrnBuilder {
 	return b
 }
 
+// Marker adds a marker tag (a wildcard-valued tag that serializes as just the key).
+// Equivalent to Tag(key, "*") but expresses authorial intent: this tag is
+// present as a marker, not a key=value pair.
+// Attempts to use 'in' or 'out' as a marker key are silently ignored —
+// direction specs are set via InSpec()/OutSpec().
+func (b *CapUrnBuilder) Marker(key string) *CapUrnBuilder {
+	keyLower := strings.ToLower(key)
+	if keyLower == "in" || keyLower == "out" {
+		return b
+	}
+	b.tags[keyLower] = "*"
+	return b
+}
+
 // Build creates the final CapUrn
 func (b *CapUrnBuilder) Build() (*CapUrn, error) {
 	if b.inSpec == nil {

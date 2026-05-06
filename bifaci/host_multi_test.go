@@ -201,7 +201,7 @@ func Test417_route_req_by_cap_urn(t *testing.T) {
 	relayRead, engineWrite := net.Pipe()
 	engineRead, relayWrite := net.Pipe()
 
-	// Engine: send REQ for cap:op=convert, read response
+	// Engine: send REQ for cap:convert, read response
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

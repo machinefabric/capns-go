@@ -181,7 +181,7 @@ func Test141_url_format_is_valid(t *testing.T) {
 // TEST142: Test normalize handles different tag orders producing same canonical form
 func Test142_normalize_handles_different_tag_orders(t *testing.T) {
 	urn1 := `cap:test;in="media:string";out="media:object"`
-	urn2 := `cap:in="media:string";out="media:object";op=test`
+	urn2 := `cap:in="media:string";out="media:object";test`
 
 	url1 := buildRegistryURL(urn1)
 	url2 := buildRegistryURL(urn2)

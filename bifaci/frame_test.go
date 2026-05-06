@@ -1948,7 +1948,7 @@ func Test526_relay_state_empty_payload(t *testing.T) {
 func Test527_relay_notify_large_manifest(t *testing.T) {
 	largeManifest := `{"name":"Large","version":"1.0","description":"Large test","cap_groups":[{"name":"default","caps":[{"urn":"cap:in=media:;out=media:","title":"Identity","command":"identity"}`
 	for i := 0; i < 99; i++ {
-		largeManifest += fmt.Sprintf(`,{"urn":"cap:in=\"media:void\";op=op%d;out=\"media:void\"","title":"Op%d","command":"op%d"}`, i, i, i)
+		largeManifest += fmt.Sprintf(`,{"urn":"cap:in=\"media:void\";op%d;out=\"media:void\"","title":"Op%d","command":"op%d"}`, i, i, i)
 	}
 	largeManifest += "]}]}"
 

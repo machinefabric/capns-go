@@ -37,15 +37,15 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Println("Input:", cap.GetInSpec())   // "media:binary"
-    fmt.Println("Output:", cap.GetOutSpec()) // "media:object"
-    fmt.Println("Op:", cap.GetTag("op"))     // "extract"
+    fmt.Println("Input:", cap.GetInSpec())                          // "media:binary"
+    fmt.Println("Output:", cap.GetOutSpec())                        // "media:object"
+    fmt.Println("Has extract marker:", cap.HasMarkerTag("extract")) // true
 
     // Build a Cap URN
     built := capdag.NewCapUrnBuilder().
         InSpec("media:void").
         OutSpec("media:object").
-        Tag("op", "generate").
+        Marker("generate").
         Tag("target", "thumbnail").
         MustBuild()
 

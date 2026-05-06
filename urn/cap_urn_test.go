@@ -40,9 +40,7 @@ func Test001_cap_urn_creation(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, "data_processing", capType)
 
-	op, exists := capUrn.GetTag("op")
-	assert.True(t, exists)
-	assert.Equal(t, "transform", op)
+	assert.True(t, capUrn.HasMarkerTag("transform"))
 
 	format, exists := capUrn.GetTag("format")
 	assert.True(t, exists)
@@ -56,17 +54,17 @@ func Test001_cap_urn_creation(t *testing.T) {
 // TEST002: Test that missing 'in' or 'out' defaults to media: wildcard
 func Test002_direction_specs_default_to_wildcard(t *testing.T) {
 	// Missing 'in' defaults to wildcard "media:"
-	cap1, err := NewCapUrnFromString(`cap:out="media:object";op=test`)
+	cap1, err := NewCapUrnFromString(`cap:out="media:object";test`)
 	assert.NoError(t, err)
 	assert.Equal(t, "media:", cap1.InSpec())
 
 	// Missing 'out' defaults to wildcard "media:"
-	cap2, err := NewCapUrnFromString(`cap:in="media:void";op=test`)
+	cap2, err := NewCapUrnFromString(`cap:in="media:void";test`)
 	assert.NoError(t, err)
 	assert.Equal(t, "media:", cap2.OutSpec())
 
 	// Both present should succeed
-	cap3, err := NewCapUrnFromString(`cap:in="media:void";out="media:object";op=test`)
+	cap3, err := NewCapUrnFromString(`cap:in="media:void";out="media:object";test`)
 	assert.NoError(t, err)
 	assert.Equal(t, "media:void", cap3.InSpec())
 	assert.Equal(t, "media:object", cap3.OutSpec())
@@ -74,21 +72,21 @@ func Test002_direction_specs_default_to_wildcard(t *testing.T) {
 
 // TEST003: Test that direction specs must match exactly, different in/out types don't match, wildcard matches any
 func Test003_direction_matching(t *testing.T) {
-	cap1, err := NewCapUrnFromString(`cap:in="media:string";out="media:object";op=test`)
+	cap1, err := NewCapUrnFromString(`cap:in="media:string";out="media:object";test`)
 	require.NoError(t, err)
-	cap2, err := NewCapUrnFromString(`cap:in="media:string";out="media:object";op=test`)
+	cap2, err := NewCapUrnFromString(`cap:in="media:string";out="media:object";test`)
 	require.NoError(t, err)
 	assert.True(t, cap1.Accepts(cap2))
 
-	cap3, err := NewCapUrnFromString(`cap:in="media:binary";out="media:object";op=test`)
+	cap3, err := NewCapUrnFromString(`cap:in="media:binary";out="media:object";test`)
 	require.NoError(t, err)
 	assert.False(t, cap1.Accepts(cap3))
 
-	cap4, err := NewCapUrnFromString(`cap:in="media:string";out="media:integer";op=test`)
+	cap4, err := NewCapUrnFromString(`cap:in="media:string";out="media:integer";test`)
 	require.NoError(t, err)
 	assert.False(t, cap1.Accepts(cap4))
 
-	cap5, err := NewCapUrnFromString(`cap:in=*;out="media:object";op=test`)
+	cap5, err := NewCapUrnFromString(`cap:in=*;out="media:object";test`)
 	require.NoError(t, err)
 	assert.False(t, cap1.Accepts(cap5))
 	assert.True(t, cap5.Accepts(cap1))
@@ -99,9 +97,7 @@ func Test004_unquoted_values_lowercased(t *testing.T) {
 	cap, err := NewCapUrnFromString(testUrn("OP=Generate;EXT=PDF;Target=Thumbnail"))
 	require.NoError(t, err)
 
-	op, exists := cap.GetTag("op")
-	assert.True(t, exists)
-	assert.Equal(t, "generate", op)
+	assert.True(t, cap.HasMarkerTag("generate"))
 
 	ext, exists := cap.GetTag("ext")
 	assert.True(t, exists)
@@ -297,7 +293,7 @@ func Test014_round_trip_escapes(t *testing.T) {
 
 // TEST015: Test that cap: prefix is required and case-insensitive
 func Test015_cap_prefix_required(t *testing.T) {
-	capUrn, err := NewCapUrnFromString(`in="media:void";out="media:object";op=generate`)
+	capUrn, err := NewCapUrnFromString(`in="media:void";out="media:object";generate`)
 	assert.Nil(t, capUrn)
 	assert.Error(t, err)
 	assert.Equal(t, ErrorMissingCapPrefix, err.(*CapUrnError).Code)
@@ -305,15 +301,11 @@ func Test015_cap_prefix_required(t *testing.T) {
 	capUrn, err = NewCapUrnFromString(testUrn("generate;ext=pdf"))
 	assert.NoError(t, err)
 	assert.NotNil(t, capUrn)
-	op, exists := capUrn.GetTag("op")
-	assert.True(t, exists)
-	assert.Equal(t, "generate", op)
+	assert.True(t, capUrn.HasMarkerTag("generate"))
 
-	capUrn, err = NewCapUrnFromString(`CAP:in="media:void";out="media:object";op=generate`)
+	capUrn, err = NewCapUrnFromString(`CAP:in="media:void";out="media:object";generate`)
 	assert.NoError(t, err)
-	op, exists = capUrn.GetTag("op")
-	assert.True(t, exists)
-	assert.Equal(t, "generate", op)
+	assert.True(t, capUrn.HasMarkerTag("generate"))
 }
 
 // TEST016: Test that trailing semicolon is equivalent (same hash, same string, matches)
@@ -341,7 +333,7 @@ func Test017_tag_matching(t *testing.T) {
 	assert.True(t, cap.Accepts(request1))
 	assert.True(t, request1.Accepts(cap))
 
-	// Routing direction: request(op=generate) accepts cap(op,ext,target) — request only needs op
+	// Routing direction: request(generate) accepts cap(op,ext,target) — request only needs op
 	request2, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 	assert.True(t, request2.Accepts(cap))
@@ -395,7 +387,7 @@ func Test019_missing_tag_handling(t *testing.T) {
 	// Reverse: cap(op,ext) as pattern rejects request missing ext
 	assert.False(t, cap2.Accepts(request2))
 
-	// cap(ext=*;op=generate) as pattern accepts request(ext=pdf;op=generate)
+	// cap(ext=*;generate) as pattern accepts request(ext=pdf;generate)
 	cap3, err := NewCapUrnFromString(testUrn("ext=*;generate"))
 	require.NoError(t, err)
 	request3, err := NewCapUrnFromString(testUrn("ext=pdf;generate"))
@@ -414,7 +406,7 @@ func Test020_specificity(t *testing.T) {
 	cap2, err := NewCapUrnFromString(testUrn("generate"))
 	require.NoError(t, err)
 
-	cap3, err := NewCapUrnFromString(testUrn("op=*;ext=pdf"))
+	cap3, err := NewCapUrnFromString(testUrn("op;ext=pdf"))
 	require.NoError(t, err)
 
 	assert.Equal(t, 3, cap1.Specificity()) // void(1) + record(1) + type(1)
@@ -422,7 +414,7 @@ func Test020_specificity(t *testing.T) {
 	assert.Equal(t, 3, cap3.Specificity()) // void(1) + record(1) + ext(1) (wildcard op doesn't count)
 
 	// Wildcard in direction doesn't count
-	cap4, err := NewCapUrnFromString(`cap:in=*;out="` + standard.MediaObject + `";op=test`)
+	cap4, err := NewCapUrnFromString(`cap:in=*;out="` + standard.MediaObject + `";test`)
 	require.NoError(t, err)
 	assert.Equal(t, 2, cap4.Specificity()) // record(1) + op(1) (in wildcard doesn't count)
 }
@@ -438,9 +430,7 @@ func Test021_builder(t *testing.T) {
 		Build()
 	require.NoError(t, err)
 
-	op, exists := cap.GetTag("op")
-	assert.True(t, exists)
-	assert.Equal(t, "generate", op)
+	assert.True(t, cap.HasMarkerTag("generate"))
 
 	assert.Equal(t, standard.MediaVoid, cap.InSpec())
 	assert.Equal(t, standard.MediaObject, cap.OutSpec())
@@ -505,7 +495,7 @@ func Test024_directional_accepts(t *testing.T) {
 	// Reverse: specific cap(op,ext) rejects general request missing ext
 	assert.False(t, cap1.Accepts(cap4))
 
-	cap5, err := NewCapUrnFromString(`cap:in="media:binary";out="media:object";op=generate`)
+	cap5, err := NewCapUrnFromString(`cap:in="media:binary";out="media:object";generate`)
 	require.NoError(t, err)
 	assert.False(t, cap1.Accepts(cap5))
 	assert.False(t, cap5.Accepts(cap1))
@@ -517,7 +507,7 @@ func Test025_best_match(t *testing.T) {
 
 	caps := []*CapUrn{}
 
-	cap1, err := NewCapUrnFromString(testUrn("op=*"))
+	cap1, err := NewCapUrnFromString(testUrn("op"))
 	require.NoError(t, err)
 	caps = append(caps, cap1)
 
@@ -552,8 +542,7 @@ func Test026_merge_and_subset(t *testing.T) {
 	assert.Equal(t, "media:binary", merged.InSpec())
 	assert.Equal(t, "media:integer", merged.OutSpec())
 
-	op, _ := merged.GetTag("op")
-	assert.Equal(t, "generate", op)
+	assert.True(t, merged.HasMarkerTag("generate"))
 	ext, _ := merged.GetTag("ext")
 	assert.Equal(t, "pdf", ext)
 
@@ -566,8 +555,8 @@ func Test026_merge_and_subset(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, "pdf", extVal)
 
-	_, opExists := subset.GetTag("op")
-	assert.False(t, opExists)
+	// Subset keeps only "type" and "ext" — the `generate` marker is dropped.
+	assert.False(t, subset.HasMarkerTag("generate"))
 
 	assert.Equal(t, standard.MediaVoid, subset.InSpec())
 	assert.Equal(t, standard.MediaObject, subset.OutSpec())
@@ -740,7 +729,7 @@ func Test038_semantic_equivalence(t *testing.T) {
 
 // TEST039: Test get_tag returns direction specs (in/out) with case-insensitive lookup
 func Test039_get_tag_returns_direction_specs(t *testing.T) {
-	cap, err := NewCapUrnFromString(`cap:in="media:string";out="media:integer";op=test`)
+	cap, err := NewCapUrnFromString(`cap:in="media:string";out="media:integer";test`)
 	require.NoError(t, err)
 
 	inVal, exists := cap.GetTag("in")
@@ -751,9 +740,7 @@ func Test039_get_tag_returns_direction_specs(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, "media:integer", outVal)
 
-	opVal, exists := cap.GetTag("op")
-	assert.True(t, exists)
-	assert.Equal(t, "test", opVal)
+	assert.True(t, cap.HasMarkerTag("test"))
 
 	inVal2, exists := cap.GetTag("IN")
 	assert.True(t, exists)
@@ -987,7 +974,7 @@ func Test891_direction_semantic_specificity(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Specificity: op=generate_thumbnail (+3) + in/out tags
+	// Specificity: generate_thumbnail (+3) + in/out tags
 	// genericCap has in="media:" (0 tags) + out="media:image;png;thumbnail" (3 tags)
 	// specificCap has in="media:pdf" (1 tag) + out="media:image;png;thumbnail" (3 tags)
 	assert.Equal(t, 4, genericCap.Specificity())
@@ -1017,9 +1004,7 @@ func Test559_without_tag(t *testing.T) {
 	removed := cap.WithoutTag("ext")
 	_, exists := removed.GetTag("ext")
 	assert.False(t, exists)
-	opVal, exists := removed.GetTag("op")
-	assert.True(t, exists)
-	assert.Equal(t, "test", opVal)
+	assert.True(t, removed.HasMarkerTag("test"))
 
 	// Case-insensitive removal
 	removed2 := cap.WithoutTag("EXT")
@@ -1047,9 +1032,7 @@ func Test560_with_in_out_spec(t *testing.T) {
 	changedIn := cap.WithInSpec("media:")
 	assert.Equal(t, "media:", changedIn.InSpec())
 	assert.Equal(t, "media:void", changedIn.OutSpec())
-	opVal, exists := changedIn.GetTag("op")
-	assert.True(t, exists)
-	assert.Equal(t, "test", opVal)
+	assert.True(t, changedIn.HasMarkerTag("test"))
 
 	changedOut := cap.WithOutSpec("media:string")
 	assert.Equal(t, "media:void", changedOut.InSpec())
@@ -1081,7 +1064,7 @@ func Test563_find_all_matches(t *testing.T) {
 	matcher := &CapMatcher{}
 	matches := matcher.FindAllMatches(caps, request)
 
-	// Should find 2 matches (op=test and test;ext=pdf), not op=different
+	// Should find 2 matches (test and test;ext=pdf), not different
 	assert.Equal(t, 2, len(matches))
 	// Sorted by specificity descending: ext=pdf first (more specific)
 	assert.True(t, matches[0].Specificity() >= matches[1].Specificity())
@@ -1109,10 +1092,10 @@ func Test564_are_compatible(t *testing.T) {
 
 	matcher := &CapMatcher{}
 
-	// caps1 (op=test) accepts caps2 (test;ext=pdf) -> compatible
+	// caps1 (test) accepts caps2 (test;ext=pdf) -> compatible
 	assert.True(t, matcher.AreCompatible(caps1, caps2))
 
-	// caps1 (op=test) vs caps3 (op=different) -> not compatible
+	// caps1 (test) vs caps3 (different) -> not compatible
 	assert.False(t, matcher.AreCompatible(caps1, caps3))
 
 	// Empty sets are not compatible
@@ -1241,9 +1224,9 @@ func Test653_identity_routing_isolation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Routing direction: request.Accepts(cap)
-	// specificRequest (has op=test) does NOT accept identity (missing op) -> identity NOT routed
+	// specificRequest (has test) does NOT accept identity (missing op) -> identity NOT routed
 	assert.False(t, specificRequest.Accepts(identity),
-		"Specific request must NOT accept identity (identity lacks op=test)")
+		"Specific request must NOT accept identity (identity lacks test)")
 
 	// But identity request (no constraints) DOES accept specific cap
 	identityRequest, err := NewCapUrnFromTags(map[string]string{})
@@ -1552,13 +1535,11 @@ func Test647_wildcard_009_invalid_out_spec_fails(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TEST650: cap:in;out;op=test preserves other tags
+// TEST650: cap:in=media:;out=media:;test preserves other tags
 func Test650_wildcard_012_preserve_other_tags(t *testing.T) {
 	cap, err := NewCapUrnFromString("cap:in;out;test")
 	require.NoError(t, err)
 	assert.Equal(t, "media:", cap.InSpec())
 	assert.Equal(t, "media:", cap.OutSpec())
-	opVal, ok := cap.GetTag("op")
-	assert.True(t, ok)
-	assert.Equal(t, "test", opVal)
+	assert.True(t, cap.HasMarkerTag("test"))
 }

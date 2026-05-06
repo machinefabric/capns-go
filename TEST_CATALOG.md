@@ -509,7 +509,7 @@ This catalog lists all tests in the Go codebase.
 | test647 | `Test647_wildcard_009_invalid_out_spec_fails` | TEST647: cap:in=media:;out=bar fails (invalid media URN) | urn/cap_urn_test.go:1550 |
 | test648 | `Test648_wildcard_accepts_specific` | TEST648: Wildcard in/out match specific caps | urn/cap_urn_test.go:1180 |
 | test649 | `Test649_specificity_scoring` | TEST649: Specificity - wildcard has 0, specific has tag count | urn/cap_urn_test.go:1195 |
-| test650 | `Test650_wildcard_012_preserve_other_tags` | TEST650: cap:in;out;op=test preserves other tags | urn/cap_urn_test.go:1556 |
+| test650 | `Test650_wildcard_012_preserve_other_tags` | TEST650: cap:in=media:;out=media:;test preserves other tags | urn/cap_urn_test.go:1556 |
 | test651 | `Test651_identity_forms_equivalent` | TEST651: All identity forms produce the same CapUrn | urn/cap_urn_test.go:1207 |
 | test652 | `Test652_cap_identity_constant_works` | TEST652: CAP_IDENTITY constant matches identity caps regardless of string form | urn/cap_urn_test.go:1221 |
 | test653 | `Test653_identity_routing_isolation` | TEST653: Identity (no tags) does not match specific requests via routing | urn/cap_urn_test.go:1236 |

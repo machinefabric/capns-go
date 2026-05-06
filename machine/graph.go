@@ -352,22 +352,16 @@ func (m *Machine) ToMachineNotationFormatted(format NotationFormat) string {
 			return name
 		}
 
-		// Collect alias -> edge index mapping.
+		// Collect alias -> edge index mapping. The Rust reference
+		// implementation uses pure-index aliases (`edge_<idx>`) for every
+		// edge — there is no privileged tag (such as the legacy `op=…`
+		// tag) we can derive a friendlier name from, so we mirror that
+		// scheme here.
 		aliases := make(map[string]int) // alias -> edge index within strand
 		aliasOrder := make([]string, len(strand.edges))
-		aliasCounters := make(map[string]int)
 
-		for eIdx, edge := range strand.edges {
-			baseAlias, ok := edge.CapUrn.GetTag("op")
-			if !ok || baseAlias == "" {
-				baseAlias = fmt.Sprintf("edge_%d", edgeCounter)
-			}
-			count := aliasCounters[baseAlias]
-			alias := baseAlias
-			if count > 0 {
-				alias = fmt.Sprintf("%s_%d", baseAlias, count)
-			}
-			aliasCounters[baseAlias] = count + 1
+		for eIdx := range strand.edges {
+			alias := fmt.Sprintf("edge_%d", edgeCounter)
 			aliases[alias] = eIdx
 			aliasOrder[eIdx] = alias
 			edgeCounter++
